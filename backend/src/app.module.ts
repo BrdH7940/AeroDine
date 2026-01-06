@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { MenusModule } from './menus/menus.module';
 import { OrdersModule } from './orders/orders.module';
+import { DatabaseModule } from './database/database.module';
 import { SocketGateway } from './socket/socket.gateway';
 import configuration from './config/configuration';
 
@@ -16,6 +17,7 @@ import configuration from './config/configuration';
       load: [configuration],
       envFilePath: ['.env.local', '.env'],
     }),
+    DatabaseModule,
     AuthModule,
     UsersModule,
     MenusModule,
