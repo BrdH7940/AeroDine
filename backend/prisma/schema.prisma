@@ -1,0 +1,285 @@
+// File: backend/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // Đã chốt PostgreSQL
+  url      = env("DATABASE_URL")
+}
+
+// --- ENUMS (PostgreSQL hỗ trợ Native Enum rất mạnh) ---
+
+enum UserRole {
+  ADMIN
+  WAITER
+  KITCHEN
+  CUSTOMER
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+}
+
+enum ItemStatus {
+  AVAILABLE
+  SOLD_OUT
+  HIDDEN
+}
+
+enum OrderStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum OrderItemStatus {
+  QUEUED
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  QR_CODE
+  CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+// --- MODELS ---
+
+model Restaurant {
+  id             Int             @id @default(autoincrement())
+  name           String
+  address        String?
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  users          User[]
+  tables         Table[]
+  categories     Category[]
+  modifierGroups ModifierGroup[]
+  orders         Order[]
+  menuItems      MenuItem[]
+
+  @@map("restaurants")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  restaurantId Int?      @map("restaurant_id")
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  fullName     String    @map("full_name")
+  role         UserRole  @default(CUSTOMER)
+  refreshToken String?   @map("refresh_token")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  orders       Order[]     @relation("CustomerOrders")
+  servedOrders Order[]     @relation("WaiterOrders")
+  reviews      Review[]
+
+  @@map("users")
+}
+
+model Table {
+  id           Int         @id @default(autoincrement())
+  restaurantId Int         @map("restaurant_id")
+  name         String
+  capacity     Int         @default(4)
+  status       TableStatus @default(AVAILABLE)
+  token        String      @unique
+  isActive     Boolean     @default(true) @map("is_active")
+
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orders       Order[]
+
+  @@map("tables")
+}
+
+model Category {
+  id           Int        @id @default(autoincrement())
+  restaurantId Int        @map("restaurant_id")
+  name         String
+  image        String?
+  rank         Int        @default(0)
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items        MenuItem[]
+
+  @@map("categories")
+}
+
+model MenuItem {
+  id           Int        @id @default(autoincrement())
+  restaurantId Int        @map("restaurant_id")
+  categoryId   Int        @map("category_id")
+  name         String
+  description  String?    @db.Text
+  basePrice    Decimal    @map("base_price") @db.Decimal(10, 2) // Chính xác cho tiền tệ
+  status       ItemStatus @default(AVAILABLE)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category     Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  images         MenuItemImage[]
+  modifierGroups ItemModifierGroup[]
+  orderItems     OrderItem[]
+  reviews        Review[]
+
+  @@index([restaurantId, categoryId])
+  @@map("menu_items")
+}
+
+model MenuItemImage {
+  id         Int      @id @default(autoincrement())
+  menuItemId Int      @map("menu_item_id")
+  url        String
+  rank       Int      @default(0)
+
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@map("menu_item_images")
+}
+
+model ItemModifierGroup {
+  itemId        Int      @map("item_id")
+  groupId       Int      @map("group_id")
+
+  menuItem      MenuItem      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  modifierGroup ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, groupId])
+  @@map("item_modifier_groups")
+}
+
+model ModifierGroup {
+  id           Int      @id @default(autoincrement())
+  restaurantId Int      @map("restaurant_id")
+  name         String
+  minSelection Int      @default(0) @map("min_selection")
+  maxSelection Int      @default(1) @map("max_selection")
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  options      ModifierOption[]
+  items        ItemModifierGroup[]
+
+  @@map("modifier_groups")
+}
+
+model ModifierOption {
+  id              Int     @id @default(autoincrement())
+  groupId         Int     @map("group_id")
+  name            String
+  priceAdjustment Decimal @default(0) @map("price_adjustment") @db.Decimal(10, 2)
+  isAvailable     Boolean @default(true) @map("is_available")
+
+  group           ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  orderItems      OrderItemModifier[]
+
+  @@map("modifier_options")
+}
+
+model Order {
+  id           Int         @id @default(autoincrement())
+  restaurantId Int         @map("restaurant_id")
+  tableId      Int         @map("table_id")
+  userId       Int?        @map("user_id")
+  waiterId     Int?        @map("waiter_id")
+
+  status       OrderStatus @default(PENDING)
+  totalAmount  Decimal     @default(0) @map("total_amount") @db.Decimal(10, 2)
+  guestCount   Int         @default(1) @map("guest_count")
+  note         String?
+
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table        Table       @relation(fields: [tableId], references: [id])
+  customer     User?       @relation("CustomerOrders", fields: [userId], references: [id])
+  waiter       User?       @relation("WaiterOrders", fields: [waiterId], references: [id])
+
+  items        OrderItem[]
+  payment      Payment?
+
+  @@index([restaurantId, status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id           Int             @id @default(autoincrement())
+  orderId      Int             @map("order_id")
+  menuItemId   Int             @map("menu_item_id")
+  name         String
+  quantity     Int             @default(1)
+  pricePerUnit Decimal         @map("price_per_unit") @db.Decimal(10, 2)
+  status       OrderItemStatus @default(QUEUED)
+  note         String?
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  order        Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem     MenuItem        @relation(fields: [menuItemId], references: [id])
+  modifiers    OrderItemModifier[]
+
+  @@map("order_items")
+}
+
+model OrderItemModifier {
+  id               Int     @id @default(autoincrement())
+  orderItemId      Int     @map("order_item_id")
+  modifierOptionId Int?    @map("modifier_option_id")
+  modifierName     String
+  priceAdjustment  Decimal @map("price_adjustment") @db.Decimal(10, 2)
+
+  orderItem        OrderItem       @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  modifierOption   ModifierOption? @relation(fields: [modifierOptionId], references: [id], onDelete: SetNull)
+
+  @@map("order_item_modifiers")
+}
+
+model Payment {
+  id        Int           @id @default(autoincrement())
+  orderId   Int           @unique @map("order_id")
+  amount    Decimal       @db.Decimal(10, 2)
+  method    PaymentMethod
+  status    PaymentStatus @default(PENDING)
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  order     Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Review {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  menuItemId Int      @map("menu_item_id")
+  rating     Int      @default(5)
+  comment    String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
+
