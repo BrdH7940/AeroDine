@@ -72,7 +72,6 @@ export class UsersService {
             email: true,
             fullName: true,
             role: true,
-            restaurantId: true,
             createdAt: true,
             updatedAt: true,
         }

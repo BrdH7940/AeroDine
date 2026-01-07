@@ -26,12 +26,7 @@ export class AuthService {
         }
 
         const user = await this.usersService.create(registerDto)
-        const token = await this.signToken(
-            user.id,
-            user.email,
-            user.role,
-            user.restaurantId
-        )
+        const token = await this.signToken(user.id, user.email, user.role)
         return { access_token: token, user }
     }
 
@@ -49,23 +44,13 @@ export class AuthService {
             throw new UnauthorizedException('Invalid credentials')
         }
 
-        const token = await this.signToken(
-            user.id,
-            user.email,
-            user.role,
-            user.restaurantId
-        )
+        const token = await this.signToken(user.id, user.email, user.role)
         const { passwordHash, refreshToken, ...userSafe } = user
         return { access_token: token, user: userSafe }
     }
 
-    private async signToken(
-        userId: number,
-        email: string,
-        role: UserRole,
-        restaurantId?: number | null
-    ) {
-        const payload = { sub: userId, email, role, restaurantId }
+    private async signToken(userId: number, email: string, role: UserRole) {
+        const payload = { sub: userId, email, role }
         const secret = this.configService.get<string>('jwt.secret')
         if (!secret) {
             throw new Error('JWT secret not configured')

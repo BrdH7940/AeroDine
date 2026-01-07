@@ -5,7 +5,6 @@ import {
     IsOptional,
     IsString,
     MinLength,
-    IsInt,
 } from 'class-validator'
 import { UserRole } from '@aerodine/shared-types'
 
@@ -24,8 +23,4 @@ export class CreateUserDto {
     @IsEnum(UserRole)
     @IsOptional()
     role?: UserRole
-
-    @IsInt()
-    @IsOptional()
-    restaurantId?: number
 }

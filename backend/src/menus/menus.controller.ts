@@ -7,6 +7,7 @@ import {
     Post,
     Query,
     UseGuards,
+    BadRequestException,
 } from '@nestjs/common'
 import { MenusService } from './menus.service'
 import { CreateCategoryDto } from './dto/create-category.dto'
@@ -19,8 +20,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../auth/guards/roles.guard'
 import { Roles } from '../auth/decorators/roles.decorator'
 import { UserRole } from '@aerodine/shared-types'
-import { CurrentUser } from '../auth/decorators/current-user.decorator'
-import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiQuery, ApiTags, ApiOperation } from '@nestjs/swagger'
 
 @ApiTags('menus')
 @Controller()
@@ -32,15 +32,22 @@ export class MenusController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
     @Post('categories')
-    createCategory(@Body() dto: CreateCategoryDto, @CurrentUser() user: any) {
-        const restaurantId = dto.restaurantId ?? user?.restaurantId
-        return this.menusService.createCategory({
-            ...dto,
-            restaurantId,
-        })
+    @ApiOperation({
+        summary: 'Create category (ADMIN only)',
+        description:
+            'ADMIN must specify restaurantId to create category for any restaurant',
+    })
+    createCategory(@Body() dto: CreateCategoryDto) {
+        // ADMIN must specify restaurantId explicitly
+        if (!dto.restaurantId) {
+            throw new BadRequestException('restaurantId is required')
+        }
+        return this.menusService.createCategory(dto)
     }
 
     @Get('categories')
+    @ApiOperation({ summary: 'Get all categories for a restaurant (Public)' })
+    @ApiQuery({ name: 'restaurantId', required: true, type: Number })
     getCategories(@Query('restaurantId') restaurantId: string) {
         return this.menusService.findAllCategories(Number(restaurantId))
     }
@@ -49,6 +56,7 @@ export class MenusController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
     @Patch('categories/:id')
+    @ApiOperation({ summary: 'Update category (ADMIN only)' })
     updateCategory(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
         return this.menusService.updateCategory(+id, dto)
     }
@@ -58,18 +66,23 @@ export class MenusController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
     @Post('modifiers')
-    createModifierGroup(
-        @Body() dto: CreateModifierGroupDto,
-        @CurrentUser() user: any
-    ) {
-        const restaurantId = dto.restaurantId ?? user?.restaurantId
-        return this.menusService.createModifierGroup({
-            ...dto,
-            restaurantId,
-        })
+    @ApiOperation({
+        summary: 'Create modifier group (ADMIN only)',
+        description: 'ADMIN must specify restaurantId',
+    })
+    createModifierGroup(@Body() dto: CreateModifierGroupDto) {
+        // ADMIN must specify restaurantId explicitly
+        if (!dto.restaurantId) {
+            throw new BadRequestException('restaurantId is required')
+        }
+        return this.menusService.createModifierGroup(dto)
     }
 
     @Get('modifiers')
+    @ApiOperation({
+        summary: 'Get all modifier groups for a restaurant (Public)',
+    })
+    @ApiQuery({ name: 'restaurantId', required: true, type: Number })
     getModifierGroups(@Query('restaurantId') restaurantId: string) {
         return this.menusService.findAllModifierGroups(Number(restaurantId))
     }
@@ -78,6 +91,7 @@ export class MenusController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
     @Post('modifier-options')
+    @ApiOperation({ summary: 'Create modifier option (ADMIN only)' })
     createModifierOption(@Body() dto: CreateModifierOptionDto) {
         return this.menusService.createModifierOption(dto)
     }
@@ -87,20 +101,32 @@ export class MenusController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
     @Post('menu-items')
-    createMenuItem(
-        @Body() dto: CreateMenuItemDto,
-        @CurrentUser() user: any
-    ) {
-        const restaurantId = dto.restaurantId ?? user?.restaurantId
-        return this.menusService.createMenuItem({
-            ...dto,
-            restaurantId,
-        })
+    @ApiOperation({
+        summary: 'Create menu item with image upload (ADMIN only)',
+        description:
+            'ADMIN must specify restaurantId. Optional image field for Cloudinary upload.',
+    })
+    createMenuItem(@Body() dto: CreateMenuItemDto) {
+        // ADMIN must specify restaurantId explicitly
+        if (!dto.restaurantId) {
+            throw new BadRequestException('restaurantId is required')
+        }
+        return this.menusService.createMenuItem(dto)
     }
 
     @Get('menu-items')
+    @ApiOperation({
+        summary: 'Get menu items with fuzzy search (Public)',
+        description:
+            'Search by name (case-insensitive) using query param ?q=...',
+    })
     @ApiQuery({ name: 'restaurantId', required: true, type: Number })
-    @ApiQuery({ name: 'q', required: false, type: String })
+    @ApiQuery({
+        name: 'q',
+        required: false,
+        type: String,
+        description: 'Search query for fuzzy name matching',
+    })
     getMenuItems(
         @Query('restaurantId') restaurantId: string,
         @Query('q') q?: string
@@ -112,10 +138,8 @@ export class MenusController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
     @Patch('menu-items/:id')
-    updateMenuItem(
-        @Param('id') id: string,
-        @Body() dto: UpdateMenuItemDto
-    ) {
+    @ApiOperation({ summary: 'Update menu item (ADMIN only)' })
+    updateMenuItem(@Param('id') id: string, @Body() dto: UpdateMenuItemDto) {
         return this.menusService.updateMenuItem(+id, dto)
     }
 }

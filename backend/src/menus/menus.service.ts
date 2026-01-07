@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../database/prisma.service'
 import { CloudinaryService } from '../common/cloudinary/cloudinary.service'
 import { CreateCategoryDto } from './dto/create-category.dto'
@@ -15,8 +15,20 @@ export class MenusService {
         private readonly cloudinary: CloudinaryService
     ) {}
 
+    private async validateRestaurant(restaurantId: number): Promise<void> {
+        const restaurant = await this.prisma.restaurant.findUnique({
+            where: { id: restaurantId },
+        })
+        if (!restaurant) {
+            throw new NotFoundException(
+                `Restaurant with ID ${restaurantId} not found`
+            )
+        }
+    }
+
     // Categories
-    createCategory(dto: CreateCategoryDto) {
+    async createCategory(dto: CreateCategoryDto) {
+        await this.validateRestaurant(dto.restaurantId)
         return this.prisma.category.create({
             data: dto,
         })
@@ -37,7 +49,8 @@ export class MenusService {
     }
 
     // Modifier groups
-    createModifierGroup(dto: CreateModifierGroupDto) {
+    async createModifierGroup(dto: CreateModifierGroupDto) {
+        await this.validateRestaurant(dto.restaurantId)
         return this.prisma.modifierGroup.create({
             data: dto,
         })
@@ -50,8 +63,17 @@ export class MenusService {
         })
     }
 
-    createModifierOption(dto: CreateModifierOptionDto) {
+    async createModifierOption(dto: CreateModifierOptionDto) {
         const { groupId, ...rest } = dto
+        // Validate modifier group exists
+        const group = await this.prisma.modifierGroup.findUnique({
+            where: { id: groupId },
+        })
+        if (!group) {
+            throw new NotFoundException(
+                `Modifier group with ID ${groupId} not found`
+            )
+        }
         return this.prisma.modifierOption.create({
             data: {
                 ...rest,
@@ -65,6 +87,32 @@ export class MenusService {
     // Menu items
     async createMenuItem(dto: CreateMenuItemDto) {
         const { image, modifierGroupIds, ...rest } = dto
+
+        // Validate restaurant and category exist
+        await this.validateRestaurant(dto.restaurantId)
+        const category = await this.prisma.category.findUnique({
+            where: { id: dto.categoryId },
+        })
+        if (!category) {
+            throw new NotFoundException(
+                `Category with ID ${dto.categoryId} not found`
+            )
+        }
+
+        // Validate modifier groups if provided
+        if (modifierGroupIds && modifierGroupIds.length > 0) {
+            const groups = await this.prisma.modifierGroup.findMany({
+                where: {
+                    id: { in: modifierGroupIds },
+                    restaurantId: dto.restaurantId,
+                },
+            })
+            if (groups.length !== modifierGroupIds.length) {
+                throw new NotFoundException(
+                    'One or more modifier groups not found or do not belong to this restaurant'
+                )
+            }
+        }
 
         let uploadedImageUrl: string | undefined
         if (image) {
