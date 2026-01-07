@@ -21,7 +21,7 @@ export class AuthController {
         return this.authService.login(loginDto)
     }
 
-    @ApiBearerAuth()
+    @ApiBearerAuth('JWT-auth')
     @UseGuards(JwtAuthGuard)
     @Get('profile')
     profile(@CurrentUser() user: any) {
