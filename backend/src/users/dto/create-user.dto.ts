@@ -1,1 +1,31 @@
-export class CreateUserDto {}
+import {
+    IsEmail,
+    IsEnum,
+    IsNotEmpty,
+    IsOptional,
+    IsString,
+    MinLength,
+    IsInt,
+} from 'class-validator'
+import { UserRole } from '@aerodine/shared-types'
+
+export class CreateUserDto {
+    @IsEmail()
+    email: string
+
+    @IsString()
+    @MinLength(6)
+    password: string
+
+    @IsString()
+    @IsNotEmpty()
+    fullName: string
+
+    @IsEnum(UserRole)
+    @IsOptional()
+    role?: UserRole
+
+    @IsInt()
+    @IsOptional()
+    restaurantId?: number
+}
