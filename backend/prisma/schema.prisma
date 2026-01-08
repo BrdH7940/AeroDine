@@ -48,6 +48,7 @@ enum OrderItemStatus {
 enum PaymentMethod {
   CASH
   QR_CODE
+  E_WALLET
   CARD
 }
 
@@ -253,15 +254,16 @@ model OrderItemModifier {
 }
 
 model Payment {
-  id        Int           @id @default(autoincrement())
-  orderId   Int           @unique @map("order_id")
-  amount    Decimal       @db.Decimal(10, 2)
-  method    PaymentMethod
-  status    PaymentStatus @default(PENDING)
-  createdAt DateTime      @default(now()) @map("created_at")
-  updatedAt DateTime      @updatedAt @map("updated_at")
+  id                    Int           @id @default(autoincrement())
+  orderId               Int           @unique @map("order_id")
+  amount                Decimal       @db.Decimal(10, 2)
+  method                PaymentMethod
+  status                PaymentStatus @default(PENDING)
+  externalTransactionId String?       @map("external_transaction_id")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
 
-  order     Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order                 Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("payments")
 }

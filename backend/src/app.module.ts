@@ -7,6 +7,7 @@ import { UsersModule } from './users/users.module';
 import { MenusModule } from './menus/menus.module';
 import { OrdersModule } from './orders/orders.module';
 import { TablesModule } from './tables/tables.module';
+import { PaymentsModule } from './payments/payments.module';
 import { DatabaseModule } from './database/database.module';
 import { SocketGateway } from './socket/socket.gateway';
 import configuration from './config/configuration';
@@ -24,6 +25,7 @@ import configuration from './config/configuration';
     MenusModule,
     OrdersModule,
     TablesModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService, SocketGateway],
