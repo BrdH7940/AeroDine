@@ -18,6 +18,10 @@ export default () => ({
         endpoint: process.env.MOMO_ENDPOINT || 'https://test-payment.momo.vn/v2/gateway/api/create',
         appBaseUrl: process.env.APP_BASE_URL || 'http://localhost:3000',
     },
+    stripe: {
+        secretKey: process.env.STRIPE_SECRET_KEY,
+        webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+    },
     cors: {
         origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
         credentials: true,

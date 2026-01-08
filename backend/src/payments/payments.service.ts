@@ -3,11 +3,17 @@ import {
     NotFoundException,
     BadRequestException,
     Logger,
+    ServiceUnavailableException,
 } from '@nestjs/common'
 import { PrismaService } from '../database/prisma.service'
 import { IPaymentStrategy } from './strategies/payment.strategy.interface'
-import { MomoStrategy } from './strategies/momo.strategy'
-import { PaymentMethod, PaymentStatus, OrderStatus } from '@aerodine/shared-types'
+// import { MomoStrategy } from './strategies/momo.strategy' // FROZEN: MoMo temporarily disabled
+import { StripeStrategy } from './strategies/stripe.strategy'
+import {
+    PaymentMethod,
+    PaymentStatus,
+    OrderStatus,
+} from '@aerodine/shared-types'
 
 /**
  * Payment Service (Context in Strategy Pattern)
@@ -20,15 +26,27 @@ export class PaymentsService {
 
     constructor(
         private readonly prisma: PrismaService,
-        private readonly momoStrategy: MomoStrategy
+        // private readonly momoStrategy: MomoStrategy // FROZEN: MoMo temporarily disabled
+        private readonly stripeStrategy: StripeStrategy
     ) {
         // Initialize strategies map
         this.strategies = new Map()
-        // Map QR_CODE and E_WALLET to MoMo for Vietnam market
-        this.strategies.set(PaymentMethod.QR_CODE, this.momoStrategy)
-        this.strategies.set(PaymentMethod.E_WALLET, this.momoStrategy)
-        // Future: Add more strategies
-        // this.strategies.set(PaymentMethod.CARD, stripeStrategy)
+
+        // Map CARD to Stripe
+        this.strategies.set(PaymentMethod.CARD, this.stripeStrategy)
+
+        // Temporarily map QR_CODE and E_WALLET to Stripe for testing
+        // TODO: Re-enable MoMo when credentials are available
+        this.strategies.set(PaymentMethod.QR_CODE, this.stripeStrategy)
+        this.strategies.set(PaymentMethod.E_WALLET, this.stripeStrategy)
+
+        // FROZEN: MoMo temporarily disabled - uncomment when credentials are available
+        // try {
+        //     this.strategies.set(PaymentMethod.QR_CODE, this.momoStrategy)
+        //     this.strategies.set(PaymentMethod.E_WALLET, this.momoStrategy)
+        // } catch (error) {
+        //     this.logger.warn('MoMo strategy not available, using Stripe as fallback')
+        // }
     }
 
     /**
@@ -64,6 +82,15 @@ export class PaymentsService {
         // Get strategy for payment method
         const strategy = this.strategies.get(method)
         if (!strategy) {
+            // Check if it's a MoMo method (currently frozen)
+            if (
+                method === PaymentMethod.QR_CODE ||
+                method === PaymentMethod.E_WALLET
+            ) {
+                throw new ServiceUnavailableException(
+                    `Payment method ${method} is temporarily unavailable. Please use CARD instead.`
+                )
+            }
             throw new BadRequestException(
                 `Payment method ${method} is not supported`
             )
@@ -97,9 +124,8 @@ export class PaymentsService {
             payment,
         }
 
-        const transactionResult = await strategy.createTransaction(
-            orderWithPayment
-        )
+        const transactionResult =
+            await strategy.createTransaction(orderWithPayment)
 
         this.logger.log(
             `Payment created for order ${orderId}: ${transactionResult.payUrl}`
@@ -110,6 +136,32 @@ export class PaymentsService {
             paymentId: payment.id,
             orderId: order.id,
         }
+    }
+
+    /**
+     * Handle Stripe webhook IPN
+     */
+    async handleStripeIPN(
+        payload: string | Buffer,
+        signature: string
+    ): Promise<{ success: boolean }> {
+        const strategy = this.strategies.get(PaymentMethod.CARD)
+        if (!strategy || !(strategy instanceof StripeStrategy)) {
+            this.logger.error('Stripe strategy not found')
+            return { success: false }
+        }
+
+        // Verify IPN with signature
+        const verificationResult = await strategy.verifyIPN(payload, signature)
+
+        if (!verificationResult.success) {
+            this.logger.warn(
+                `Stripe webhook verification failed for order ${verificationResult.orderId}`
+            )
+            return { success: false }
+        }
+
+        return this.updatePaymentStatus(verificationResult)
     }
 
     /**
@@ -139,6 +191,18 @@ export class PaymentsService {
             return { success: false }
         }
 
+        return this.updatePaymentStatus(verificationResult)
+    }
+
+    /**
+     * Update payment status after successful IPN verification
+     */
+    private async updatePaymentStatus(verificationResult: {
+        success: boolean
+        orderId: number
+        transactionId: string
+        amount?: number
+    }): Promise<{ success: boolean }> {
         // Update payment status
         try {
             const payment = await this.prisma.payment.findUnique({
@@ -218,4 +282,3 @@ export class PaymentsService {
         return payment
     }
 }
-
