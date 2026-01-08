@@ -1,34 +1,242 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
-import { OrdersService } from './orders.service';
-import { CreateOrderDto } from './dto/create-order.dto';
-import { UpdateOrderDto } from './dto/update-order.dto';
+import {
+    Controller,
+    Get,
+    Post,
+    Body,
+    Patch,
+    Param,
+    Delete,
+    Query,
+    ParseIntPipe,
+    HttpCode,
+    HttpStatus,
+} from '@nestjs/common'
+import { OrdersService } from './orders.service'
+import { CreateOrderDto, AddItemsToOrderDto } from './dto/create-order.dto'
+import {
+    UpdateOrderDto,
+    UpdateOrderItemStatusDto,
+    AssignWaiterDto,
+    AcceptRejectOrderDto,
+} from './dto/update-order.dto'
+import { OrderStatus } from '@prisma/client'
 
+/**
+ * Orders Controller - REST API endpoints for order management
+ *
+ * @author Dev 2 - Operations Team
+ */
 @Controller('orders')
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+    constructor(private readonly ordersService: OrdersService) {}
 
-  @Post()
-  create(@Body() createOrderDto: CreateOrderDto) {
-    return this.ordersService.create(createOrderDto);
-  }
+    // ========================================================================
+    // ORDER CRUD
+    // ========================================================================
 
-  @Get()
-  findAll() {
-    return this.ordersService.findAll();
-  }
+    /**
+     * Create a new order
+     * POST /orders
+     */
+    @Post()
+    create(@Body() createOrderDto: CreateOrderDto) {
+        return this.ordersService.create(createOrderDto)
+    }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.ordersService.findOne(+id);
-  }
+    /**
+     * Get all orders with filters
+     * GET /orders?restaurantId=1&status=PENDING&page=1&pageSize=20
+     */
+    @Get()
+    findAll(
+        @Query('restaurantId') restaurantId?: string,
+        @Query('tableId') tableId?: string,
+        @Query('waiterId') waiterId?: string,
+        @Query('status') status?: OrderStatus | string,
+        @Query('fromDate') fromDate?: string,
+        @Query('toDate') toDate?: string,
+        @Query('page') page?: string,
+        @Query('pageSize') pageSize?: string,
+    ) {
+        const filters = {
+            restaurantId: restaurantId ? parseInt(restaurantId) : undefined,
+            tableId: tableId ? parseInt(tableId) : undefined,
+            waiterId: waiterId ? parseInt(waiterId) : undefined,
+            status: status
+                ? status.includes(',')
+                    ? (status.split(',') as OrderStatus[])
+                    : (status as OrderStatus)
+                : undefined,
+            fromDate: fromDate ? new Date(fromDate) : undefined,
+            toDate: toDate ? new Date(toDate) : undefined,
+            page: page ? parseInt(page) : 1,
+            pageSize: pageSize ? parseInt(pageSize) : 20,
+        }
+        return this.ordersService.findAll(filters)
+    }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateOrderDto: UpdateOrderDto) {
-    return this.ordersService.update(+id, updateOrderDto);
-  }
+    /**
+     * Get one order by ID
+     * GET /orders/:id
+     */
+    @Get(':id')
+    findOne(@Param('id', ParseIntPipe) id: number) {
+        return this.ordersService.findOne(id)
+    }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.ordersService.remove(+id);
-  }
+    /**
+     * Update order
+     * PATCH /orders/:id
+     */
+    @Patch(':id')
+    update(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() updateOrderDto: UpdateOrderDto,
+    ) {
+        return this.ordersService.update(id, updateOrderDto)
+    }
+
+    /**
+     * Cancel order
+     * DELETE /orders/:id
+     */
+    @Delete(':id')
+    @HttpCode(HttpStatus.OK)
+    cancel(
+        @Param('id', ParseIntPipe) id: number,
+        @Query('reason') reason?: string,
+    ) {
+        return this.ordersService.cancel(id, reason)
+    }
+
+    // ========================================================================
+    // ORDER ITEMS
+    // ========================================================================
+
+    /**
+     * Add items to existing order
+     * POST /orders/:id/items
+     */
+    @Post(':id/items')
+    addItems(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() addItemsDto: AddItemsToOrderDto,
+    ) {
+        return this.ordersService.addItemsToOrder(id, addItemsDto)
+    }
+
+    // ========================================================================
+    // WAITER OPERATIONS
+    // ========================================================================
+
+    /**
+     * Get pending orders for waiter dashboard
+     * GET /orders/waiter/pending?restaurantId=1
+     */
+    @Get('waiter/pending')
+    getPendingOrders(@Query('restaurantId', ParseIntPipe) restaurantId: number) {
+        return this.ordersService.getPendingOrders(restaurantId)
+    }
+
+    /**
+     * Assign waiter to order
+     * POST /orders/:id/assign
+     */
+    @Post(':id/assign')
+    assignWaiter(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() assignDto: AssignWaiterDto,
+    ) {
+        return this.ordersService.assignWaiter(id, assignDto)
+    }
+
+    /**
+     * Accept order (waiter)
+     * POST /orders/:id/accept
+     */
+    @Post(':id/accept')
+    acceptOrder(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { waiterId: number },
+    ) {
+        return this.ordersService.acceptOrder(id, body.waiterId)
+    }
+
+    /**
+     * Reject order (waiter)
+     * POST /orders/:id/reject
+     */
+    @Post(':id/reject')
+    rejectOrder(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: AcceptRejectOrderDto,
+    ) {
+        return this.ordersService.rejectOrder(id, body.waiterId, body.reason)
+    }
+
+    /**
+     * Mark order as served
+     * POST /orders/:id/serve
+     */
+    @Post(':id/serve')
+    markServed(@Param('id', ParseIntPipe) id: number) {
+        return this.ordersService.markOrderServed(id)
+    }
+
+    // ========================================================================
+    // KITCHEN OPERATIONS
+    // ========================================================================
+
+    /**
+     * Get orders for Kitchen Display System
+     * GET /orders/kitchen?restaurantId=1
+     */
+    @Get('kitchen/display')
+    getKitchenOrders(@Query('restaurantId', ParseIntPipe) restaurantId: number) {
+        return this.ordersService.getKitchenOrders(restaurantId)
+    }
+
+    /**
+     * Update order item status (Kitchen)
+     * PATCH /orders/items/:itemId/status
+     */
+    @Patch('items/:itemId/status')
+    updateItemStatus(
+        @Param('itemId', ParseIntPipe) itemId: number,
+        @Body() updateDto: UpdateOrderItemStatusDto,
+    ) {
+        return this.ordersService.updateOrderItemStatus(itemId, updateDto)
+    }
+
+    /**
+     * Start preparing item (Kitchen)
+     * POST /orders/items/:itemId/start
+     */
+    @Post('items/:itemId/start')
+    startPreparingItem(@Param('itemId', ParseIntPipe) itemId: number) {
+        return this.ordersService.startPreparingItem(itemId)
+    }
+
+    /**
+     * Mark item as ready (Kitchen)
+     * POST /orders/items/:itemId/ready
+     */
+    @Post('items/:itemId/ready')
+    markItemReady(@Param('itemId', ParseIntPipe) itemId: number) {
+        return this.ordersService.markItemReady(itemId)
+    }
+
+    // ========================================================================
+    // BILL OPERATIONS
+    // ========================================================================
+
+    /**
+     * Request bill for order
+     * POST /orders/:id/bill
+     */
+    @Post(':id/bill')
+    requestBill(@Param('id', ParseIntPipe) id: number) {
+        return this.ordersService.requestBill(id)
+    }
 }
+
