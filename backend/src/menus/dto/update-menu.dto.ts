@@ -1,4 +1,11 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateMenuDto } from './create-menu.dto';
+import { CreateMenuItemImageDto, CreateMenuItemDto } from './create-menu.dto';
 
-export class UpdateMenuDto extends PartialType(CreateMenuDto) {}
+export class UpdateMenuDto implements Partial<CreateMenuItemDto> {
+  restaurantId?: number;
+  categoryId?: number;
+  name?: string;
+  description?: string;
+  basePrice?: number;
+  status?: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN';
+  images?: CreateMenuItemImageDto[];
+}
