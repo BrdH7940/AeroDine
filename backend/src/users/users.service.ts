@@ -59,6 +59,16 @@ export class UsersService {
         })
     }
 
+    /**
+     * Update user password by ID
+     */
+    async updatePassword(id: number, passwordHash: string): Promise<void> {
+        await this.prisma.user.update({
+            where: { id },
+            data: { passwordHash },
+        })
+    }
+
     async remove(id: number) {
         return this.prisma.user.delete({
             where: { id },

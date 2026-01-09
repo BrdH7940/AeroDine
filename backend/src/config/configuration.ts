@@ -22,6 +22,12 @@ export default () => ({
         secretKey: process.env.STRIPE_SECRET_KEY,
         webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
     },
+    mail: {
+        host: process.env.MAIL_HOST,
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_PASS,
+        from: process.env.MAIL_FROM || process.env.MAIL_USER,
+    },
     cors: {
         origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
         credentials: true,
