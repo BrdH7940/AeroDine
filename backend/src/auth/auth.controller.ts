@@ -1,11 +1,23 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common'
+import {
+    Body,
+    Controller,
+    Get,
+    Post,
+    UseGuards,
+    Req,
+    Res,
+    HttpStatus,
+} from '@nestjs/common'
+import { Request, Response } from 'express'
 import { AuthService } from './auth.service'
 import { RegisterDto } from './dto/create-auth.dto'
 import { LoginDto } from './dto/update-auth.dto'
 import { ForgotPasswordDto } from './dto/forgot-password.dto'
 import { ResetPasswordDto } from './dto/reset-password.dto'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
+import { GoogleAuthGuard } from './guards/google-auth.guard'
 import { CurrentUser } from './decorators/current-user.decorator'
+import { ConfigService } from '@nestjs/config'
 import {
     ApiBearerAuth,
     ApiTags,
@@ -16,7 +28,10 @@ import {
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-    constructor(private readonly authService: AuthService) {}
+    constructor(
+        private readonly authService: AuthService,
+        private readonly configService: ConfigService
+    ) {}
 
     @Post('register')
     @ApiOperation({
@@ -86,5 +101,65 @@ export class AuthController {
     })
     async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
         return this.authService.resetPassword(resetPasswordDto)
+    }
+
+    @Get('google')
+    @UseGuards(GoogleAuthGuard)
+    @ApiOperation({
+        summary: 'Initiate Google OAuth login',
+        description:
+            'Redirects to Google OAuth consent screen. After user approves, they are redirected to /auth/google/callback',
+    })
+    @ApiResponse({
+        status: 302,
+        description: 'Redirects to Google OAuth',
+    })
+    async googleAuth() {
+        // Guard handles the redirect
+    }
+
+    @Get('google/callback')
+    @UseGuards(GoogleAuthGuard)
+    @ApiOperation({
+        summary: 'Google OAuth callback',
+        description:
+            'Handles the callback from Google OAuth. Generates JWT token and redirects to frontend with token.',
+    })
+    @ApiResponse({
+        status: 302,
+        description: 'Redirects to frontend with JWT token',
+    })
+    async googleAuthCallback(@Req() req: Request, @Res() res: Response) {
+        const user = req.user as any
+
+        if (!user) {
+            const frontendUrl =
+                this.configService.get<string>('frontend.url') ||
+                'http://localhost:5173'
+            return res.redirect(
+                `${frontendUrl}/auth/error?message=Google authentication failed`
+            )
+        }
+
+        try {
+            const result = await this.authService.googleLogin(user)
+            const frontendUrl =
+                this.configService.get<string>('frontend.url') ||
+                'http://localhost:5173'
+
+            // Redirect to frontend with token in query parameter
+            return res.redirect(
+                `${frontendUrl}/auth/success?token=${result.access_token}`
+            )
+        } catch (error) {
+            const frontendUrl =
+                this.configService.get<string>('frontend.url') ||
+                'http://localhost:5173'
+            return res.redirect(
+                `${frontendUrl}/auth/error?message=${encodeURIComponent(
+                    error instanceof Error ? error.message : 'Authentication failed'
+                )}`
+            )
+        }
     }
 }

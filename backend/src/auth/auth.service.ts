@@ -58,6 +58,33 @@ export class AuthService {
         return { access_token: token, user: userSafe }
     }
 
+    /**
+     * Generate JWT token for Google OAuth user
+     */
+    async googleLogin(user: any) {
+        if (!user) {
+            throw new UnauthorizedException('Google authentication failed')
+        }
+
+        // Find user to get full user object with role
+        const fullUser = await this.usersService.findByEmail(user.email)
+        if (!fullUser) {
+            throw new NotFoundException('User not found after Google authentication')
+        }
+
+        const token = await this.signToken(
+            fullUser.id,
+            fullUser.email,
+            fullUser.role
+        )
+
+        const { passwordHash, refreshToken, ...userSafe } = fullUser
+        return {
+            access_token: token,
+            user: userSafe,
+        }
+    }
+
     private async signToken(userId: number, email: string, role: UserRole) {
         const payload = { sub: userId, email, role }
         const secret = this.configService.get<string>('jwt.secret')
