@@ -17,6 +17,7 @@ import {
     ReferenceLine,
     LineChart,
     Line,
+    ComposedChart,
 } from 'recharts'
 import { Calendar, TrendingUp, DollarSign, ShoppingCart } from 'lucide-react'
 import {
@@ -29,6 +30,9 @@ import {
     peakHoursData,
     prepTimeData,
     dayOfWeekRevenueData,
+    ratingVolumeData,
+    topModifiersData,
+    top5BestSellingItems,
 } from '../../data/mockReportsData'
 
 // Date Range Selector Component
@@ -136,7 +140,7 @@ function FinancialHealthTab() {
                     <p className="text-3xl font-semibold text-slate-900">
                         ${financialMetrics.netProfit.toLocaleString()}
                     </p>
-                    <p className="text-xs text-slate-500 mt-1">30% margin</p>
+                    <p className="text-sm text-slate-500 mt-1">30% margin</p>
                 </div>
                 <div className="bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
                     <div className="flex items-center justify-between mb-2">
@@ -156,7 +160,7 @@ function FinancialHealthTab() {
                 <h3 className="text-xl font-semibold text-slate-900 mb-1">
                     Revenue Growth Trend
                 </h3>
-                <p className="text-sm text-slate-500 mb-6">
+                <p className="text-base text-slate-500 mb-6">
                     Track your revenue trajectory over time
                 </p>
                 <ResponsiveContainer width="100%" height={350}>
@@ -273,7 +277,7 @@ function FinancialHealthTab() {
                     <h3 className="text-xl font-semibold text-slate-900 mb-1">
                         Revenue by Day of Week
                     </h3>
-                    <p className="text-sm text-slate-500 mb-6">
+                    <p className="text-base text-slate-500 mb-6">
                         Identify strong and weak business days
                     </p>
                     <ResponsiveContainer width="100%" height={300}>
@@ -288,13 +292,13 @@ function FinancialHealthTab() {
                             <XAxis
                                 dataKey="day"
                                 stroke="#64748b"
-                                fontSize={12}
+                                fontSize={14}
                                 tickLine={false}
                                 axisLine={false}
                             />
                             <YAxis
                                 stroke="#64748b"
-                                fontSize={12}
+                                fontSize={14}
                                 tickLine={false}
                                 axisLine={false}
                                 tickFormatter={(value) => `$${value / 1000}k`}
@@ -324,7 +328,7 @@ function FinancialHealthTab() {
                                             fill={
                                                 entry.revenue === maxRevenue
                                                     ? '#f59e0b' // amber-500
-                                                    : '#e2e8f0' // slate-200
+                                                    : '#64748b' // slate-200
                                             }
                                         />
                                     )
@@ -339,7 +343,7 @@ function FinancialHealthTab() {
                     <h3 className="text-xl font-semibold text-slate-900 mb-1">
                         Payment Methods Distribution
                     </h3>
-                    <p className="text-sm text-slate-500 mb-6">
+                    <p className="text-base text-slate-500 mb-6">
                         Cash vs. Digital Payments breakdown
                     </p>
                     <div className="flex items-center justify-center">
@@ -418,182 +422,426 @@ function MenuInsightsTab() {
     const medianRevenue = revenues[Math.floor(revenues.length / 2)]
 
     return (
-        <div className="space-y-6">
+        <div className="grid grid-cols-12 gap-6">
+            {/* Row 1: Strategic Analysis */}
             {/* Menu Performance Matrix */}
-            <div className="bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
+            <div className="col-span-12 lg:col-span-8 bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
                 <h3 className="text-xl font-semibold text-slate-900 mb-1">
-                    Menu Performance Matrix
+                    Menu Matrix
                 </h3>
                 <p className="text-sm text-slate-500 mb-6">
-                    BCG Matrix: Identify Stars, Plowhorses, Puzzles, and Dogs
+                    Popularity vs. Profitability
                 </p>
-                <ResponsiveContainer width="100%" height={400}>
-                    <ScatterChart
-                        margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
-                    >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis
-                            type="number"
-                            dataKey="quantitySold"
-                            name="Quantity Sold"
-                            label={{
-                                value: 'Quantity Sold (Popularity)',
-                                position: 'insideBottom',
-                                offset: -5,
+                <div className="h-[500px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <ScatterChart
+                            margin={{
+                                top: 20,
+                                right: 20,
+                                bottom: 60,
+                                left: 60,
                             }}
-                            stroke="#64748b"
-                            fontSize={12}
-                        />
-                        <YAxis
-                            type="number"
-                            dataKey="totalRevenue"
-                            name="Total Revenue"
-                            label={{
-                                value: 'Total Revenue (Profitability)',
-                                angle: -90,
-                                position: 'insideLeft',
-                            }}
-                            stroke="#64748b"
-                            fontSize={12}
-                        />
-                        <ReferenceLine
-                            x={medianQuantity}
-                            stroke="#94a3b8"
-                            strokeDasharray="3 3"
-                            label={{ value: 'Median', position: 'top' }}
-                        />
-                        <ReferenceLine
-                            y={medianRevenue}
-                            stroke="#94a3b8"
-                            strokeDasharray="3 3"
-                            label={{ value: 'Median', position: 'right' }}
-                        />
-                        <Tooltip
-                            cursor={{ strokeDasharray: '3 3' }}
-                            content={({ active, payload }) => {
-                                if (active && payload && payload.length) {
-                                    const data = payload[0]
-                                        .payload as (typeof menuPerformanceData)[0]
-                                    return (
-                                        <div className="bg-white p-3 rounded-lg shadow-lg border border-slate-100">
-                                            <p className="text-sm font-semibold text-slate-900 mb-2">
-                                                {data.name}
-                                            </p>
-                                            <p className="text-sm text-slate-600">
-                                                Quantity: {data.quantitySold}
-                                            </p>
-                                            <p className="text-sm text-slate-600">
-                                                Revenue: $
-                                                {data.totalRevenue.toFixed(2)}
-                                            </p>
-                                        </div>
-                                    )
-                                }
-                                return null
-                            }}
-                        />
-                        <Scatter
-                            name="Menu Items"
-                            data={menuPerformanceData}
-                            fill="#f59e0b"
-                        />
-                    </ScatterChart>
-                </ResponsiveContainer>
+                        >
+                            <CartesianGrid
+                                strokeDasharray="3 3"
+                                stroke="#e2e8f0"
+                            />
+                            <XAxis
+                                type="number"
+                                dataKey="quantitySold"
+                                name="Quantity Sold"
+                                label={{
+                                    value: 'Quantity Sold (Popularity)',
+                                    position: 'insideBottom',
+                                    offset: -5,
+                                }}
+                                stroke="#64748b"
+                                fontSize={12}
+                            />
+                            <YAxis
+                                type="number"
+                                dataKey="totalRevenue"
+                                name="Total Revenue"
+                                label={{
+                                    value: 'Total Revenue (Profitability)',
+                                    angle: -90,
+                                    position: 'insideLeft',
+                                }}
+                                stroke="#64748b"
+                                fontSize={12}
+                            />
+                            <ReferenceLine
+                                x={medianQuantity}
+                                stroke="#94a3b8"
+                                strokeDasharray="3 3"
+                                label={{ value: 'Median', position: 'top' }}
+                            />
+                            <ReferenceLine
+                                y={medianRevenue}
+                                stroke="#94a3b8"
+                                strokeDasharray="3 3"
+                                label={{ value: 'Median', position: 'right' }}
+                            />
+                            <Tooltip
+                                cursor={{ strokeDasharray: '3 3' }}
+                                content={({ active, payload }) => {
+                                    if (active && payload && payload.length) {
+                                        const data = payload[0]
+                                            .payload as (typeof menuPerformanceData)[0]
+                                        return (
+                                            <div className="bg-white p-3 rounded-lg shadow-lg border border-slate-100">
+                                                <p className="text-sm font-semibold text-slate-900 mb-2">
+                                                    {data.name}
+                                                </p>
+                                                <p className="text-sm text-slate-600">
+                                                    Quantity:{' '}
+                                                    {data.quantitySold}
+                                                </p>
+                                                <p className="text-sm text-slate-600">
+                                                    Revenue: $
+                                                    {data.totalRevenue.toFixed(
+                                                        2
+                                                    )}
+                                                </p>
+                                            </div>
+                                        )
+                                    }
+                                    return null
+                                }}
+                            />
+                            <Scatter
+                                name="Menu Items"
+                                data={menuPerformanceData}
+                                fill="#f59e0b"
+                            />
+                        </ScatterChart>
+                    </ResponsiveContainer>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
                     <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100">
-                        <p className="text-xs font-semibold text-emerald-700 mb-1">
+                        <p className="text-sm font-semibold text-emerald-700 mb-1">
                             Stars
                         </p>
-                        <p className="text-xs text-emerald-600">
+                        <p className="text-sm text-emerald-600">
                             High Revenue, High Sales
                         </p>
                     </div>
                     <div className="p-3 bg-amber-50 rounded-lg border border-amber-100">
-                        <p className="text-xs font-semibold text-amber-700 mb-1">
+                        <p className="text-sm font-semibold text-amber-700 mb-1">
                             Plowhorses
                         </p>
-                        <p className="text-xs text-amber-600">
+                        <p className="text-sm text-amber-600">
                             High Sales, Low Revenue
                         </p>
                     </div>
                     <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                        <p className="text-xs font-semibold text-blue-700 mb-1">
+                        <p className="text-sm font-semibold text-blue-700 mb-1">
                             Puzzles
                         </p>
-                        <p className="text-xs text-blue-600">
+                        <p className="text-sm text-blue-600">
                             Low Sales, High Revenue
                         </p>
                     </div>
                     <div className="p-3 bg-red-50 rounded-lg border border-red-100">
-                        <p className="text-xs font-semibold text-red-700 mb-1">
+                        <p className="text-sm font-semibold text-red-700 mb-1">
                             Dogs
                         </p>
-                        <p className="text-xs text-red-600">
+                        <p className="text-sm text-red-600">
                             Low Sales, Low Revenue
                         </p>
                     </div>
                 </div>
             </div>
 
-            {/* Sales by Category */}
-            <div className="bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
-                <h3 className="text-xl font-semibold text-slate-900 mb-1">
-                    Sales by Category
+            {/* Top Modifiers */}
+            <div className="col-span-12 lg:col-span-4 bg-white rounded-xl p-6 border border-slate-100 shadow-sm h-[500px] flex flex-col">
+                <h3 className="text-lg font-semibold text-slate-900 mb-1">
+                    Top Modifiers
                 </h3>
-                <p className="text-sm text-slate-500 mb-6">
-                    Compare performance across menu categories
+                <p className="text-sm text-slate-500 mb-4">
+                    Most requested customizations
                 </p>
-                <ResponsiveContainer width="100%" height={300}>
-                    <BarChart
-                        data={categorySalesData}
-                        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                    >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis
-                            dataKey="category"
-                            stroke="#64748b"
-                            fontSize={12}
-                            tickLine={false}
-                            axisLine={false}
-                        />
-                        <YAxis
-                            stroke="#64748b"
-                            fontSize={12}
-                            tickLine={false}
-                            axisLine={false}
-                            tickFormatter={(value) => `$${value / 1000}k`}
-                        />
-                        <Tooltip
-                            formatter={(value: number | undefined) =>
-                                `$${(value ?? 0).toLocaleString()}`
-                            }
-                            contentStyle={{
-                                backgroundColor: 'white',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '8px',
-                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                            }}
-                        />
-                        <Bar
-                            dataKey="sales"
-                            fill="#f59e0b"
-                            radius={[8, 8, 0, 0]}
-                        />
-                    </BarChart>
-                </ResponsiveContainer>
+                <div className="flex-1">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            data={topModifiersData}
+                            layout="vertical"
+                            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
+                            <CartesianGrid
+                                strokeDasharray="3 3"
+                                stroke="#e2e8f0"
+                                horizontal={true}
+                                vertical={false}
+                            />
+                            <XAxis
+                                type="number"
+                                stroke="#64748b"
+                                fontSize={11}
+                                tickLine={false}
+                                axisLine={false}
+                            />
+                            <YAxis
+                                type="category"
+                                dataKey="name"
+                                stroke="#64748b"
+                                fontSize={11}
+                                tickLine={false}
+                                axisLine={false}
+                                width={100}
+                            />
+                            <Tooltip
+                                formatter={(value: number | undefined) =>
+                                    `${value ?? 0} times`
+                                }
+                                contentStyle={{
+                                    backgroundColor: 'white',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '8px',
+                                    boxShadow:
+                                        '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                                    fontSize: '12px',
+                                }}
+                            />
+                            <Bar
+                                dataKey="usage"
+                                fill="#f59e0b"
+                                radius={[0, 4, 4, 0]}
+                            />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
 
-            {/* Top 5 Voided/Cancelled Items */}
-            <div className="bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
-                <h3 className="text-xl font-semibold text-slate-900 mb-1">
-                    Top 5 Voided/Cancelled Items
+            {/* Row 2: Sales Charts */}
+            {/* Sales by Category */}
+            <div className="col-span-12 lg:col-span-6 bg-white rounded-xl p-6 border border-slate-100 shadow-sm h-[300px] flex flex-col">
+                <h3 className="text-lg font-semibold text-slate-900 mb-1">
+                    Sales by Category
                 </h3>
-                <p className="text-sm text-slate-500 mb-6">
+                <p className="text-sm text-slate-500 mb-4">
+                    Category performance
+                </p>
+                <div className="flex-1">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            data={categorySalesData}
+                            margin={{
+                                top: 5,
+                                right: 10,
+                                left: 0,
+                                bottom: 5,
+                            }}
+                        >
+                            <CartesianGrid
+                                strokeDasharray="3 3"
+                                stroke="#e2e8f0"
+                            />
+                            <XAxis
+                                dataKey="category"
+                                stroke="#64748b"
+                                fontSize={11}
+                                tickLine={false}
+                                axisLine={false}
+                            />
+                            <YAxis
+                                stroke="#64748b"
+                                fontSize={11}
+                                tickLine={false}
+                                axisLine={false}
+                                tickFormatter={(value) => `$${value / 1000}k`}
+                            />
+                            <Tooltip
+                                formatter={(value: number | undefined) =>
+                                    `$${(value ?? 0).toLocaleString()}`
+                                }
+                                contentStyle={{
+                                    backgroundColor: 'white',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '8px',
+                                    boxShadow:
+                                        '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                                    fontSize: '12px',
+                                }}
+                            />
+                            <Bar
+                                dataKey="sales"
+                                fill="#f59e0b"
+                                radius={[4, 4, 0, 0]}
+                            />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* Rating vs Volume */}
+            <div className="col-span-12 lg:col-span-6 bg-white rounded-xl p-6 border border-slate-100 shadow-sm h-[300px] flex flex-col">
+                <h3 className="text-lg font-semibold text-slate-900 mb-1">
+                    Rating vs Volume
+                </h3>
+                <p className="text-sm text-slate-500 mb-4">
+                    Customer satisfaction vs sales volume
+                </p>
+                <div className="flex-1">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart
+                            data={ratingVolumeData}
+                            margin={{
+                                top: 5,
+                                right: 10,
+                                left: 0,
+                                bottom: 5,
+                            }}
+                        >
+                            <CartesianGrid
+                                strokeDasharray="3 3"
+                                stroke="#e2e8f0"
+                            />
+                            <XAxis
+                                dataKey="item"
+                                stroke="#64748b"
+                                fontSize={10}
+                                tickLine={false}
+                                axisLine={false}
+                                angle={-45}
+                                textAnchor="end"
+                                height={70}
+                            />
+                            <YAxis
+                                yAxisId="volume"
+                                stroke="#64748b"
+                                fontSize={10}
+                                tickLine={false}
+                                axisLine={false}
+                                orientation="left"
+                            />
+                            <YAxis
+                                yAxisId="rating"
+                                stroke="#f59e0b"
+                                fontSize={10}
+                                tickLine={false}
+                                axisLine={false}
+                                orientation="right"
+                                domain={[0, 5]}
+                            />
+                            <Tooltip
+                                content={({ active, payload }) => {
+                                    if (active && payload && payload.length) {
+                                        const data = ratingVolumeData.find(
+                                            (d) =>
+                                                d.item ===
+                                                payload[0]?.payload?.item
+                                        )
+                                        return (
+                                            <div className="bg-white p-3 rounded-lg shadow-lg border border-slate-100">
+                                                <p className="text-sm font-semibold text-slate-900 mb-2">
+                                                    {data?.item}
+                                                </p>
+                                                {payload.map((entry, idx) => (
+                                                    <p
+                                                        key={idx}
+                                                        className="text-sm text-slate-600"
+                                                    >
+                                                        <span
+                                                            style={{
+                                                                color: entry.color,
+                                                            }}
+                                                        >
+                                                            {entry.name ===
+                                                            'volume'
+                                                                ? 'Volume'
+                                                                : 'Rating'}
+                                                            :
+                                                        </span>{' '}
+                                                        {entry.name === 'volume'
+                                                            ? entry.value
+                                                            : entry.value?.toFixed(
+                                                                  1
+                                                              )}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        )
+                                    }
+                                    return null
+                                }}
+                            />
+                            <Bar
+                                yAxisId="volume"
+                                dataKey="volume"
+                                fill="#64748b"
+                                radius={[4, 4, 0, 0]}
+                            />
+                            <Line
+                                yAxisId="rating"
+                                type="monotone"
+                                dataKey="rating"
+                                stroke="#f59e0b"
+                                strokeWidth={2}
+                                dot={{ fill: '#f59e0b', r: 3 }}
+                            />
+                        </ComposedChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* Row 3: Detailed Metrics */}
+            {/* Top 5 Best Selling Items */}
+            <div className="col-span-12 lg:col-span-6 bg-white rounded-xl p-6 border border-slate-100 shadow-sm h-[400px] flex flex-col">
+                <h3 className="text-lg font-semibold text-slate-900 mb-1">
+                    Top 5 Best Selling Items
+                </h3>
+                <p className="text-sm text-slate-500 mb-4">
+                    Highest performing menu items
+                </p>
+                <div className="flex-1 overflow-auto">
+                    <table className="w-full">
+                        <thead className="sticky top-0 bg-white">
+                            <tr className="border-b border-slate-200">
+                                <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">
+                                    Item Name
+                                </th>
+                                <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">
+                                    Quantity
+                                </th>
+                                <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">
+                                    Revenue
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {top5BestSellingItems.map((item, index) => (
+                                <tr
+                                    key={index}
+                                    className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                                >
+                                    <td className="py-3 px-4 text-sm font-medium text-slate-900">
+                                        {item.name}
+                                    </td>
+                                    <td className="py-3 px-4 text-sm text-slate-600">
+                                        {item.quantitySold}
+                                    </td>
+                                    <td className="py-3 px-4 text-sm font-semibold text-emerald-600 text-right">
+                                        ${item.revenue.toFixed(2)}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Voided Items Analysis */}
+            <div className="col-span-12 lg:col-span-6 bg-white rounded-xl p-6 border border-slate-100 shadow-sm h-[400px] flex flex-col">
+                <h3 className="text-lg font-semibold text-slate-900 mb-1">
+                    Top 5 Voided Items
+                </h3>
+                <p className="text-sm text-slate-500 mb-4">
                     Items with highest cancellation rates and loss amounts
                 </p>
-                <div className="overflow-x-auto">
+                <div className="flex-1 overflow-auto">
                     <table className="w-full">
-                        <thead>
+                        <thead className="sticky top-0 bg-white">
                             <tr className="border-b border-slate-200">
                                 <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">
                                     Item Name
@@ -603,9 +851,6 @@ function MenuInsightsTab() {
                                 </th>
                                 <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">
                                     Loss Amount
-                                </th>
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">
-                                    Reason
                                 </th>
                             </tr>
                         </thead>
@@ -623,9 +868,6 @@ function MenuInsightsTab() {
                                     </td>
                                     <td className="py-3 px-4 text-sm font-semibold text-red-600 text-right">
                                         ${item.lossAmount.toFixed(2)}
-                                    </td>
-                                    <td className="py-3 px-4 text-sm text-slate-500">
-                                        {item.reason}
                                     </td>
                                 </tr>
                             ))}

@@ -186,6 +186,53 @@ export const dayOfWeekRevenueData: DayOfWeekRevenue[] = [
     { day: 'Sun', revenue: 16500 },
 ]
 
+// Rating vs Volume Data (Composed Chart)
+export interface RatingVolumeData {
+    item: string
+    rating: number
+    volume: number
+}
+
+export const ratingVolumeData: RatingVolumeData[] = [
+    { item: 'Grilled Salmon', rating: 4.8, volume: 245 },
+    { item: 'Caesar Salad', rating: 4.6, volume: 189 },
+    { item: 'Margherita Pizza', rating: 4.9, volume: 312 },
+    { item: 'Chocolate Lava Cake', rating: 4.7, volume: 156 },
+    { item: 'Beef Burger', rating: 4.5, volume: 278 },
+]
+
+// Top Modifiers Data (Horizontal Bar Chart)
+export interface ModifierData {
+    name: string
+    usage: number
+}
+
+export const topModifiersData: ModifierData[] = [
+    { name: 'Extra Cheese', usage: 456 },
+    { name: 'No Onions', usage: 389 },
+    { name: 'Extra Spicy', usage: 342 },
+    { name: 'Gluten Free', usage: 298 },
+    { name: 'Vegan Option', usage: 267 },
+    { name: 'Well Done', usage: 234 },
+    { name: 'Extra Sauce', usage: 189 },
+    { name: 'No Pickles', usage: 156 },
+]
+
+// Top 5 Best Selling Items
+export interface BestSellingItem {
+    name: string
+    quantitySold: number
+    revenue: number
+}
+
+export const top5BestSellingItems: BestSellingItem[] = [
+    { name: 'Margherita Pizza', quantitySold: 312, revenue: 5300.88 },
+    { name: 'Pepperoni Pizza', quantitySold: 298, revenue: 5958.02 },
+    { name: 'Beef Burger', quantitySold: 278, revenue: 5143.0 },
+    { name: 'Grilled Salmon', quantitySold: 245, revenue: 6122.55 },
+    { name: 'Chicken Wings', quantitySold: 234, revenue: 3510.0 },
+]
+
 // Average Prep Time Trend Data (Line Chart)
 export interface PrepTimeData {
     week: string
