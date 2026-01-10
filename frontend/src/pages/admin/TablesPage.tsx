@@ -11,7 +11,7 @@ import {
     XCircle,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { apiClient } from '../../services/api'
+import { apiClient, tablesApi } from '../../services/api'
 import type { Table } from '@aerodine/shared-types'
 
 // Table status types
@@ -153,66 +153,16 @@ export default function TablesPage() {
         fetchTables()
     }, [])
 
-    const getMockTables = (): TableWithRestaurant[] => [
-        {
-            id: 1,
-            restaurantId: 1,
-            name: 'Table 1',
-            capacity: 4,
-            status: 'AVAILABLE' as TableStatusType,
-            token: 'mock-token-1',
-            isActive: true,
-            restaurant: { id: 1, name: 'AeroDine Premium Dining' },
-        } as TableWithRestaurant,
-        {
-            id: 2,
-            restaurantId: 1,
-            name: 'Table 2',
-            capacity: 6,
-            status: 'OCCUPIED' as TableStatusType,
-            token: 'mock-token-2',
-            isActive: true,
-            restaurant: { id: 1, name: 'AeroDine Premium Dining' },
-        } as TableWithRestaurant,
-        {
-            id: 3,
-            restaurantId: 1,
-            name: 'Table 3',
-            capacity: 2,
-            status: 'RESERVED' as TableStatusType,
-            token: 'mock-token-3',
-            isActive: true,
-            restaurant: { id: 1, name: 'AeroDine Premium Dining' },
-        } as TableWithRestaurant,
-        {
-            id: 4,
-            restaurantId: 1,
-            name: 'Table 4',
-            capacity: 8,
-            status: 'AVAILABLE' as TableStatusType,
-            token: 'mock-token-4',
-            isActive: true,
-            restaurant: { id: 1, name: 'AeroDine Premium Dining' },
-        } as TableWithRestaurant,
-    ]
-
     const fetchTables = async () => {
         try {
             setLoading(true)
             setError(null)
-            const response = await apiClient.get('/tables')
-            const tablesData = response.data || []
-            if (tablesData.length > 0) {
-                setTables(tablesData)
-            } else {
-                // Use mock data if no tables found
-                setTables(getMockTables())
-            }
+            const tablesData = await apiClient.get('/tables')
+            setTables(tablesData.data || [])
         } catch (err: any) {
             console.error('Error fetching tables:', err)
-            setError('Unable to load table list. Using sample data.')
-            // Use mock data as fallback
-            setTables(getMockTables())
+            setError('Unable to load table list. Please try again.')
+            setTables([])
         } finally {
             setLoading(false)
         }

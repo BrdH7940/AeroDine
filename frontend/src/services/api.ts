@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { apiConfig } from '../config/api.config';
+import type { OrderStatus, OrderItemStatus, TableStatus } from '@aerodine/shared-types';
 
 /**
  * Axios instance configured with base URL from environment
@@ -41,5 +42,308 @@ apiClient.interceptors.response.use(
   }
 );
 
-export default apiClient;
+// ============================================
+// REPORTS API
+// ============================================
 
+export const reportsApi = {
+  /**
+   * Get dashboard statistics (revenue, orders, active tables)
+   */
+  getDashboardStats: async () => {
+    const response = await apiClient.get('/reports/stats');
+    return response.data;
+  },
+
+  /**
+   * Get revenue chart data
+   * @param range - 'week' or 'month'
+   */
+  getRevenueChart: async (range: 'week' | 'month' = 'week') => {
+    const response = await apiClient.get('/reports/revenue', {
+      params: { range },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get top 5 selling items
+   */
+  getTopSellingItems: async () => {
+    const response = await apiClient.get('/reports/top-items');
+    return response.data;
+  },
+};
+
+// ============================================
+// ORDERS API
+// ============================================
+
+export interface CreateOrderDto {
+  tableToken: string;
+  items: Array<{
+    menuItemId: number;
+    quantity: number;
+    modifiers?: Array<{
+      modifierOptionId: number;
+    }>;
+  }>;
+  notes?: string;
+}
+
+export const ordersApi = {
+  /**
+   * Get all orders with optional filters
+   */
+  getOrders: async (params?: { status?: OrderStatus; restaurantId?: number }) => {
+    const response = await apiClient.get('/orders', { params });
+    return response.data;
+  },
+
+  /**
+   * Get order by ID
+   */
+  getOrderById: async (id: number) => {
+    const response = await apiClient.get(`/orders/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Create a new order
+   */
+  createOrder: async (data: CreateOrderDto) => {
+    const response = await apiClient.post('/orders', data);
+    return response.data;
+  },
+
+  /**
+   * Update order status
+   */
+  updateOrderStatus: async (id: number, status: OrderStatus) => {
+    const response = await apiClient.patch(`/orders/${id}/status`, { status });
+    return response.data;
+  },
+
+  /**
+   * Update order item status (for KDS)
+   */
+  updateOrderItemStatus: async (orderId: number, itemId: number, status: OrderItemStatus) => {
+    const response = await apiClient.patch(`/orders/${orderId}/items/${itemId}/status`, { status });
+    return response.data;
+  },
+};
+
+// ============================================
+// MENUS API
+// ============================================
+
+export interface CreateMenuItemDto {
+  restaurantId: number;
+  categoryId: number;
+  name: string;
+  description?: string;
+  basePrice: number;
+  image?: string;
+  prepTime?: number;
+  isAvailable?: boolean;
+}
+
+export interface UpdateMenuItemDto {
+  categoryId?: number;
+  name?: string;
+  description?: string;
+  basePrice?: number;
+  image?: string;
+  prepTime?: number;
+  isAvailable?: boolean;
+}
+
+export const menusApi = {
+  /**
+   * Get all categories for a restaurant
+   */
+  getCategories: async (restaurantId: number) => {
+    const response = await apiClient.get('/categories', {
+      params: { restaurantId },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get all menu items with optional search
+   */
+  getMenuItems: async (restaurantId: number, searchQuery?: string) => {
+    const response = await apiClient.get('/menu-items', {
+      params: {
+        restaurantId,
+        q: searchQuery,
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Create a new menu item
+   */
+  createMenuItem: async (data: CreateMenuItemDto) => {
+    const response = await apiClient.post('/menu-items', data);
+    return response.data;
+  },
+
+  /**
+   * Update menu item
+   */
+  updateMenuItem: async (id: number, data: UpdateMenuItemDto) => {
+    const response = await apiClient.patch(`/menu-items/${id}`, data);
+    return response.data;
+  },
+
+  /**
+   * Get modifier groups for a restaurant
+   */
+  getModifierGroups: async (restaurantId: number) => {
+    const response = await apiClient.get('/modifiers', {
+      params: { restaurantId },
+    });
+    return response.data;
+  },
+};
+
+// ============================================
+// TABLES API
+// ============================================
+
+export interface CreateTableDto {
+  restaurantId: number;
+  name: string;
+  capacity: number;
+  status?: TableStatus;
+}
+
+export interface UpdateTableDto {
+  name?: string;
+  capacity?: number;
+  status?: TableStatus;
+  isActive?: boolean;
+}
+
+export const tablesApi = {
+  /**
+   * Get all tables, optionally filtered by restaurant
+   */
+  getTables: async (restaurantId?: number) => {
+    const response = await apiClient.get('/tables', {
+      params: restaurantId ? { restaurantId } : undefined,
+    });
+    return response.data;
+  },
+
+  /**
+   * Get table by ID
+   */
+  getTableById: async (id: number) => {
+    const response = await apiClient.get(`/tables/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Create a new table
+   */
+  createTable: async (data: CreateTableDto) => {
+    const response = await apiClient.post('/tables', data);
+    return response.data;
+  },
+
+  /**
+   * Update table
+   */
+  updateTable: async (id: number, data: UpdateTableDto) => {
+    const response = await apiClient.patch(`/tables/${id}`, data);
+    return response.data;
+  },
+
+  /**
+   * Delete table
+   */
+  deleteTable: async (id: number) => {
+    const response = await apiClient.delete(`/tables/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Get QR code URL for table
+   */
+  getTableQrUrl: async (id: number) => {
+    const response = await apiClient.get(`/tables/${id}/qr`);
+    return response.data;
+  },
+
+  /**
+   * Refresh table token
+   */
+  refreshTableToken: async (id: number) => {
+    const response = await apiClient.patch(`/tables/${id}/refresh-token`);
+    return response.data;
+  },
+};
+
+// ============================================
+// USERS API
+// ============================================
+
+export interface CreateUserDto {
+  email: string;
+  password: string;
+  name: string;
+  role?: string;
+}
+
+export interface UpdateUserDto {
+  email?: string;
+  name?: string;
+  role?: string;
+}
+
+export const usersApi = {
+  /**
+   * Get all users
+   */
+  getUsers: async () => {
+    const response = await apiClient.get('/users');
+    return response.data;
+  },
+
+  /**
+   * Get user by ID
+   */
+  getUserById: async (id: number) => {
+    const response = await apiClient.get(`/users/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Create a new user
+   */
+  createUser: async (data: CreateUserDto) => {
+    const response = await apiClient.post('/users', data);
+    return response.data;
+  },
+
+  /**
+   * Update user
+   */
+  updateUser: async (id: number, data: UpdateUserDto) => {
+    const response = await apiClient.patch(`/users/${id}`, data);
+    return response.data;
+  },
+
+  /**
+   * Delete user
+   */
+  deleteUser: async (id: number) => {
+    const response = await apiClient.delete(`/users/${id}`);
+    return response.data;
+  },
+};
+
+export default apiClient;

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
     DollarSign,
     ShoppingCart,
@@ -18,7 +18,8 @@ import {
     ResponsiveContainer,
 } from 'recharts'
 import { motion } from 'framer-motion'
-import { kpiData, chartData, recentOrders } from '../../data/mockData'
+import { reportsApi, ordersApi } from '../../services/api'
+import type { OrderStatus } from '@aerodine/shared-types'
 
 interface KPICardProps {
     icon: React.ElementType
@@ -114,12 +115,120 @@ function StatusBadge({ status }: { status: string }) {
     )
 }
 
+interface DashboardStats {
+    totalRevenue: number
+    totalOrders: number
+    activeTables: number
+}
+
+interface RevenueChartData {
+    labels: string[]
+    data: number[]
+}
+
+interface RecentOrder {
+    id: number
+    tableNumber?: number
+    createdAt: string
+    totalAmount: number
+    status: OrderStatus
+    table?: {
+        name: string
+    }
+}
+
 export default function DashboardPage() {
     const [selectedDate, setSelectedDate] = useState(
         new Date().toISOString().split('T')[0]
     )
+    const [stats, setStats] = useState<DashboardStats>({
+        totalRevenue: 0,
+        totalOrders: 0,
+        activeTables: 0,
+    })
+    const [chartData, setChartData] = useState<
+        { time: string; revenue: number }[]
+    >([])
+    const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+
+    useEffect(() => {
+        fetchDashboardData()
+    }, [])
+
+    const fetchDashboardData = async () => {
+        try {
+            setLoading(true)
+            setError(null)
+
+            // Fetch stats, revenue chart, and recent orders in parallel
+            const [statsData, revenueData, ordersData] = await Promise.all([
+                reportsApi.getDashboardStats(),
+                reportsApi.getRevenueChart('week'),
+                ordersApi.getOrders({ restaurantId: 1 }), // TODO: Get restaurantId from context/auth
+            ])
+
+            setStats(statsData)
+
+            // Transform revenue data for chart
+            const transformedChartData = revenueData.labels.map(
+                (label: string, index: number) => ({
+                    time: label,
+                    revenue: revenueData.data[index],
+                })
+            )
+            setChartData(transformedChartData)
+
+            // Get recent 5 orders sorted by date
+            const sortedOrders = (ordersData || [])
+                .sort(
+                    (a: RecentOrder, b: RecentOrder) =>
+                        new Date(b.createdAt).getTime() -
+                        new Date(a.createdAt).getTime()
+                )
+                .slice(0, 5)
+            setRecentOrders(sortedOrders)
+        } catch (err: any) {
+            console.error('Error fetching dashboard data:', err)
+            setError('Unable to load dashboard data. Please try again.')
+        } finally {
+            setLoading(false)
+        }
+    }
 
     const formatCurrency = (value: number) => `$${value.toFixed(2)}`
+
+    const getTimeAgo = (dateString: string) => {
+        const date = new Date(dateString)
+        const now = new Date()
+        const diffInMinutes = Math.floor(
+            (now.getTime() - date.getTime()) / 60000
+        )
+
+        if (diffInMinutes < 1) return 'just now'
+        if (diffInMinutes < 60) return `${diffInMinutes} min ago`
+        const diffInHours = Math.floor(diffInMinutes / 60)
+        if (diffInHours < 24)
+            return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`
+        const diffInDays = Math.floor(diffInHours / 24)
+        return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`
+    }
+
+    if (loading) {
+        return (
+            <div className="p-6 lg:p-8 space-y-6">
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto"></div>
+                        <p className="mt-4 text-slate-500">
+                            Loading dashboard...
+                        </p>
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="p-6 lg:p-8 space-y-6">
@@ -139,34 +248,41 @@ export default function DashboardPage() {
                 </div>
             </div>
 
+            {/* Error Message */}
+            {error && (
+                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+                    {error}
+                </div>
+            )}
+
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <KPICard
                     icon={DollarSign}
-                    value={kpiData.revenue.value}
-                    label={kpiData.revenue.label}
-                    trend={kpiData.revenue.trend}
+                    value={stats.totalRevenue}
+                    label="Revenue"
+                    trend={12.5}
                     iconColor="bg-amber-100"
                 />
                 <KPICard
                     icon={ShoppingCart}
-                    value={kpiData.activeOrders.value}
-                    label={kpiData.activeOrders.label}
-                    trend={kpiData.activeOrders.trend}
+                    value={stats.totalOrders}
+                    label="Total orders"
+                    trend={-3.2}
                     iconColor="bg-blue-100"
                 />
                 <KPICard
                     icon={TableIcon}
-                    value={`${kpiData.tableOccupancy.value}%`}
-                    label={kpiData.tableOccupancy.label}
-                    trend={kpiData.tableOccupancy.trend}
+                    value={`${stats.activeTables}`}
+                    label="Active tables"
+                    trend={5.1}
                     iconColor="bg-purple-100"
                 />
                 <KPICard
                     icon={Star}
-                    value={kpiData.customerRating.value}
-                    label={kpiData.customerRating.label}
-                    trend={kpiData.customerRating.trend}
+                    value={4.8}
+                    label="Customer rating"
+                    trend={0.3}
                     iconColor="bg-emerald-100"
                 />
             </div>
@@ -277,29 +393,46 @@ export default function DashboardPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {recentOrders.map((order) => (
-                                    <motion.tr
-                                        key={order.id}
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
-                                    >
-                                        <td className="py-3 px-4 text-base font-semibold text-slate-900">
-                                            Table {order.tableNumber}
+                                {recentOrders.length === 0 ? (
+                                    <tr>
+                                        <td
+                                            colSpan={4}
+                                            className="py-8 text-center text-slate-500"
+                                        >
+                                            No recent orders
                                         </td>
-                                        <td className="py-3 px-4">
-                                            <StatusBadge
-                                                status={order.status}
-                                            />
-                                        </td>
-                                        <td className="py-3 px-4 text-sm text-slate-500">
-                                            {order.time}
-                                        </td>
-                                        <td className="py-3 px-4 text-base font-medium text-slate-900 text-right">
-                                            {formatCurrency(order.amount)}
-                                        </td>
-                                    </motion.tr>
-                                ))}
+                                    </tr>
+                                ) : (
+                                    recentOrders.map((order) => (
+                                        <motion.tr
+                                            key={order.id}
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                                        >
+                                            <td className="py-3 px-4 text-base font-semibold text-slate-900">
+                                                {order.table?.name ||
+                                                    `Table ${
+                                                        order.tableNumber ||
+                                                        'N/A'
+                                                    }`}
+                                            </td>
+                                            <td className="py-3 px-4">
+                                                <StatusBadge
+                                                    status={order.status.toLowerCase()}
+                                                />
+                                            </td>
+                                            <td className="py-3 px-4 text-sm text-slate-500">
+                                                {getTimeAgo(order.createdAt)}
+                                            </td>
+                                            <td className="py-3 px-4 text-base font-medium text-slate-900 text-right">
+                                                {formatCurrency(
+                                                    Number(order.totalAmount)
+                                                )}
+                                            </td>
+                                        </motion.tr>
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>

@@ -1,53 +1,69 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Clock, CheckCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { kdsTickets } from '../../data/mockData'
-import type { KDSTicket } from '../../data/mockData'
+import { ordersApi } from '../../services/api'
+import type { OrderItemStatus } from '@aerodine/shared-types'
 
-interface TicketCardProps {
-    ticket: KDSTicket
-    onStatusChange: (id: string, newStatus: KDSTicket['status']) => void
+interface OrderItem {
+    id: number
+    menuItemId: number
+    quantity: number
+    itemPrice: number
+    status: OrderItemStatus
+    menuItem: {
+        id: number
+        name: string
+        description?: string
+    }
+    modifiers?: Array<{
+        id: number
+        modifierOption: {
+            name: string
+        }
+    }>
 }
 
-function TicketCard({ ticket, onStatusChange }: TicketCardProps) {
-    const isOverdue = ticket.elapsedMinutes > 20
-    const isReady = ticket.status === 'ready'
+interface Order {
+    id: number
+    tableId: number
+    totalAmount: number
+    status: string
+    createdAt: string
+    table: {
+        name: string
+    }
+    items: OrderItem[]
+}
 
-    const getActionButton = () => {
-        if (ticket.status === 'pending') {
-            return (
-                <button
-                    onClick={() => onStatusChange(ticket.id, 'preparing')}
-                    className="w-full px-4 py-2 bg-gray-700 hover:bg-slate-800 text-white rounded-lg font-medium transition-colors"
-                >
-                    Start
-                </button>
-            )
-        } else if (ticket.status === 'preparing') {
-            return (
-                <button
-                    onClick={() => onStatusChange(ticket.id, 'ready')}
-                    className="w-full px-4 py-2 bg-gray-700 hover:bg-slate-800 text-white rounded-lg font-medium transition-colors"
-                >
-                    Mark ready
-                </button>
-            )
-        } else {
-            return (
-                <button
-                    onClick={() => {
-                        // In real app, this would complete the order
-                        alert(
-                            `Order for Table ${ticket.tableNumber} completed!`
-                        )
-                    }}
-                    className="w-full px-4 py-2 bg-gray-700 hover:bg-slate-800 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                >
-                    <CheckCircle size={18} />
-                    Done
-                </button>
-            )
-        }
+interface TicketCardProps {
+    order: Order
+    onStatusChange: (orderId: number, itemId: number, newStatus: OrderItemStatus) => void
+}
+
+function TicketCard({ order, onStatusChange }: TicketCardProps) {
+    const getElapsedMinutes = () => {
+        const now = new Date()
+        const createdAt = new Date(order.createdAt)
+        return Math.floor((now.getTime() - createdAt.getTime()) / 60000)
+    }
+
+    const elapsedMinutes = getElapsedMinutes()
+    const isOverdue = elapsedMinutes > 20
+
+    // Get the overall status based on items
+    const getOverallStatus = (): 'pending' | 'preparing' | 'ready' => {
+        const allReady = order.items.every(item => item.status === 'READY' || item.status === 'SERVED')
+        const anyPreparing = order.items.some(item => item.status === 'PREPARING')
+        
+        if (allReady) return 'ready'
+        if (anyPreparing) return 'preparing'
+        return 'pending'
+    }
+
+    const overallStatus = getOverallStatus()
+
+    const handleItemStatusChange = async (itemId: number, newStatus: OrderItemStatus) => {
+        await onStatusChange(order.id, itemId, newStatus)
     }
 
     return (
@@ -60,75 +76,137 @@ function TicketCard({ ticket, onStatusChange }: TicketCardProps) {
             <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-100">
                 <div>
                     <h3 className="text-lg font-semibold text-slate-900">
-                        Table {ticket.tableNumber}
+                        {order.table.name}
                     </h3>
                     <p className="text-sm text-slate-500">
-                        Ordered at {ticket.orderTime}
+                        Order #{order.id} • {new Date(order.createdAt).toLocaleTimeString()}
                     </p>
                 </div>
                 <div
                     className={`flex items-center gap-1 px-2 py-1 rounded-full ${
                         isOverdue
                             ? 'bg-red-100 text-red-700'
-                            : isReady
+                            : overallStatus === 'ready'
                             ? 'bg-emerald-100 text-emerald-700'
                             : 'bg-amber-100 text-amber-700'
                     }`}
                 >
                     <Clock size={14} />
                     <span className="text-sm font-medium">
-                        {ticket.elapsedMinutes} min
+                        {elapsedMinutes} min
                     </span>
                 </div>
             </div>
 
             {/* Items */}
-            <div className="space-y-2 mb-4">
-                {ticket.items.map((item, index) => (
-                    <div key={index} className="text-base">
+            <div className="space-y-3 mb-4">
+                {order.items.map((item) => (
+                    <div key={item.id} className="border-b border-slate-100 pb-2">
                         <div className="flex items-start justify-between">
-                            <span className="font-medium text-slate-900">
-                                <span className="bg-gray-700 text-yellow-400 px-1.5 py-0.5 rounded mr-1.5">
-                                    {item.quantity}x
+                            <div className="flex-1">
+                                <span className="font-medium text-slate-900">
+                                    <span className="bg-gray-700 text-yellow-400 px-1.5 py-0.5 rounded mr-1.5">
+                                        {item.quantity}x
+                                    </span>
+                                    {item.menuItem.name}
                                 </span>
-                                {item.name}
-                            </span>
-                        </div>
-                        {item.modifiers && item.modifiers.length > 0 && (
-                            <div className="mt-1 ml-8 space-y-0.5">
-                                {item.modifiers.map((modifier, modIndex) => (
-                                    <p
-                                        key={modIndex}
-                                        className="text-sm text-slate-500"
-                                    >
-                                        - {modifier}
-                                    </p>
-                                ))}
+                                {item.modifiers && item.modifiers.length > 0 && (
+                                    <div className="mt-1 ml-8 space-y-0.5">
+                                        {item.modifiers.map((modifier) => (
+                                            <p
+                                                key={modifier.id}
+                                                className="text-sm text-slate-500"
+                                            >
+                                                + {modifier.modifierOption.name}
+                                            </p>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                        )}
+                            {/* Item status buttons */}
+                            <div className="flex gap-1 ml-2">
+                                {item.status === 'QUEUED' && (
+                                    <button
+                                        onClick={() => handleItemStatusChange(item.id, 'PREPARING')}
+                                        className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                                    >
+                                        Start
+                                    </button>
+                                )}
+                                {item.status === 'PREPARING' && (
+                                    <button
+                                        onClick={() => handleItemStatusChange(item.id, 'READY')}
+                                        className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200"
+                                    >
+                                        Ready
+                                    </button>
+                                )}
+                                {(item.status === 'READY' || item.status === 'SERVED') && (
+                                    <span className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded">
+                                        {item.status === 'READY' ? 'Ready' : 'Served'}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 ))}
             </div>
-
-            {/* Action Button */}
-            {getActionButton()}
         </motion.div>
     )
 }
 
 export default function KDSPage() {
-    const [tickets, setTickets] = useState<KDSTicket[]>(kdsTickets)
+    const [orders, setOrders] = useState<Order[]>([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
 
-    const handleStatusChange = (id: string, newStatus: KDSTicket['status']) => {
-        setTickets(
-            tickets.map((ticket) =>
-                ticket.id === id ? { ...ticket, status: newStatus } : ticket
+    useEffect(() => {
+        fetchOrders()
+        // Refresh every 30 seconds
+        const interval = setInterval(fetchOrders, 30000)
+        return () => clearInterval(interval)
+    }, [])
+
+    const fetchOrders = async () => {
+        try {
+            setLoading(true)
+            setError(null)
+            // Get orders that are not completed (PENDING, IN_PROGRESS)
+            const ordersData = await ordersApi.getOrders({ restaurantId: 1 }) // TODO: Get from context
+            // Filter for active orders only
+            const activeOrders = ordersData.filter(
+                (order: Order) => order.status === 'PENDING' || order.status === 'IN_PROGRESS'
             )
-        )
+            setOrders(activeOrders)
+        } catch (err: any) {
+            console.error('Error fetching orders:', err)
+            setError('Unable to load orders. Please try again.')
+        } finally {
+            setLoading(false)
+        }
     }
 
-    const getTicketsByStatus = (status: KDSTicket['status']) => {
-        return tickets.filter((ticket) => ticket.status === status)
+    const handleStatusChange = async (orderId: number, itemId: number, newStatus: OrderItemStatus) => {
+        try {
+            await ordersApi.updateOrderItemStatus(orderId, itemId, newStatus)
+            // Refresh orders after update
+            await fetchOrders()
+        } catch (err: any) {
+            console.error('Error updating order item status:', err)
+            alert('Unable to update status. Please try again.')
+        }
+    }
+
+    const getOrdersByStatus = (status: 'pending' | 'preparing' | 'ready') => {
+        return orders.filter((order) => {
+            const allReady = order.items.every(item => item.status === 'READY' || item.status === 'SERVED')
+            const anyPreparing = order.items.some(item => item.status === 'PREPARING')
+            
+            if (status === 'ready' && allReady) return true
+            if (status === 'preparing' && anyPreparing && !allReady) return true
+            if (status === 'pending' && !anyPreparing && !allReady) return true
+            return false
+        })
     }
 
     const columns = [
@@ -138,7 +216,7 @@ export default function KDSPage() {
             borderColor: 'border-t-amber-500',
             headerBgColor: 'bg-amber-500',
             bgColor: 'bg-amber-50',
-            count: getTicketsByStatus('pending').length,
+            count: getOrdersByStatus('pending').length,
         },
         {
             title: 'Preparing',
@@ -146,7 +224,7 @@ export default function KDSPage() {
             borderColor: 'border-t-blue-500',
             headerBgColor: 'bg-blue-500',
             bgColor: 'bg-blue-50',
-            count: getTicketsByStatus('preparing').length,
+            count: getOrdersByStatus('preparing').length,
         },
         {
             title: 'Ready',
@@ -154,9 +232,22 @@ export default function KDSPage() {
             borderColor: 'border-t-emerald-500',
             headerBgColor: 'bg-emerald-500',
             bgColor: 'bg-emerald-50',
-            count: getTicketsByStatus('ready').length,
+            count: getOrdersByStatus('ready').length,
         },
     ]
+
+    if (loading) {
+        return (
+            <div className="p-6 lg:p-8 space-y-6">
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto"></div>
+                        <p className="mt-4 text-slate-500">Loading orders...</p>
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="p-6 lg:p-8 space-y-6">
@@ -169,6 +260,13 @@ export default function KDSPage() {
                     Manage and track order preparation
                 </p>
             </div>
+
+            {/* Error Message */}
+            {error && (
+                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+                    {error}
+                </div>
+            )}
 
             {/* Kanban Board */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -190,17 +288,17 @@ export default function KDSPage() {
 
                         {/* Tickets */}
                         <div className={`flex-1 ${column.bgColor} rounded-b-lg min-h-[600px] p-4`}>
-                            {getTicketsByStatus(column.status).length === 0 ? (
+                            {getOrdersByStatus(column.status).length === 0 ? (
                                 <div className="flex items-center justify-center h-32 text-slate-400 text-sm">
                                     No orders
                                 </div>
                             ) : (
                                 <div className="space-y-4">
-                                    {getTicketsByStatus(column.status).map(
-                                        (ticket) => (
+                                    {getOrdersByStatus(column.status).map(
+                                        (order) => (
                                             <TicketCard
-                                                key={ticket.id}
-                                                ticket={ticket}
+                                                key={order.id}
+                                                order={order}
                                                 onStatusChange={
                                                     handleStatusChange
                                                 }

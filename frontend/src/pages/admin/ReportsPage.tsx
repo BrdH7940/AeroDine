@@ -1,4 +1,26 @@
-import { useState } from 'react'
+/**
+ * Reports & Analytics Page
+ *
+ * NOTE: This page contains many charts and analytics features.
+ * Currently, backend provides limited endpoints:
+ * - getDashboardStats (revenue, orders, tables)
+ * - getRevenueChart (week/month)
+ * - getTopSellingItems (top 5)
+ *
+ * Some charts still use mock data until backend endpoints are implemented.
+ * TODO: Add backend endpoints for:
+ * - Payment methods breakdown
+ * - Menu performance matrix
+ * - Category sales
+ * - Voided items tracking
+ * - Peak hours analysis
+ * - Prep time trends
+ * - Day of week revenue
+ * - Rating vs volume
+ * - Top modifiers
+ */
+
+import { useState, useEffect } from 'react'
 import {
     AreaChart,
     Area,
@@ -21,10 +43,9 @@ import {
     ComposedChart,
 } from 'recharts'
 import { Calendar, TrendingUp, DollarSign, ShoppingCart } from 'lucide-react'
+import { reportsApi } from '../../services/api'
 import {
-    revenueGrowthData,
     paymentMethodsData,
-    financialMetrics,
     menuPerformanceData,
     categorySalesData,
     voidedItemsData,
@@ -33,7 +54,6 @@ import {
     dayOfWeekRevenueData,
     ratingVolumeData,
     topModifiersData,
-    top5BestSellingItems,
 } from '../../data/mockReportsData'
 
 // Date Range Selector Component
@@ -102,19 +122,47 @@ function Tabs({
 }
 
 // Financial Health Tab
-function FinancialHealthTab() {
-    // Calculate percentage change for revenue tooltip
-    const enhancedRevenueData = revenueGrowthData.map((item, index) => {
-        const prevPeriod =
-            index > 0
-                ? revenueGrowthData[index - 1].revenue
-                : item.previousRevenue
-        const change = ((item.revenue - prevPeriod) / prevPeriod) * 100
+function FinancialHealthTab({
+    stats,
+    revenueChartData,
+    loading,
+}: {
+    stats: any
+    revenueChartData: any[]
+    loading: boolean
+}) {
+    // Transform backend data for revenue growth chart
+    const enhancedRevenueData = revenueChartData.map((item, index) => {
+        const prevRevenue =
+            index > 0 ? revenueChartData[index - 1].revenue : item.revenue
+        const change =
+            prevRevenue > 0
+                ? ((item.revenue - prevRevenue) / prevRevenue) * 100
+                : 0
         return {
-            ...item,
+            date: item.date || item.time,
+            revenue: item.revenue,
+            previousRevenue: prevRevenue,
             change: change.toFixed(1),
         }
     })
+
+    // Calculate average order value
+    const avgOrderValue =
+        stats.totalOrders > 0 ? stats.totalRevenue / stats.totalOrders : 0
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto"></div>
+                    <p className="mt-4 text-slate-500">
+                        Loading financial data...
+                    </p>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="space-y-6">
@@ -123,35 +171,34 @@ function FinancialHealthTab() {
                 <div className="bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
                     <div className="flex items-center justify-between mb-2">
                         <p className="text-sm font-medium text-slate-500">
-                            Gross Revenue
+                            Total Revenue
                         </p>
                         <DollarSign size={20} className="text-amber-500" />
                     </div>
                     <p className="text-3xl font-semibold text-slate-900">
-                        ${financialMetrics.grossRevenue.toLocaleString()}
+                        ${stats.totalRevenue.toLocaleString()}
                     </p>
                 </div>
                 <div className="bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
                     <div className="flex items-center justify-between mb-2">
                         <p className="text-sm font-medium text-slate-500">
-                            Net Profit
+                            Total Orders
                         </p>
-                        <TrendingUp size={20} className="text-emerald-500" />
+                        <ShoppingCart size={20} className="text-blue-500" />
                     </div>
                     <p className="text-3xl font-semibold text-slate-900">
-                        ${financialMetrics.netProfit.toLocaleString()}
+                        {stats.totalOrders.toLocaleString()}
                     </p>
-                    <p className="text-sm text-slate-500 mt-1">30% margin</p>
                 </div>
                 <div className="bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
                     <div className="flex items-center justify-between mb-2">
                         <p className="text-sm font-medium text-slate-500">
                             Average Order Value
                         </p>
-                        <ShoppingCart size={20} className="text-blue-500" />
+                        <TrendingUp size={20} className="text-emerald-500" />
                     </div>
                     <p className="text-3xl font-semibold text-slate-900">
-                        ${financialMetrics.averageOrderValue.toFixed(2)}
+                        ${avgOrderValue.toFixed(2)}
                     </p>
                 </div>
             </div>
@@ -411,8 +458,27 @@ function FinancialHealthTab() {
 }
 
 // Menu Insights Tab
-function MenuInsightsTab() {
-    // Calculate median values for reference lines
+function MenuInsightsTab({
+    topSellingItems,
+    loading,
+}: {
+    topSellingItems: any[]
+    loading: boolean
+}) {
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto"></div>
+                    <p className="mt-4 text-slate-500">
+                        Loading menu insights...
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
+    // Calculate median values for reference lines (using mock data for now)
     const quantities = menuPerformanceData
         .map((d) => d.quantitySold)
         .sort((a, b) => a - b)
@@ -882,22 +948,37 @@ function MenuInsightsTab() {
                             </tr>
                         </thead>
                         <tbody>
-                            {top5BestSellingItems.map((item, index) => (
-                                <tr
-                                    key={index}
-                                    className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
-                                >
-                                    <td className="py-3 px-4 text-base font-medium text-slate-900">
-                                        {item.name}
-                                    </td>
-                                    <td className="py-3 px-4 text-base text-slate-600">
-                                        {item.quantitySold}
-                                    </td>
-                                    <td className="py-3 px-4 text-base font-semibold text-emerald-600 text-right">
-                                        ${item.revenue.toFixed(2)}
+                            {topSellingItems.length === 0 ? (
+                                <tr>
+                                    <td
+                                        colSpan={3}
+                                        className="py-8 text-center text-slate-500"
+                                    >
+                                        No data available
                                     </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                topSellingItems.map((item, index) => (
+                                    <tr
+                                        key={index}
+                                        className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                                    >
+                                        <td className="py-3 px-4 text-base font-medium text-slate-900">
+                                            {item.menuItemName}
+                                        </td>
+                                        <td className="py-3 px-4 text-base text-slate-600">
+                                            {item.totalQuantity}
+                                        </td>
+                                        <td className="py-3 px-4 text-base font-semibold text-emerald-600 text-right">
+                                            $
+                                            {(
+                                                Number(item.basePrice) *
+                                                item.totalQuantity
+                                            ).toFixed(2)}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -1089,8 +1170,57 @@ function OperationalEfficiencyTab() {
 export default function ReportsPage() {
     const [activeTab, setActiveTab] = useState('Financial')
     const [dateRange, setDateRange] = useState('30')
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+
+    // State for real API data
+    const [stats, setStats] = useState({
+        totalRevenue: 0,
+        totalOrders: 0,
+        activeTables: 0,
+    })
+    const [revenueChartData, setRevenueChartData] = useState<any[]>([])
+    const [topSellingItems, setTopSellingItems] = useState<any[]>([])
 
     const tabs = ['Financial', 'Menu Insights', 'Operations']
+
+    useEffect(() => {
+        fetchReportsData()
+    }, [dateRange])
+
+    const fetchReportsData = async () => {
+        try {
+            setLoading(true)
+            setError(null)
+
+            const [statsData, revenueData, topItemsData] = await Promise.all([
+                reportsApi.getDashboardStats(),
+                reportsApi.getRevenueChart(
+                    dateRange === '30' ? 'month' : 'week'
+                ),
+                reportsApi.getTopSellingItems(),
+            ])
+
+            setStats(statsData)
+
+            // Transform revenue data for charts
+            const transformedData = revenueData.labels.map(
+                (label: string, index: number) => ({
+                    date: label,
+                    time: label,
+                    revenue: revenueData.data[index],
+                })
+            )
+            setRevenueChartData(transformedData)
+
+            setTopSellingItems(topItemsData || [])
+        } catch (err: any) {
+            console.error('Error fetching reports data:', err)
+            setError('Unable to load reports data. Please try again.')
+        } finally {
+            setLoading(false)
+        }
+    }
 
     return (
         <div className="p-6 lg:p-8 space-y-6">
@@ -1107,6 +1237,13 @@ export default function ReportsPage() {
                 <DateRangeSelector value={dateRange} onChange={setDateRange} />
             </div>
 
+            {/* Error Message */}
+            {error && (
+                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+                    {error}
+                </div>
+            )}
+
             {/* Tabs */}
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
                 <Tabs
@@ -1115,8 +1252,19 @@ export default function ReportsPage() {
                     onTabChange={setActiveTab}
                 />
                 <div className="p-6">
-                    {activeTab === 'Financial' && <FinancialHealthTab />}
-                    {activeTab === 'Menu Insights' && <MenuInsightsTab />}
+                    {activeTab === 'Financial' && (
+                        <FinancialHealthTab
+                            stats={stats}
+                            revenueChartData={revenueChartData}
+                            loading={loading}
+                        />
+                    )}
+                    {activeTab === 'Menu Insights' && (
+                        <MenuInsightsTab
+                            topSellingItems={topSellingItems}
+                            loading={loading}
+                        />
+                    )}
                     {activeTab === 'Operations' && <OperationalEfficiencyTab />}
                 </div>
             </div>

@@ -10,79 +10,95 @@ import {
     ChevronRight,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { menuItems, categories } from '../../data/mockData'
-import type { MenuItem } from '../../data/mockData'
+import { menusApi } from '../../services/api'
 
-interface ExtendedMenuItem extends MenuItem {
+interface MenuItem {
+    id: number
+    restaurantId: number
+    categoryId: number
+    name: string
     description?: string
+    basePrice: number
+    image?: string
     prepTime?: number
-    rating?: number
-    reviewCount?: number
-    orders?: number
-    icon?: string
+    isAvailable: boolean
+    category?: {
+        id: number
+        name: string
+    }
 }
 
-type SortBy = 'popularity' | 'quality' | 'cost' | 'none'
-type StatusFilter = 'all' | 'active' | 'inactive'
+interface Category {
+    id: number
+    restaurantId: number
+    name: string
+    description?: string
+    displayOrder?: number
+}
+
+type SortBy = 'price-high' | 'price-low' | 'name' | 'none'
+type StatusFilter = 'all' | 'available' | 'unavailable'
 
 export default function MenuPage() {
     const [searchQuery, setSearchQuery] = useState('')
-    const [selectedCategory, setSelectedCategory] = useState('All')
+    const [selectedCategory, setSelectedCategory] = useState<number | 'all'>('all')
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
     const [sortBy, setSortBy] = useState<SortBy>('none')
     const [currentPage, setCurrentPage] = useState(1)
     const itemsPerPage = 10
-    const [items, setItems] = useState<ExtendedMenuItem[]>(
-        menuItems.map((item, index) => ({
-            ...item,
-            description:
-                [
-                    'Fresh Atlantic salmon grilled to perfection with herbs and lemon',
-                    'Crisp romaine lettuce with parmesan cheese and Caesar dressing',
-                    'Classic Italian pizza with fresh mozzarella and basil',
-                    'Warm chocolate cake with molten center, served with vanilla ice cream',
-                    'Juicy beef patty with fresh vegetables and special sauce',
-                    'Fresh mozzarella, tomatoes, and basil with balsamic glaze',
-                    'Traditional pizza with spicy pepperoni and mozzarella cheese',
-                    'Classic Italian dessert with coffee-soaked ladyfingers and mascarpone',
-                    'Creamy pasta with tender chicken in a rich tomato sauce',
-                    'Fresh vegetables, feta cheese, olives, and Greek dressing',
-                ][index] || 'Delicious dish prepared with fresh ingredients',
-            prepTime: [15, 8, 20, 12, 18, 10, 20, 15, 22, 10][index] || 15,
-            rating:
-                [4.2, 4.5, 4.8, 4.7, 4.3, 4.4, 4.6, 4.9, 4.5, 4.6][index] ||
-                4.5,
-            reviewCount: [24, 18, 35, 22, 28, 15, 30, 27, 20, 19][index] || 20,
-            orders: [124, 89, 156, 98, 112, 67, 143, 108, 95, 84][index] || 100,
-            icon:
-                ['🍽️', '🥗', '🍕', '🍰', '🍔', '🥗', '🍕', '🍰', '🍝', '🥗'][
-                    index
-                ] || '🍽️',
-        }))
-    )
+    const [items, setItems] = useState<MenuItem[]>([])
+    const [categories, setCategories] = useState<Category[]>([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+    const restaurantId = 1 // TODO: Get from context/auth
+
+    useEffect(() => {
+        fetchData()
+    }, [])
+
+    const fetchData = async () => {
+        try {
+            setLoading(true)
+            setError(null)
+
+            const [menuItemsData, categoriesData] = await Promise.all([
+                menusApi.getMenuItems(restaurantId),
+                menusApi.getCategories(restaurantId),
+            ])
+
+            setItems(menuItemsData || [])
+            setCategories(categoriesData || [])
+        } catch (err: any) {
+            console.error('Error fetching menu data:', err)
+            setError('Unable to load menu data. Please try again.')
+        } finally {
+            setLoading(false)
+        }
+    }
 
     const filteredAndSortedItems = useMemo(() => {
         let result = items.filter((item) => {
             const matchesSearch = item.name
                 .toLowerCase()
-                .includes(searchQuery.toLowerCase())
+                .includes(searchQuery.toLowerCase()) ||
+                (item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
             const matchesCategory =
-                selectedCategory === 'All' || item.category === selectedCategory
+                selectedCategory === 'all' || item.categoryId === selectedCategory
             const matchesStatus =
                 statusFilter === 'all' ||
-                (statusFilter === 'active' && item.status === 'active') ||
-                (statusFilter === 'inactive' && item.status === 'inactive')
+                (statusFilter === 'available' && item.isAvailable) ||
+                (statusFilter === 'unavailable' && !item.isAvailable)
             return matchesSearch && matchesCategory && matchesStatus
         })
 
         if (sortBy !== 'none') {
             result = [...result].sort((a, b) => {
-                if (sortBy === 'popularity') {
-                    return (b.orders || 0) - (a.orders || 0)
-                } else if (sortBy === 'quality') {
-                    return (b.rating || 0) - (a.rating || 0)
-                } else if (sortBy === 'cost') {
-                    return b.price - a.price
+                if (sortBy === 'price-high') {
+                    return Number(b.basePrice) - Number(a.basePrice)
+                } else if (sortBy === 'price-low') {
+                    return Number(a.basePrice) - Number(b.basePrice)
+                } else if (sortBy === 'name') {
+                    return a.name.localeCompare(b.name)
                 }
                 return 0
             })
@@ -102,10 +118,43 @@ export default function MenuPage() {
         setCurrentPage(1)
     }, [searchQuery, selectedCategory, statusFilter, sortBy])
 
-    const handleRowClick = (item: ExtendedMenuItem) => {
-        // Mock: Just alert for now
+    const handleRowClick = (item: MenuItem) => {
+        // TODO: Open edit modal
         alert(
-            `Edit Item: ${item.name}\nPrice: $${item.price}\nCategory: ${item.category}`
+            `Edit Item: ${item.name}\nPrice: $${Number(item.basePrice).toFixed(2)}\nCategory: ${item.category?.name || 'N/A'}`
+        )
+    }
+
+    const handleDelete = async (item: MenuItem) => {
+        if (!confirm(`Are you sure you want to delete ${item.name}?`)) {
+            return
+        }
+        // TODO: Implement delete functionality
+        alert('Delete functionality will be implemented')
+    }
+
+    const getCategoryIcon = (categoryName?: string) => {
+        if (!categoryName) return '🍽️'
+        const name = categoryName.toLowerCase()
+        if (name.includes('pizza')) return '🍕'
+        if (name.includes('salad')) return '🥗'
+        if (name.includes('dessert')) return '🍰'
+        if (name.includes('burger')) return '🍔'
+        if (name.includes('pasta')) return '🍝'
+        if (name.includes('drink')) return '🥤'
+        return '🍽️'
+    }
+
+    if (loading) {
+        return (
+            <div className="p-6 lg:p-8 space-y-6">
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto"></div>
+                        <p className="mt-4 text-slate-500">Loading menu...</p>
+                    </div>
+                </div>
+            </div>
         )
     }
 
@@ -127,6 +176,13 @@ export default function MenuPage() {
                 </button>
             </div>
 
+            {/* Error Message */}
+            {error && (
+                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+                    {error}
+                </div>
+            )}
+
             {/* Controls */}
             <div className="flex flex-col sm:flex-row gap-4">
                 {/* Search */}
@@ -147,12 +203,13 @@ export default function MenuPage() {
                 {/* Category Filter */}
                 <select
                     value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    onChange={(e) => setSelectedCategory(e.target.value === 'all' ? 'all' : Number(e.target.value))}
                     className="px-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent text-base text-slate-900 font-medium cursor-pointer"
                 >
+                    <option value="all">All Categories</option>
                     {categories.map((category) => (
-                        <option key={category} value={category}>
-                            {category}
+                        <option key={category.id} value={category.id}>
+                            {category.name}
                         </option>
                     ))}
                 </select>
@@ -166,8 +223,8 @@ export default function MenuPage() {
                     className="px-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent text-base text-slate-900 font-medium cursor-pointer"
                 >
                     <option value="all">All Status</option>
-                    <option value="active">Available</option>
-                    <option value="inactive">Sold out</option>
+                    <option value="available">Available</option>
+                    <option value="unavailable">Unavailable</option>
                 </select>
 
                 {/* Sort by */}
@@ -177,9 +234,9 @@ export default function MenuPage() {
                     className="px-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent text-base text-slate-900 font-medium cursor-pointer"
                 >
                     <option value="none">Sort by: None</option>
-                    <option value="popularity">Sort by: Popularity</option>
-                    <option value="quality">Sort by: Quality</option>
-                    <option value="cost">Sort by: Cost</option>
+                    <option value="name">Sort by: Name</option>
+                    <option value="price-high">Sort by: Price (High)</option>
+                    <option value="price-low">Sort by: Price (Low)</option>
                 </select>
             </div>
 
@@ -199,9 +256,17 @@ export default function MenuPage() {
                         >
                             {/* Image/Icon Section */}
                             <div className="h-32 bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
-                                <span className="text-6xl">
-                                    {item.icon || '🍽️'}
-                                </span>
+                                {item.image ? (
+                                    <img
+                                        src={item.image}
+                                        alt={item.name}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <span className="text-6xl">
+                                        {getCategoryIcon(item.category?.name)}
+                                    </span>
+                                )}
                             </div>
 
                             {/* Content Section */}
@@ -213,49 +278,40 @@ export default function MenuPage() {
                                     </h3>
                                     <span
                                         className={`text-base font-medium whitespace-nowrap ${
-                                            item.status === 'active'
+                                            item.isAvailable
                                                 ? 'text-green-600'
                                                 : 'text-red-600'
                                         }`}
                                     >
-                                        {item.status === 'active'
+                                        {item.isAvailable
                                             ? 'Available'
-                                            : 'Sold out'}
+                                            : 'Unavailable'}
                                     </span>
                                 </div>
 
                                 {/* Category */}
                                 <p className="text-base text-slate-500">
-                                    {item.category}
+                                    {item.category?.name || 'Uncategorized'}
                                 </p>
 
                                 {/* Description */}
-                                <p className="text-base text-slate-600 line-clamp-2">
-                                    {item.description}
-                                </p>
+                                {item.description && (
+                                    <p className="text-base text-slate-600 line-clamp-2">
+                                        {item.description}
+                                    </p>
+                                )}
 
                                 {/* Price and Prep Time */}
                                 <div className="flex items-center justify-between">
                                     <span className="text-xl font-semibold text-red-600">
-                                        ${item.price.toFixed(2)}
+                                        ${Number(item.basePrice).toFixed(2)}
                                     </span>
-                                    <div className="flex items-center gap-1 text-base text-slate-500">
-                                        <Clock size={16} />
-                                        <span>{item.prepTime} min</span>
-                                    </div>
-                                </div>
-
-                                {/* Rating and Orders */}
-                                <div className="flex items-center gap-2 text-base text-slate-500">
-                                    <div className="flex items-center gap-1">
-                                        <Star
-                                            size={16}
-                                            className="fill-amber-400 text-amber-400"
-                                        />
-                                        <span>{item.rating}</span>
-                                        <span>({item.reviewCount})</span>
-                                    </div>
-                                    <span>{item.orders} orders</span>
+                                    {item.prepTime && (
+                                        <div className="flex items-center gap-1 text-base text-slate-500">
+                                            <Clock size={16} />
+                                            <span>{item.prepTime} min</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Action Buttons */}
@@ -269,15 +325,7 @@ export default function MenuPage() {
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation()
-                                            if (
-                                                confirm(`Delete ${item.name}?`)
-                                            ) {
-                                                setItems(
-                                                    items.filter(
-                                                        (i) => i.id !== item.id
-                                                    )
-                                                )
-                                            }
+                                            handleDelete(item)
                                         }}
                                         className="flex-1 p-2 bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-600 rounded-lg transition-colors flex items-center justify-center"
                                     >
