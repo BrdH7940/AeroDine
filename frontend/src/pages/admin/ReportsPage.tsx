@@ -15,6 +15,7 @@ import {
     Tooltip,
     ResponsiveContainer,
     ReferenceLine,
+    ReferenceArea,
     LineChart,
     Line,
     ComposedChart,
@@ -420,6 +421,20 @@ function MenuInsightsTab() {
         .sort((a, b) => a - b)
     const medianQuantity = quantities[Math.floor(quantities.length / 2)]
     const medianRevenue = revenues[Math.floor(revenues.length / 2)]
+    
+    // Calculate min and max for axes bounds
+    const minQuantity = Math.min(...menuPerformanceData.map((d) => d.quantitySold))
+    const maxQuantity = Math.max(...menuPerformanceData.map((d) => d.quantitySold))
+    const minRevenue = Math.min(...menuPerformanceData.map((d) => d.totalRevenue))
+    const maxRevenue = Math.max(...menuPerformanceData.map((d) => d.totalRevenue))
+    
+    // Add padding for better visualization
+    const quantityRange = maxQuantity - minQuantity
+    const revenueRange = maxRevenue - minRevenue
+    const paddedMinQuantity = Math.max(0, minQuantity - quantityRange * 0.1)
+    const paddedMaxQuantity = maxQuantity + quantityRange * 0.1
+    const paddedMinRevenue = Math.max(0, minRevenue - revenueRange * 0.1)
+    const paddedMaxRevenue = maxRevenue + revenueRange * 0.1
 
     return (
         <div className="grid grid-cols-12 gap-6">
@@ -429,7 +444,7 @@ function MenuInsightsTab() {
                 <h3 className="text-xl font-semibold text-slate-900 mb-1">
                     Menu Matrix
                 </h3>
-                <p className="text-sm text-slate-500 mb-6">
+                <p className="text-base text-slate-500 mb-6">
                     Popularity vs. Profitability
                 </p>
                 <div className="h-[500px]">
@@ -457,6 +472,8 @@ function MenuInsightsTab() {
                                 }}
                                 stroke="#64748b"
                                 fontSize={12}
+                                domain={[paddedMinQuantity, paddedMaxQuantity]}
+                                tickFormatter={(value) => Math.round(value).toString()}
                             />
                             <YAxis
                                 type="number"
@@ -469,6 +486,49 @@ function MenuInsightsTab() {
                                 }}
                                 stroke="#64748b"
                                 fontSize={12}
+                                domain={[paddedMinRevenue, paddedMaxRevenue]}
+                                tickFormatter={(value) => Math.round(value).toString()}
+                            />
+                            {/* Reference Areas for 4 quadrants */}
+                            {/* Stars - Top Right (High Revenue, High Sales) */}
+                            <ReferenceArea
+                                x1={medianQuantity}
+                                x2={paddedMaxQuantity}
+                                y1={medianRevenue}
+                                y2={paddedMaxRevenue}
+                                fill="#d1fae5"
+                                fillOpacity={0.3}
+                                stroke="none"
+                            />
+                            {/* Plowhorses - Bottom Right (High Sales, Low Revenue) */}
+                            <ReferenceArea
+                                x1={medianQuantity}
+                                x2={paddedMaxQuantity}
+                                y1={paddedMinRevenue}
+                                y2={medianRevenue}
+                                fill="#fef3c7"
+                                fillOpacity={0.3}
+                                stroke="none"
+                            />
+                            {/* Puzzles - Top Left (Low Sales, High Revenue) */}
+                            <ReferenceArea
+                                x1={paddedMinQuantity}
+                                x2={medianQuantity}
+                                y1={medianRevenue}
+                                y2={paddedMaxRevenue}
+                                fill="#dbeafe"
+                                fillOpacity={0.3}
+                                stroke="none"
+                            />
+                            {/* Dogs - Bottom Left (Low Sales, Low Revenue) */}
+                            <ReferenceArea
+                                x1={paddedMinQuantity}
+                                x2={medianQuantity}
+                                y1={paddedMinRevenue}
+                                y2={medianRevenue}
+                                fill="#fee2e2"
+                                fillOpacity={0.3}
+                                stroke="none"
                             />
                             <ReferenceLine
                                 x={medianQuantity}
@@ -558,7 +618,7 @@ function MenuInsightsTab() {
                 <h3 className="text-lg font-semibold text-slate-900 mb-1">
                     Top Modifiers
                 </h3>
-                <p className="text-sm text-slate-500 mb-4">
+                <p className="text-base text-slate-500 mb-4">
                     Most requested customizations
                 </p>
                 <div className="flex-1">
@@ -577,7 +637,7 @@ function MenuInsightsTab() {
                             <XAxis
                                 type="number"
                                 stroke="#64748b"
-                                fontSize={11}
+                                fontSize={14}
                                 tickLine={false}
                                 axisLine={false}
                             />
@@ -585,7 +645,7 @@ function MenuInsightsTab() {
                                 type="category"
                                 dataKey="name"
                                 stroke="#64748b"
-                                fontSize={11}
+                                fontSize={14}
                                 tickLine={false}
                                 axisLine={false}
                                 width={100}
@@ -619,7 +679,7 @@ function MenuInsightsTab() {
                 <h3 className="text-lg font-semibold text-slate-900 mb-1">
                     Sales by Category
                 </h3>
-                <p className="text-sm text-slate-500 mb-4">
+                <p className="text-base text-slate-500 mb-4">
                     Category performance
                 </p>
                 <div className="flex-1">
@@ -640,13 +700,13 @@ function MenuInsightsTab() {
                             <XAxis
                                 dataKey="category"
                                 stroke="#64748b"
-                                fontSize={11}
+                                fontSize={14}
                                 tickLine={false}
                                 axisLine={false}
                             />
                             <YAxis
                                 stroke="#64748b"
-                                fontSize={11}
+                                fontSize={14}
                                 tickLine={false}
                                 axisLine={false}
                                 tickFormatter={(value) => `$${value / 1000}k`}
@@ -679,7 +739,7 @@ function MenuInsightsTab() {
                 <h3 className="text-lg font-semibold text-slate-900 mb-1">
                     Rating vs Volume
                 </h3>
-                <p className="text-sm text-slate-500 mb-4">
+                <p className="text-base text-slate-500 mb-4">
                     Customer satisfaction vs sales volume
                 </p>
                 <div className="flex-1">
@@ -700,7 +760,7 @@ function MenuInsightsTab() {
                             <XAxis
                                 dataKey="item"
                                 stroke="#64748b"
-                                fontSize={10}
+                                fontSize={12}
                                 tickLine={false}
                                 axisLine={false}
                                 angle={-45}
@@ -710,7 +770,7 @@ function MenuInsightsTab() {
                             <YAxis
                                 yAxisId="volume"
                                 stroke="#64748b"
-                                fontSize={10}
+                                fontSize={14}
                                 tickLine={false}
                                 axisLine={false}
                                 orientation="left"
@@ -791,20 +851,20 @@ function MenuInsightsTab() {
                 <h3 className="text-lg font-semibold text-slate-900 mb-1">
                     Top 5 Best Selling Items
                 </h3>
-                <p className="text-sm text-slate-500 mb-4">
+                <p className="text-base text-slate-500 mb-4">
                     Highest performing menu items
                 </p>
                 <div className="flex-1 overflow-auto">
                     <table className="w-full">
                         <thead className="sticky top-0 bg-white">
                             <tr className="border-b border-slate-200">
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">
+                                <th className="text-left py-3 px-4 text-base font-semibold text-slate-700">
                                     Item Name
                                 </th>
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">
+                                <th className="text-left py-3 px-4 text-base font-semibold text-slate-700">
                                     Quantity
                                 </th>
-                                <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">
+                                <th className="text-right py-3 px-4 text-base font-semibold text-slate-700">
                                     Revenue
                                 </th>
                             </tr>
@@ -815,13 +875,13 @@ function MenuInsightsTab() {
                                     key={index}
                                     className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
                                 >
-                                    <td className="py-3 px-4 text-sm font-medium text-slate-900">
+                                    <td className="py-3 px-4 text-base font-medium text-slate-900">
                                         {item.name}
                                     </td>
-                                    <td className="py-3 px-4 text-sm text-slate-600">
+                                    <td className="py-3 px-4 text-base text-slate-600">
                                         {item.quantitySold}
                                     </td>
-                                    <td className="py-3 px-4 text-sm font-semibold text-emerald-600 text-right">
+                                    <td className="py-3 px-4 text-base font-semibold text-emerald-600 text-right">
                                         ${item.revenue.toFixed(2)}
                                     </td>
                                 </tr>
@@ -836,20 +896,20 @@ function MenuInsightsTab() {
                 <h3 className="text-lg font-semibold text-slate-900 mb-1">
                     Top 5 Voided Items
                 </h3>
-                <p className="text-sm text-slate-500 mb-4">
+                <p className="text-base text-slate-500 mb-4">
                     Items with highest cancellation rates and loss amounts
                 </p>
                 <div className="flex-1 overflow-auto">
                     <table className="w-full">
                         <thead className="sticky top-0 bg-white">
                             <tr className="border-b border-slate-200">
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">
+                                <th className="text-left py-3 px-4 text-base font-semibold text-slate-700">
                                     Item Name
                                 </th>
-                                <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">
+                                <th className="text-left py-3 px-4 text-base font-semibold text-slate-700">
                                     Times Voided
                                 </th>
-                                <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">
+                                <th className="text-right py-3 px-4 text-base font-semibold text-slate-700">
                                     Loss Amount
                                 </th>
                             </tr>
@@ -860,13 +920,13 @@ function MenuInsightsTab() {
                                     key={index}
                                     className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
                                 >
-                                    <td className="py-3 px-4 text-sm font-medium text-slate-900">
+                                    <td className="py-3 px-4 text-base font-medium text-slate-900">
                                         {item.itemName}
                                     </td>
-                                    <td className="py-3 px-4 text-sm text-slate-600">
+                                    <td className="py-3 px-4 text-base text-slate-600">
                                         {item.timesVoided}
                                     </td>
-                                    <td className="py-3 px-4 text-sm font-semibold text-red-600 text-right">
+                                    <td className="py-3 px-4 text-base font-semibold text-red-600 text-right">
                                         ${item.lossAmount.toFixed(2)}
                                     </td>
                                 </tr>
