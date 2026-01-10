@@ -95,7 +95,7 @@ function TicketCard({ ticket, onStatusChange }: TicketCardProps) {
                             </span>
                         </div>
                         {item.modifiers && item.modifiers.length > 0 && (
-                            <div className="mt-1 ml-4 space-y-0.5">
+                            <div className="mt-1 ml-8 space-y-0.5">
                                 {item.modifiers.map((modifier, modIndex) => (
                                     <p
                                         key={modIndex}
@@ -136,18 +136,24 @@ export default function KDSPage() {
             title: 'Pending',
             status: 'pending' as const,
             borderColor: 'border-t-amber-500',
+            headerBgColor: 'bg-amber-500',
+            bgColor: 'bg-amber-50',
             count: getTicketsByStatus('pending').length,
         },
         {
             title: 'Preparing',
             status: 'preparing' as const,
             borderColor: 'border-t-blue-500',
+            headerBgColor: 'bg-blue-500',
+            bgColor: 'bg-blue-50',
             count: getTicketsByStatus('preparing').length,
         },
         {
             title: 'Ready',
             status: 'ready' as const,
             borderColor: 'border-t-emerald-500',
+            headerBgColor: 'bg-emerald-500',
+            bgColor: 'bg-emerald-50',
             count: getTicketsByStatus('ready').length,
         },
     ]
@@ -170,22 +176,22 @@ export default function KDSPage() {
                     <div key={column.status} className="flex flex-col">
                         {/* Column Header */}
                         <div
-                            className={`bg-white rounded-t-lg border-t-4 ${column.borderColor} p-4 shadow-sm relative`}
+                            className={`${column.headerBgColor} rounded-t-lg border-t-4 ${column.borderColor} p-4 shadow-sm relative`}
                         >
                             <div className="flex items-center justify-center">
-                                <h2 className="text-xl font-semibold text-slate-900">
+                                <h2 className="text-xl font-semibold text-white">
                                     {column.title}
                                 </h2>
-                                <span className="absolute right-4 px-2 py-1 bg-slate-100 text-slate-700 rounded-full text-sm font-semibold">
+                                <span className="absolute right-4 px-2 py-1 bg-white/20 text-white rounded-full text-sm font-semibold">
                                     {column.count}
                                 </span>
                             </div>
                         </div>
 
                         {/* Tickets */}
-                        <div className="flex-1 bg-slate-50 rounded-b-lg min-h-[600px]">
+                        <div className={`flex-1 ${column.bgColor} rounded-b-lg min-h-[600px] p-4`}>
                             {getTicketsByStatus(column.status).length === 0 ? (
-                                <div className="flex items-center justify-center h-32 text-slate-400 text-sm p-4">
+                                <div className="flex items-center justify-center h-32 text-slate-400 text-sm">
                                     No orders
                                 </div>
                             ) : (
