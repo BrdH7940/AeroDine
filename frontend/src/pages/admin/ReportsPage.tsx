@@ -421,13 +421,21 @@ function MenuInsightsTab() {
         .sort((a, b) => a - b)
     const medianQuantity = quantities[Math.floor(quantities.length / 2)]
     const medianRevenue = revenues[Math.floor(revenues.length / 2)]
-    
+
     // Calculate min and max for axes bounds
-    const minQuantity = Math.min(...menuPerformanceData.map((d) => d.quantitySold))
-    const maxQuantity = Math.max(...menuPerformanceData.map((d) => d.quantitySold))
-    const minRevenue = Math.min(...menuPerformanceData.map((d) => d.totalRevenue))
-    const maxRevenue = Math.max(...menuPerformanceData.map((d) => d.totalRevenue))
-    
+    const minQuantity = Math.min(
+        ...menuPerformanceData.map((d) => d.quantitySold)
+    )
+    const maxQuantity = Math.max(
+        ...menuPerformanceData.map((d) => d.quantitySold)
+    )
+    const minRevenue = Math.min(
+        ...menuPerformanceData.map((d) => d.totalRevenue)
+    )
+    const maxRevenue = Math.max(
+        ...menuPerformanceData.map((d) => d.totalRevenue)
+    )
+
     // Add padding for better visualization
     const quantityRange = maxQuantity - minQuantity
     const revenueRange = maxRevenue - minRevenue
@@ -473,7 +481,9 @@ function MenuInsightsTab() {
                                 stroke="#64748b"
                                 fontSize={12}
                                 domain={[paddedMinQuantity, paddedMaxQuantity]}
-                                tickFormatter={(value) => Math.round(value).toString()}
+                                tickFormatter={(value) =>
+                                    Math.round(value).toString()
+                                }
                             />
                             <YAxis
                                 type="number"
@@ -487,7 +497,9 @@ function MenuInsightsTab() {
                                 stroke="#64748b"
                                 fontSize={12}
                                 domain={[paddedMinRevenue, paddedMaxRevenue]}
-                                tickFormatter={(value) => Math.round(value).toString()}
+                                tickFormatter={(value) =>
+                                    Math.round(value).toString()
+                                }
                             />
                             {/* Reference Areas for 4 quadrants */}
                             {/* Stars - Top Right (High Revenue, High Sales) */}
@@ -948,7 +960,7 @@ function OperationalEfficiencyTab() {
                 <h3 className="text-xl font-semibold text-slate-900 mb-1">
                     Peak Hours Analysis
                 </h3>
-                <p className="text-sm text-slate-500 mb-6">
+                <p className="text-base text-slate-500 mb-6">
                     Identify optimal staffing schedules based on order volume
                 </p>
                 <ResponsiveContainer width="100%" height={350}>
@@ -1012,7 +1024,7 @@ function OperationalEfficiencyTab() {
                 <h3 className="text-xl font-semibold text-slate-900 mb-1">
                     Average Prep Time Trend
                 </h3>
-                <p className="text-sm text-slate-500 mb-6">
+                <p className="text-base text-slate-500 mb-6">
                     Monitor kitchen consistency and efficiency
                 </p>
                 <ResponsiveContainer width="100%" height={300}>
@@ -1088,7 +1100,7 @@ export default function ReportsPage() {
                     <h1 className="text-3xl font-semibold text-slate-900">
                         Analytics & Reports
                     </h1>
-                    <p className="text-sm text-slate-500 mt-1">
+                    <p className="text-base text-slate-500 mt-1">
                         Deep dive into your restaurant's performance
                     </p>
                 </div>
