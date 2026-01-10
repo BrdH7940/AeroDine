@@ -28,6 +28,7 @@ import {
     voidedItemsData,
     peakHoursData,
     prepTimeData,
+    dayOfWeekRevenueData,
 } from '../../data/mockReportsData'
 
 // Date Range Selector Component
@@ -265,38 +266,39 @@ function FinancialHealthTab() {
                 </ResponsiveContainer>
             </div>
 
-            {/* Payment Methods Split */}
-            <div className="bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
-                <h3 className="text-xl font-semibold text-slate-900 mb-1">
-                    Payment Methods Distribution
-                </h3>
-                <p className="text-sm text-slate-500 mb-6">
-                    Cash vs. Digital Payments breakdown
-                </p>
-                <div className="flex items-center justify-center">
+            {/* Revenue by Day of Week and Payment Methods */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Revenue by Day of Week */}
+                <div className="bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
+                    <h3 className="text-xl font-semibold text-slate-900 mb-1">
+                        Revenue by Day of Week
+                    </h3>
+                    <p className="text-sm text-slate-500 mb-6">
+                        Identify strong and weak business days
+                    </p>
                     <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie
-                                data={paymentMethodsData as any[]}
-                                cx="50%"
-                                cy="50%"
-                                labelLine={false}
-                                label={({ name, percent }) =>
-                                    `${name} ${
-                                        percent ? (percent * 100).toFixed(0) : 0
-                                    }%`
-                                }
-                                outerRadius={100}
-                                fill="#8884d8"
-                                dataKey="value"
-                            >
-                                {paymentMethodsData.map((entry, index) => (
-                                    <Cell
-                                        key={`cell-${index}`}
-                                        fill={entry.color}
-                                    />
-                                ))}
-                            </Pie>
+                        <BarChart
+                            data={dayOfWeekRevenueData}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                        >
+                            <CartesianGrid
+                                strokeDasharray="3 3"
+                                stroke="#e2e8f0"
+                            />
+                            <XAxis
+                                dataKey="day"
+                                stroke="#64748b"
+                                fontSize={12}
+                                tickLine={false}
+                                axisLine={false}
+                            />
+                            <YAxis
+                                stroke="#64748b"
+                                fontSize={12}
+                                tickLine={false}
+                                axisLine={false}
+                                tickFormatter={(value) => `$${value / 1000}k`}
+                            />
                             <Tooltip
                                 formatter={(value: number | undefined) =>
                                     `$${(value ?? 0).toLocaleString()}`
@@ -309,21 +311,94 @@ function FinancialHealthTab() {
                                         '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                                 }}
                             />
-                        </PieChart>
+                            <Bar dataKey="revenue" radius={[8, 8, 0, 0]}>
+                                {dayOfWeekRevenueData.map((entry, index) => {
+                                    const maxRevenue = Math.max(
+                                        ...dayOfWeekRevenueData.map(
+                                            (d) => d.revenue
+                                        )
+                                    )
+                                    return (
+                                        <Cell
+                                            key={`cell-${index}`}
+                                            fill={
+                                                entry.revenue === maxRevenue
+                                                    ? '#f59e0b' // amber-500
+                                                    : '#e2e8f0' // slate-200
+                                            }
+                                        />
+                                    )
+                                })}
+                            </Bar>
+                        </BarChart>
                     </ResponsiveContainer>
                 </div>
-                <div className="flex flex-wrap justify-center gap-4 mt-4">
-                    {paymentMethodsData.map((item, index) => (
-                        <div key={index} className="flex items-center gap-2">
+
+                {/* Payment Methods Split */}
+                <div className="bg-white rounded-xl p-6 border border-slate-100 shadow-sm">
+                    <h3 className="text-xl font-semibold text-slate-900 mb-1">
+                        Payment Methods Distribution
+                    </h3>
+                    <p className="text-sm text-slate-500 mb-6">
+                        Cash vs. Digital Payments breakdown
+                    </p>
+                    <div className="flex items-center justify-center">
+                        <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                                <Pie
+                                    data={paymentMethodsData as any[]}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    label={({ name, percent }) =>
+                                        `${name} ${
+                                            percent
+                                                ? (percent * 100).toFixed(0)
+                                                : 0
+                                        }%`
+                                    }
+                                    outerRadius={100}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                >
+                                    {paymentMethodsData.map((entry, index) => (
+                                        <Cell
+                                            key={`cell-${index}`}
+                                            fill={entry.color}
+                                        />
+                                    ))}
+                                </Pie>
+                                <Tooltip
+                                    formatter={(value: number | undefined) =>
+                                        `$${(value ?? 0).toLocaleString()}`
+                                    }
+                                    contentStyle={{
+                                        backgroundColor: 'white',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '8px',
+                                        boxShadow:
+                                            '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                                    }}
+                                />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-4 mt-4">
+                        {paymentMethodsData.map((item, index) => (
                             <div
-                                className="w-4 h-4 rounded-full"
-                                style={{ backgroundColor: item.color }}
-                            />
-                            <span className="text-sm text-slate-600">
-                                {item.name}
-                            </span>
-                        </div>
-                    ))}
+                                key={index}
+                                className="flex items-center gap-2"
+                            >
+                                <div
+                                    className="w-4 h-4 rounded-full"
+                                    style={{ backgroundColor: item.color }}
+                                />
+                                <span className="text-sm text-slate-600">
+                                    {item.name}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>

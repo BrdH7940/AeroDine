@@ -170,6 +170,22 @@ export const peakHoursData: PeakHourData[] = [
     { hour: '23:00', orders: 23 },
 ]
 
+// Revenue by Day of Week Data (Bar Chart)
+export interface DayOfWeekRevenue {
+    day: string
+    revenue: number
+}
+
+export const dayOfWeekRevenueData: DayOfWeekRevenue[] = [
+    { day: 'Mon', revenue: 9800 },
+    { day: 'Tue', revenue: 10200 },
+    { day: 'Wed', revenue: 10800 },
+    { day: 'Thu', revenue: 11200 },
+    { day: 'Fri', revenue: 15200 },
+    { day: 'Sat', revenue: 18500 },
+    { day: 'Sun', revenue: 16500 },
+]
+
 // Average Prep Time Trend Data (Line Chart)
 export interface PrepTimeData {
     week: string
