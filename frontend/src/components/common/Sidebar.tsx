@@ -11,6 +11,7 @@ import {
   User,
   LogOut,
   Settings,
+  ChefHat,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -24,6 +25,7 @@ const navigationItems = [
   { path: '/menu', label: 'Menu', icon: UtensilsCrossed },
   { path: '/tables', label: 'Tables', icon: Table },
   { path: '/staff', label: 'Staff', icon: Users },
+  { path: '/kds', label: 'Kitchen Display System', icon: ChefHat },
   { path: '/reports', label: 'Reports', icon: BarChart3 },
 ];
 
