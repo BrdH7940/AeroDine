@@ -13,7 +13,7 @@ interface StaffMember {
     role: UserRoleType | string
     createdAt: string
     updatedAt: string
-    phone?: string // Optional, will use mock data if not available
+    phone?: string
 }
 
 // Map role types to Vietnamese role names
@@ -24,9 +24,6 @@ const roleMap: Record<string, string> = {
     CUSTOMER: 'CUSTOMERS',
 }
 
-// Mock phone numbers for display (in real app, this would come from user profile)
-const mockPhones: Record<number, string> = {}
-
 function getInitials(name: string): string {
     const words = name.trim().split(/\s+/)
     if (words.length >= 2) {
@@ -35,22 +32,9 @@ function getInitials(name: string): string {
     return name.substring(0, 2).toUpperCase()
 }
 
-function getPhoneNumber(userId: number): string {
-    if (mockPhones[userId]) {
-        return mockPhones[userId]
-    }
-    // Generate a mock phone number based on user ID for demo
-    const phone = `090.${String(userId).padStart(3, '0')}.${String(
-        userId * 7
-    ).slice(-4)}`
-    mockPhones[userId] = phone
-    return phone
-}
-
 function StaffCard({ staff }: { staff: StaffMember }) {
     const initials = getInitials(staff.fullName)
     const roleName = roleMap[staff.role] || staff.role
-    const phone = getPhoneNumber(staff.id)
 
     return (
         <motion.div
@@ -85,10 +69,12 @@ function StaffCard({ staff }: { staff: StaffMember }) {
                             <Mail size={16} className="text-slate-400" />
                             <span className="truncate">{staff.email}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-slate-600">
-                            <Phone size={16} className="text-slate-400" />
-                            <span>{phone}</span>
-                        </div>
+                        {staff.phone && (
+                            <div className="flex items-center gap-2 text-sm text-slate-600">
+                                <Phone size={16} className="text-slate-400" />
+                                <span>{staff.phone}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -115,56 +101,21 @@ export default function StaffPage() {
                 response.data?.filter(
                     (user: StaffMember) => String(user.role) !== 'CUSTOMER'
                 ) || []
-            if (staffMembers.length > 0) {
-                setStaff(staffMembers)
-            } else {
-                // Use mock data if no staff found
-                setStaff(getMockStaff())
-            }
+            setStaff(staffMembers)
         } catch (err: any) {
             console.error('Error fetching staff:', err)
-            setError('Cannot load staff list. Using mock data.')
-            // Use mock data as fallback
-            setStaff(getMockStaff())
+            if (err.response?.status === 401) {
+                setError('Authentication required. Please login.')
+            } else if (err.response?.status === 404) {
+                setError('Backend endpoint not found. Please check if backend is running.')
+            } else {
+                setError(`Unable to load staff list: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            }
+            setStaff([])
         } finally {
             setLoading(false)
         }
     }
-
-    const getMockStaff = (): StaffMember[] => [
-        {
-            id: 1,
-            email: 'nam.le@aerodine.com',
-            fullName: 'Lê Hoàng Nam',
-            role: 'ADMIN' as UserRoleType,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        },
-        {
-            id: 2,
-            email: 'ngoc.tran@aerodine.com',
-            fullName: 'Trần Bích Ngọc',
-            role: 'KITCHEN' as UserRoleType,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        },
-        {
-            id: 3,
-            email: 'duc.ng@aerodine.com',
-            fullName: 'Nguyễn Minh Đức',
-            role: 'WAITER' as UserRoleType,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        },
-        {
-            id: 4,
-            email: 'thuy.p@aerodine.com',
-            fullName: 'Phạm Thu Thủy',
-            role: 'WAITER' as UserRoleType,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        },
-    ]
 
     const handleAddStaff = () => {
         // TODO: Open add staff modal/form

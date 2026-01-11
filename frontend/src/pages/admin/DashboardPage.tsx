@@ -19,6 +19,7 @@ import {
 } from 'recharts'
 import { motion } from 'framer-motion'
 import { reportsApi, ordersApi } from '../../services/api'
+import { authApi } from '../../services/auth'
 import type { OrderStatus } from '@aerodine/shared-types'
 
 interface KPICardProps {
@@ -154,19 +155,39 @@ export default function DashboardPage() {
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
-        fetchDashboardData()
+        initializeAndFetchData()
     }, [])
 
-    const fetchDashboardData = async () => {
+    const initializeAndFetchData = async () => {
         try {
             setLoading(true)
             setError(null)
 
+            // Auto-login in development mode if not authenticated
+            if (import.meta.env.DEV && !authApi.isAuthenticated()) {
+                try {
+                    await authApi.autoLoginDev()
+                } catch (loginError) {
+                    console.warn('Auto-login failed, continuing without auth:', loginError)
+                }
+            }
+
+            await fetchDashboardData()
+        } catch (err: any) {
+            console.error('Error initializing dashboard:', err)
+            setError('Unable to load dashboard data. Please check if backend is running.')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const fetchDashboardData = async () => {
+        try {
             // Fetch stats, revenue chart, and recent orders in parallel
             const [statsData, revenueData, ordersData] = await Promise.all([
                 reportsApi.getDashboardStats(),
                 reportsApi.getRevenueChart('week'),
-                ordersApi.getOrders({ restaurantId: 1 }), // TODO: Get restaurantId from context/auth
+                ordersApi.getOrders({ restaurantId: 2 }), // TODO: Get restaurantId from context/auth - TEMP: using 2 to match database
             ])
 
             setStats(statsData)
@@ -191,9 +212,14 @@ export default function DashboardPage() {
             setRecentOrders(sortedOrders)
         } catch (err: any) {
             console.error('Error fetching dashboard data:', err)
-            setError('Unable to load dashboard data. Please try again.')
-        } finally {
-            setLoading(false)
+            if (err.response?.status === 401) {
+                setError('Authentication required. Please login.')
+            } else if (err.response?.status === 404) {
+                setError('Backend endpoint not found. Please check if backend is running.')
+            } else {
+                setError(`Unable to load dashboard data: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            }
+            throw err // Re-throw to be caught by initializeAndFetchData
         }
     }
 

@@ -103,4 +103,121 @@ export class ReportsController {
     async getTopSellingItems() {
         return this.reportsService.getTopSellingItems()
     }
+
+    @Get('payment-methods')
+    @ApiOperation({
+        summary: 'Get payment methods breakdown (Admin only)',
+        description: 'Returns payment methods distribution with total amounts.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Payment methods breakdown',
+    })
+    async getPaymentMethodsBreakdown() {
+        return this.reportsService.getPaymentMethodsBreakdown()
+    }
+
+    @Get('category-sales')
+    @ApiOperation({
+        summary: 'Get sales by category (Admin only)',
+        description: 'Returns total sales grouped by category.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Category sales data',
+    })
+    async getCategorySales() {
+        return this.reportsService.getCategorySales()
+    }
+
+    @Get('voided-items')
+    @ApiOperation({
+        summary: 'Get voided/cancelled items (Admin only)',
+        description: 'Returns top 5 voided items with cancellation counts and loss amounts.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Voided items data',
+    })
+    async getVoidedItems() {
+        return this.reportsService.getVoidedItems()
+    }
+
+    @Get('peak-hours')
+    @ApiOperation({
+        summary: 'Get peak hours analysis (Admin only)',
+        description: 'Returns order count by hour of day (0-23).',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Peak hours data',
+    })
+    async getPeakHours() {
+        return this.reportsService.getPeakHours()
+    }
+
+    @Get('day-of-week-revenue')
+    @ApiOperation({
+        summary: 'Get revenue by day of week (Admin only)',
+        description: 'Returns total revenue grouped by day of week (Mon-Sun).',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Day of week revenue data',
+    })
+    async getDayOfWeekRevenue() {
+        return this.reportsService.getDayOfWeekRevenue()
+    }
+
+    @Get('menu-performance')
+    @ApiOperation({
+        summary: 'Get menu performance matrix (Admin only)',
+        description: 'Returns menu items with quantity sold and total revenue for performance analysis.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Menu performance data',
+    })
+    async getMenuPerformance() {
+        return this.reportsService.getMenuPerformance()
+    }
+
+    @Get('top-modifiers')
+    @ApiOperation({
+        summary: 'Get top modifiers (Admin only)',
+        description: 'Returns top 8 most used modifiers.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Top modifiers data',
+    })
+    async getTopModifiers() {
+        return this.reportsService.getTopModifiers()
+    }
+
+    @Get('rating-volume')
+    @ApiOperation({
+        summary: 'Get rating vs volume data (Admin only)',
+        description: 'Returns top menu items with average ratings and sales volume.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Rating vs volume data',
+    })
+    async getRatingVolume() {
+        return this.reportsService.getRatingVolume()
+    }
+
+    @Get('prep-time-trends')
+    @ApiOperation({
+        summary: 'Get prep time trends (Admin only)',
+        description: 'Returns average prep time by week for the last 12 weeks.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Prep time trends data',
+    })
+    async getPrepTimeTrends() {
+        return this.reportsService.getPrepTimeTrends()
+    }
 }

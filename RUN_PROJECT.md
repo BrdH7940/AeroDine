@@ -5,6 +5,7 @@
 -   Node.js >= 18.x
 -   pnpm >= 8.x
 -   PostgreSQL >= 14.x
+-   ngrok (optional - cho webhook testing): https://ngrok.com/download
 
 ## Quick Start
 
@@ -60,6 +61,16 @@ pnpm run dev
 ```
 
 → http://localhost:5173
+
+### 5. Chạy Ngrok (Terminal 3 - Optional)
+
+```bash
+# Expose backend ra internet (cho webhook testing, mobile testing)
+ngrok http 3000
+```
+
+→ Copy URL từ ngrok (ví dụ: `https://abc123.ngrok.io`)  
+→ Update webhook URLs: `https://abc123.ngrok.io/api/payments/stripe/webhook`
 
 ## Scripts Chính
 
@@ -132,3 +143,4 @@ npx prisma generate
 -   Backend API: http://localhost:3000/api
 -   Swagger Docs: http://localhost:3000/api/docs
 -   Prisma Studio: `npx prisma studio` (từ backend/)
+-   Ngrok URL: `https://xxx.ngrok.io` (sau khi chạy ngrok)

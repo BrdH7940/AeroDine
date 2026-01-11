@@ -73,6 +73,78 @@ export const reportsApi = {
     const response = await apiClient.get('/reports/top-items');
     return response.data;
   },
+
+  /**
+   * Get payment methods breakdown
+   */
+  getPaymentMethodsBreakdown: async () => {
+    const response = await apiClient.get('/reports/payment-methods');
+    return response.data;
+  },
+
+  /**
+   * Get sales by category
+   */
+  getCategorySales: async () => {
+    const response = await apiClient.get('/reports/category-sales');
+    return response.data;
+  },
+
+  /**
+   * Get voided items
+   */
+  getVoidedItems: async () => {
+    const response = await apiClient.get('/reports/voided-items');
+    return response.data;
+  },
+
+  /**
+   * Get peak hours analysis
+   */
+  getPeakHours: async () => {
+    const response = await apiClient.get('/reports/peak-hours');
+    return response.data;
+  },
+
+  /**
+   * Get revenue by day of week
+   */
+  getDayOfWeekRevenue: async () => {
+    const response = await apiClient.get('/reports/day-of-week-revenue');
+    return response.data;
+  },
+
+  /**
+   * Get menu performance matrix
+   */
+  getMenuPerformance: async () => {
+    const response = await apiClient.get('/reports/menu-performance');
+    return response.data;
+  },
+
+  /**
+   * Get top modifiers
+   */
+  getTopModifiers: async () => {
+    const response = await apiClient.get('/reports/top-modifiers');
+    return response.data;
+  },
+
+  /**
+   * Get rating vs volume data
+   */
+  getRatingVolume: async () => {
+    const response = await apiClient.get('/reports/rating-volume');
+    return response.data;
+  },
+
+  /**
+   * Get prep time trends
+   */
+  getPrepTimeTrends: async () => {
+    const response = await apiClient.get('/reports/prep-time-trends');
+    return response.data;
+  },
 };
 
 // ============================================

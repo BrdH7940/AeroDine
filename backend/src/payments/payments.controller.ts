@@ -158,28 +158,11 @@ export class PaymentsController {
         description: 'Invalid IPN payload',
     })
     async handleMomoCallback(@Body() payload: any) {
-        // FROZEN: MoMo temporarily disabled
+        // MoMo temporarily disabled
         this.logger.warn(
-            `MoMo IPN callback received but MoMo is frozen: ${JSON.stringify(payload)}`
+            `MoMo IPN callback received but MoMo is disabled: ${JSON.stringify(payload)}`
         )
-
-        // Log for debugging but don't process
-        // Return 204 to avoid MoMo retries
         return null
-
-        // Original implementation (commented out):
-        // try {
-        //     await this.paymentsService.handleIPN(
-        //         PaymentMethod.QR_CODE,
-        //         payload
-        //     )
-        //     return null
-        // } catch (error) {
-        //     this.logger.error(
-        //         `Error handling MoMo IPN: ${error instanceof Error ? error.message : 'Unknown error'}`
-        //     )
-        //     return null
-        // }
     }
 
     @Get('order/:orderId')

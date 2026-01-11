@@ -12,9 +12,7 @@ export const useSocket = () => {
         socketRef.current = getSocket()
 
         return () => {
-            // Cleanup on unmount - but keep connection alive for other components
-            // Only disconnect if no other components are using it
-            // For now, we'll keep it connected. Adjust based on your needs.
+            // Keep connection alive for other components
         }
     }, [])
 
@@ -23,7 +21,6 @@ export const useSocket = () => {
 
 /**
  * Hook to disconnect socket when component unmounts
- * Use this if you want to disconnect on unmount
  */
 export const useSocketWithCleanup = () => {
     useEffect(() => {

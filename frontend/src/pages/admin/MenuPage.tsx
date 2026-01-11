@@ -4,28 +4,41 @@ import {
     Plus,
     Edit,
     Trash2,
-    Clock,
-    Star,
     ChevronLeft,
     ChevronRight,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { menusApi } from '../../services/api'
+import { menusApi, tablesApi } from '../../services/api'
+import { authApi } from '../../services/auth'
 
 interface MenuItem {
     id: number
     restaurantId: number
     categoryId: number
     name: string
-    description?: string
-    basePrice: number
-    image?: string
-    prepTime?: number
-    isAvailable: boolean
+    description?: string | null
+    basePrice: string | number // Prisma Decimal is serialized as string
+    status: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN' // ItemStatus enum from Prisma
+    createdAt?: string | Date
+    updatedAt?: string | Date
+    images?: Array<{
+        id: number
+        url: string
+        rank: number
+    }>
     category?: {
         id: number
+        restaurantId: number
         name: string
+        image?: string | null
+        rank: number
     }
+    modifierGroups?: Array<{
+        modifierGroup: {
+            id: number
+            name: string
+        }
+    }>
 }
 
 interface Category {
@@ -41,7 +54,9 @@ type StatusFilter = 'all' | 'available' | 'unavailable'
 
 export default function MenuPage() {
     const [searchQuery, setSearchQuery] = useState('')
-    const [selectedCategory, setSelectedCategory] = useState<number | 'all'>('all')
+    const [selectedCategory, setSelectedCategory] = useState<number | 'all'>(
+        'all'
+    )
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
     const [sortBy, setSortBy] = useState<SortBy>('none')
     const [currentPage, setCurrentPage] = useState(1)
@@ -50,53 +65,146 @@ export default function MenuPage() {
     const [categories, setCategories] = useState<Category[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
-    const restaurantId = 1 // TODO: Get from context/auth
+    const [restaurantId, setRestaurantId] = useState<number | null>(null)
 
     useEffect(() => {
-        fetchData()
-    }, [])
+        initializeAndFetchData()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []) // Only run once on mount
 
-    const fetchData = async () => {
+    const initializeAndFetchData = async () => {
         try {
             setLoading(true)
             setError(null)
 
-            const [menuItemsData, categoriesData] = await Promise.all([
-                menusApi.getMenuItems(restaurantId),
-                menusApi.getCategories(restaurantId),
-            ])
+            // Auto-login in development mode if not authenticated
+            if (import.meta.env.DEV && !authApi.isAuthenticated()) {
+                try {
+                    await authApi.autoLoginDev()
+                } catch (loginError) {
+                    // Auto-login failed, continue without auth
+                }
+            }
 
-            setItems(menuItemsData || [])
-            setCategories(categoriesData || [])
+            // Get restaurant ID from tables (first table's restaurantId)
+            // If no tables found, use fallback restaurantId = 2 (matches current database)
+            if (!restaurantId) {
+                try {
+                    const tables = await tablesApi.getTables()
+                    if (
+                        tables &&
+                        Array.isArray(tables) &&
+                        tables.length > 0 &&
+                        tables[0].restaurantId
+                    ) {
+                        const firstRestaurantId = tables[0].restaurantId
+                        setRestaurantId(firstRestaurantId)
+                        await fetchData(firstRestaurantId)
+                    } else {
+                        // Fallback: use restaurantId = 2 (matches current database)
+                        setRestaurantId(2)
+                        await fetchData(2)
+                    }
+                } catch (tableError) {
+                    setRestaurantId(2)
+                    await fetchData(2)
+                }
+            } else {
+                await fetchData(restaurantId)
+            }
         } catch (err: any) {
-            console.error('Error fetching menu data:', err)
-            setError('Unable to load menu data. Please try again.')
+            setError(
+                'Unable to load menu data. Please check if backend is running.'
+            )
         } finally {
             setLoading(false)
         }
     }
 
+    const fetchData = async (id?: number) => {
+        const targetRestaurantId = id || restaurantId
+        if (!targetRestaurantId) {
+            setError(
+                'Restaurant ID not found. Please check database configuration.'
+            )
+            return
+        }
+
+        try {
+            const [menuItemsData, categoriesData] = await Promise.all([
+                menusApi.getMenuItems(targetRestaurantId),
+                menusApi.getCategories(targetRestaurantId),
+            ])
+
+            // Ensure we're setting arrays
+            const itemsArray = Array.isArray(menuItemsData) ? menuItemsData : []
+            const categoriesArray = Array.isArray(categoriesData)
+                ? categoriesData
+                : []
+
+            setItems(itemsArray)
+            setCategories(categoriesArray)
+        } catch (err: any) {
+            if (err.response?.status === 401) {
+                setError('Authentication required. Please login.')
+            } else if (err.response?.status === 404) {
+                setError(
+                    'Backend endpoint not found. Please check if backend is running.'
+                )
+            } else {
+                setError(
+                    `Unable to load menu data: ${
+                        err.response?.data?.message ||
+                        err.message ||
+                        'Unknown error'
+                    }`
+                )
+            }
+            throw err
+        }
+    }
+
     const filteredAndSortedItems = useMemo(() => {
         let result = items.filter((item) => {
-            const matchesSearch = item.name
-                .toLowerCase()
-                .includes(searchQuery.toLowerCase()) ||
-                (item.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
+            const matchesSearch =
+                item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (item.description
+                    ?.toLowerCase()
+                    .includes(searchQuery.toLowerCase()) ??
+                    false)
             const matchesCategory =
-                selectedCategory === 'all' || item.categoryId === selectedCategory
+                selectedCategory === 'all' ||
+                item.categoryId === Number(selectedCategory)
             const matchesStatus =
                 statusFilter === 'all' ||
-                (statusFilter === 'available' && item.isAvailable) ||
-                (statusFilter === 'unavailable' && !item.isAvailable)
+                (statusFilter === 'available' && item.status === 'AVAILABLE') ||
+                (statusFilter === 'unavailable' && item.status !== 'AVAILABLE')
+
             return matchesSearch && matchesCategory && matchesStatus
         })
 
         if (sortBy !== 'none') {
             result = [...result].sort((a, b) => {
                 if (sortBy === 'price-high') {
-                    return Number(b.basePrice) - Number(a.basePrice)
+                    const priceA =
+                        typeof a.basePrice === 'string'
+                            ? parseFloat(a.basePrice)
+                            : Number(a.basePrice)
+                    const priceB =
+                        typeof b.basePrice === 'string'
+                            ? parseFloat(b.basePrice)
+                            : Number(b.basePrice)
+                    return priceB - priceA
                 } else if (sortBy === 'price-low') {
-                    return Number(a.basePrice) - Number(b.basePrice)
+                    const priceA =
+                        typeof a.basePrice === 'string'
+                            ? parseFloat(a.basePrice)
+                            : Number(a.basePrice)
+                    const priceB =
+                        typeof b.basePrice === 'string'
+                            ? parseFloat(b.basePrice)
+                            : Number(b.basePrice)
+                    return priceA - priceB
                 } else if (sortBy === 'name') {
                     return a.name.localeCompare(b.name)
                 }
@@ -120,8 +228,14 @@ export default function MenuPage() {
 
     const handleRowClick = (item: MenuItem) => {
         // TODO: Open edit modal
+        const price =
+            typeof item.basePrice === 'string'
+                ? parseFloat(item.basePrice).toFixed(2)
+                : Number(item.basePrice).toFixed(2)
         alert(
-            `Edit Item: ${item.name}\nPrice: $${Number(item.basePrice).toFixed(2)}\nCategory: ${item.category?.name || 'N/A'}`
+            `Edit Item: ${item.name}\nPrice: $${price}\nCategory: ${
+                item.category?.name || 'N/A'
+            }`
         )
     }
 
@@ -203,7 +317,13 @@ export default function MenuPage() {
                 {/* Category Filter */}
                 <select
                     value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                    onChange={(e) =>
+                        setSelectedCategory(
+                            e.target.value === 'all'
+                                ? 'all'
+                                : Number(e.target.value)
+                        )
+                    }
                     className="px-4 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent text-base text-slate-900 font-medium cursor-pointer"
                 >
                     <option value="all">All Categories</option>
@@ -243,7 +363,11 @@ export default function MenuPage() {
             {/* Grid Layout */}
             {filteredAndSortedItems.length === 0 ? (
                 <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-                    <p className="text-base text-slate-500">No items found</p>
+                    <p className="text-base text-slate-500">
+                        {items.length === 0
+                            ? 'No menu items found. Please check if data exists in database.'
+                            : 'No items match your filters. Try adjusting your search or filters.'}
+                    </p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
@@ -256,9 +380,11 @@ export default function MenuPage() {
                         >
                             {/* Image/Icon Section */}
                             <div className="h-32 bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
-                                {item.image ? (
+                                {item.images &&
+                                item.images.length > 0 &&
+                                item.images[0]?.url ? (
                                     <img
-                                        src={item.image}
+                                        src={item.images[0].url}
                                         alt={item.name}
                                         className="w-full h-full object-cover"
                                     />
@@ -278,14 +404,18 @@ export default function MenuPage() {
                                     </h3>
                                     <span
                                         className={`text-base font-medium whitespace-nowrap ${
-                                            item.isAvailable
+                                            item.status === 'AVAILABLE'
                                                 ? 'text-green-600'
-                                                : 'text-red-600'
+                                                : item.status === 'SOLD_OUT'
+                                                ? 'text-red-600'
+                                                : 'text-slate-500'
                                         }`}
                                     >
-                                        {item.isAvailable
+                                        {item.status === 'AVAILABLE'
                                             ? 'Available'
-                                            : 'Unavailable'}
+                                            : item.status === 'SOLD_OUT'
+                                            ? 'Sold Out'
+                                            : 'Hidden'}
                                     </span>
                                 </div>
 
@@ -301,17 +431,16 @@ export default function MenuPage() {
                                     </p>
                                 )}
 
-                                {/* Price and Prep Time */}
+                                {/* Price */}
                                 <div className="flex items-center justify-between">
                                     <span className="text-xl font-semibold text-red-600">
-                                        ${Number(item.basePrice).toFixed(2)}
+                                        $
+                                        {typeof item.basePrice === 'string'
+                                            ? parseFloat(
+                                                  item.basePrice
+                                              ).toFixed(2)
+                                            : Number(item.basePrice).toFixed(2)}
                                     </span>
-                                    {item.prepTime && (
-                                        <div className="flex items-center gap-1 text-base text-slate-500">
-                                            <Clock size={16} />
-                                            <span>{item.prepTime} min</span>
-                                        </div>
-                                    )}
                                 </div>
 
                                 {/* Action Buttons */}

@@ -3,11 +3,9 @@ import {
     NotFoundException,
     BadRequestException,
     Logger,
-    ServiceUnavailableException,
 } from '@nestjs/common'
 import { PrismaService } from '../database/prisma.service'
 import { IPaymentStrategy } from './strategies/payment.strategy.interface'
-// import { MomoStrategy } from './strategies/momo.strategy' // FROZEN: MoMo temporarily disabled
 import { StripeStrategy } from './strategies/stripe.strategy'
 import {
     PaymentMethod,
@@ -26,7 +24,6 @@ export class PaymentsService {
 
     constructor(
         private readonly prisma: PrismaService,
-        // private readonly momoStrategy: MomoStrategy // FROZEN: MoMo temporarily disabled
         private readonly stripeStrategy: StripeStrategy
     ) {
         // Initialize strategies map
@@ -36,17 +33,8 @@ export class PaymentsService {
         this.strategies.set(PaymentMethod.CARD, this.stripeStrategy)
 
         // Temporarily map QR_CODE and E_WALLET to Stripe for testing
-        // TODO: Re-enable MoMo when credentials are available
         this.strategies.set(PaymentMethod.QR_CODE, this.stripeStrategy)
         this.strategies.set(PaymentMethod.E_WALLET, this.stripeStrategy)
-
-        // FROZEN: MoMo temporarily disabled - uncomment when credentials are available
-        // try {
-        //     this.strategies.set(PaymentMethod.QR_CODE, this.momoStrategy)
-        //     this.strategies.set(PaymentMethod.E_WALLET, this.momoStrategy)
-        // } catch (error) {
-        //     this.logger.warn('MoMo strategy not available, using Stripe as fallback')
-        // }
     }
 
     /**
@@ -82,15 +70,6 @@ export class PaymentsService {
         // Get strategy for payment method
         const strategy = this.strategies.get(method)
         if (!strategy) {
-            // Check if it's a MoMo method (currently frozen)
-            if (
-                method === PaymentMethod.QR_CODE ||
-                method === PaymentMethod.E_WALLET
-            ) {
-                throw new ServiceUnavailableException(
-                    `Payment method ${method} is temporarily unavailable. Please use CARD instead.`
-                )
-            }
             throw new BadRequestException(
                 `Payment method ${method} is not supported`
             )

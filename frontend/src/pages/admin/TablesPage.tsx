@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { apiClient, tablesApi } from '../../services/api'
+import { authApi } from '../../services/auth'
 import type { Table } from '@aerodine/shared-types'
 
 // Table status types
@@ -150,21 +151,47 @@ export default function TablesPage() {
     const itemsPerPage = 10
 
     useEffect(() => {
-        fetchTables()
+        initializeAndFetchTables()
     }, [])
 
-    const fetchTables = async () => {
+    const initializeAndFetchTables = async () => {
         try {
             setLoading(true)
             setError(null)
+
+            // Auto-login in development mode if not authenticated
+            if (import.meta.env.DEV && !authApi.isAuthenticated()) {
+                try {
+                    await authApi.autoLoginDev()
+                } catch (loginError) {
+                    console.warn('Auto-login failed, continuing without auth:', loginError)
+                }
+            }
+
+            await fetchTables()
+        } catch (err: any) {
+            console.error('Error initializing tables page:', err)
+            setError('Unable to load table list. Please check if backend is running.')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const fetchTables = async () => {
+        try {
             const tablesData = await apiClient.get('/tables')
             setTables(tablesData.data || [])
         } catch (err: any) {
             console.error('Error fetching tables:', err)
-            setError('Unable to load table list. Please try again.')
+            if (err.response?.status === 401) {
+                setError('Authentication required. Please login.')
+            } else if (err.response?.status === 404) {
+                setError('Backend endpoint not found. Please check if backend is running.')
+            } else {
+                setError(`Unable to load table list: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            }
             setTables([])
-        } finally {
-            setLoading(false)
+            throw err
         }
     }
 

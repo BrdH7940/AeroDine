@@ -1,23 +1,19 @@
 /**
  * Reports & Analytics Page
  *
- * NOTE: This page contains many charts and analytics features.
- * Currently, backend provides limited endpoints:
+ * All charts now use real data from backend API:
  * - getDashboardStats (revenue, orders, tables)
  * - getRevenueChart (week/month)
  * - getTopSellingItems (top 5)
- *
- * Some charts still use mock data until backend endpoints are implemented.
- * TODO: Add backend endpoints for:
- * - Payment methods breakdown
- * - Menu performance matrix
- * - Category sales
- * - Voided items tracking
- * - Peak hours analysis
- * - Prep time trends
- * - Day of week revenue
- * - Rating vs volume
- * - Top modifiers
+ * - getPaymentMethodsBreakdown (payment methods distribution)
+ * - getCategorySales (sales by category)
+ * - getVoidedItems (cancelled items)
+ * - getPeakHours (order volume by hour)
+ * - getDayOfWeekRevenue (revenue by day of week)
+ * - getMenuPerformance (menu performance matrix)
+ * - getTopModifiers (most used modifiers)
+ * - getRatingVolume (rating vs volume)
+ * - getPrepTimeTrends (prep time trends)
  */
 
 import { useState, useEffect } from 'react'
@@ -44,17 +40,7 @@ import {
 } from 'recharts'
 import { Calendar, TrendingUp, DollarSign, ShoppingCart } from 'lucide-react'
 import { reportsApi } from '../../services/api'
-import {
-    paymentMethodsData,
-    menuPerformanceData,
-    categorySalesData,
-    voidedItemsData,
-    peakHoursData,
-    prepTimeData,
-    dayOfWeekRevenueData,
-    ratingVolumeData,
-    topModifiersData,
-} from '../../data/mockReportsData'
+import { authApi } from '../../services/auth'
 
 // Date Range Selector Component
 function DateRangeSelector({
@@ -125,10 +111,14 @@ function Tabs({
 function FinancialHealthTab({
     stats,
     revenueChartData,
+    paymentMethodsData,
+    dayOfWeekRevenueData,
     loading,
 }: {
     stats: any
     revenueChartData: any[]
+    paymentMethodsData: any[]
+    dayOfWeekRevenueData: any[]
     loading: boolean
 }) {
     // Transform backend data for revenue growth chart
@@ -364,23 +354,24 @@ function FinancialHealthTab({
                                 }}
                             />
                             <Bar dataKey="revenue" radius={[8, 8, 0, 0]}>
-                                {dayOfWeekRevenueData.map((entry, index) => {
-                                    const maxRevenue = Math.max(
-                                        ...dayOfWeekRevenueData.map(
-                                            (d) => d.revenue
+                                {dayOfWeekRevenueData.length > 0 &&
+                                    dayOfWeekRevenueData.map((entry, index) => {
+                                        const maxRevenue = Math.max(
+                                            ...dayOfWeekRevenueData.map(
+                                                (d) => d.revenue
+                                            )
                                         )
-                                    )
-                                    return (
-                                        <Cell
-                                            key={`cell-${index}`}
-                                            fill={
-                                                entry.revenue === maxRevenue
-                                                    ? '#f59e0b' // amber-500
-                                                    : '#64748b' // slate-200
-                                            }
-                                        />
-                                    )
-                                })}
+                                        return (
+                                            <Cell
+                                                key={`cell-${index}`}
+                                                fill={
+                                                    entry.revenue === maxRevenue
+                                                        ? '#f59e0b' // amber-500
+                                                        : '#64748b' // slate-200
+                                                }
+                                            />
+                                        )
+                                    })}
                             </Bar>
                         </BarChart>
                     </ResponsiveContainer>
@@ -413,12 +404,13 @@ function FinancialHealthTab({
                                     fill="#8884d8"
                                     dataKey="value"
                                 >
-                                    {paymentMethodsData.map((entry, index) => (
-                                        <Cell
-                                            key={`cell-${index}`}
-                                            fill={entry.color}
-                                        />
-                                    ))}
+                                    {paymentMethodsData.length > 0 &&
+                                        paymentMethodsData.map((entry, index) => (
+                                            <Cell
+                                                key={`cell-${index}`}
+                                                fill={entry.color}
+                                            />
+                                        ))}
                                 </Pie>
                                 <Tooltip
                                     formatter={(value: number | undefined) =>
@@ -435,22 +427,24 @@ function FinancialHealthTab({
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
-                    <div className="flex flex-wrap justify-center gap-4 mt-4">
-                        {paymentMethodsData.map((item, index) => (
-                            <div
-                                key={index}
-                                className="flex items-center gap-2"
-                            >
+                    {paymentMethodsData.length > 0 && (
+                        <div className="flex flex-wrap justify-center gap-4 mt-4">
+                            {paymentMethodsData.map((item, index) => (
                                 <div
-                                    className="w-4 h-4 rounded-full"
-                                    style={{ backgroundColor: item.color }}
-                                />
-                                <span className="text-sm text-slate-600">
-                                    {item.name}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
+                                    key={index}
+                                    className="flex items-center gap-2"
+                                >
+                                    <div
+                                        className="w-4 h-4 rounded-full"
+                                        style={{ backgroundColor: item.color }}
+                                    />
+                                    <span className="text-sm text-slate-600">
+                                        {item.name}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -460,9 +454,19 @@ function FinancialHealthTab({
 // Menu Insights Tab
 function MenuInsightsTab({
     topSellingItems,
+    menuPerformanceData,
+    categorySalesData,
+    voidedItemsData,
+    topModifiersData,
+    ratingVolumeData,
     loading,
 }: {
     topSellingItems: any[]
+    menuPerformanceData: any[]
+    categorySalesData: any[]
+    voidedItemsData: any[]
+    topModifiersData: any[]
+    ratingVolumeData: any[]
     loading: boolean
 }) {
     if (loading) {
@@ -478,29 +482,43 @@ function MenuInsightsTab({
         )
     }
 
-    // Calculate median values for reference lines (using mock data for now)
-    const quantities = menuPerformanceData
-        .map((d) => d.quantitySold)
-        .sort((a, b) => a - b)
-    const revenues = menuPerformanceData
-        .map((d) => d.totalRevenue)
-        .sort((a, b) => a - b)
-    const medianQuantity = quantities[Math.floor(quantities.length / 2)]
-    const medianRevenue = revenues[Math.floor(revenues.length / 2)]
+    // Calculate median values for reference lines (using real data)
+    const quantities =
+        menuPerformanceData.length > 0
+            ? menuPerformanceData
+                  .map((d) => d.quantitySold)
+                  .sort((a, b) => a - b)
+            : []
+    const revenues =
+        menuPerformanceData.length > 0
+            ? menuPerformanceData
+                  .map((d) => d.totalRevenue)
+                  .sort((a, b) => a - b)
+            : []
+    const medianQuantity =
+        quantities.length > 0
+            ? quantities[Math.floor(quantities.length / 2)]
+            : 0
+    const medianRevenue =
+        revenues.length > 0 ? revenues[Math.floor(revenues.length / 2)] : 0
 
     // Calculate min and max for axes bounds
-    const minQuantity = Math.min(
-        ...menuPerformanceData.map((d) => d.quantitySold)
-    )
-    const maxQuantity = Math.max(
-        ...menuPerformanceData.map((d) => d.quantitySold)
-    )
-    const minRevenue = Math.min(
-        ...menuPerformanceData.map((d) => d.totalRevenue)
-    )
-    const maxRevenue = Math.max(
-        ...menuPerformanceData.map((d) => d.totalRevenue)
-    )
+    const minQuantity =
+        menuPerformanceData.length > 0
+            ? Math.min(...menuPerformanceData.map((d) => d.quantitySold))
+            : 0
+    const maxQuantity =
+        menuPerformanceData.length > 0
+            ? Math.max(...menuPerformanceData.map((d) => d.quantitySold))
+            : 100
+    const minRevenue =
+        menuPerformanceData.length > 0
+            ? Math.min(...menuPerformanceData.map((d) => d.totalRevenue))
+            : 0
+    const maxRevenue =
+        menuPerformanceData.length > 0
+            ? Math.max(...menuPerformanceData.map((d) => d.totalRevenue))
+            : 1000
 
     // Add padding for better visualization
     const quantityRange = maxQuantity - minQuantity
@@ -1008,22 +1026,33 @@ function MenuInsightsTab({
                             </tr>
                         </thead>
                         <tbody>
-                            {voidedItemsData.map((item, index) => (
-                                <tr
-                                    key={index}
-                                    className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
-                                >
-                                    <td className="py-3 px-4 text-base font-medium text-slate-900">
-                                        {item.itemName}
-                                    </td>
-                                    <td className="py-3 px-4 text-base text-slate-600">
-                                        {item.timesVoided}
-                                    </td>
-                                    <td className="py-3 px-4 text-base font-semibold text-red-600 text-right">
-                                        ${item.lossAmount.toFixed(2)}
+                            {voidedItemsData.length === 0 ? (
+                                <tr>
+                                    <td
+                                        colSpan={3}
+                                        className="py-8 text-center text-slate-500"
+                                    >
+                                        No voided items
                                     </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                voidedItemsData.map((item, index) => (
+                                    <tr
+                                        key={index}
+                                        className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                                    >
+                                        <td className="py-3 px-4 text-base font-medium text-slate-900">
+                                            {item.itemName}
+                                        </td>
+                                        <td className="py-3 px-4 text-base text-slate-600">
+                                            {item.timesVoided}
+                                        </td>
+                                        <td className="py-3 px-4 text-base font-semibold text-red-600 text-right">
+                                            ${item.lossAmount.toFixed(2)}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -1033,7 +1062,27 @@ function MenuInsightsTab({
 }
 
 // Operational Efficiency Tab
-function OperationalEfficiencyTab() {
+function OperationalEfficiencyTab({
+    peakHoursData,
+    prepTimeData,
+    loading,
+}: {
+    peakHoursData: any[]
+    prepTimeData: any[]
+    loading: boolean
+}) {
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto"></div>
+                    <p className="mt-4 text-slate-500">
+                        Loading operational data...
+                    </p>
+                </div>
+            </div>
+        )
+    }
     return (
         <div className="space-y-6">
             {/* Peak Hours Heatmap */}
@@ -1072,19 +1121,22 @@ function OperationalEfficiencyTab() {
                             }}
                         />
                         <Bar dataKey="orders" radius={[4, 4, 0, 0]}>
-                            {peakHoursData.map((entry, index) => {
-                                const hour = parseInt(entry.hour.split(':')[0])
-                                return (
-                                    <Cell
-                                        key={`cell-${index}`}
-                                        fill={
-                                            hour >= 18 && hour <= 20
-                                                ? '#0f172a'
-                                                : '#64748b'
-                                        }
-                                    />
-                                )
-                            })}
+                            {peakHoursData.length > 0 &&
+                                peakHoursData.map((entry, index) => {
+                                    const hour = parseInt(
+                                        entry.hour.split(':')[0]
+                                    )
+                                    return (
+                                        <Cell
+                                            key={`cell-${index}`}
+                                            fill={
+                                                hour >= 18 && hour <= 20
+                                                    ? '#0f172a'
+                                                    : '#64748b'
+                                            }
+                                        />
+                                    )
+                                })}
                         </Bar>
                     </BarChart>
                 </ResponsiveContainer>
@@ -1181,24 +1233,75 @@ export default function ReportsPage() {
     })
     const [revenueChartData, setRevenueChartData] = useState<any[]>([])
     const [topSellingItems, setTopSellingItems] = useState<any[]>([])
+    const [paymentMethodsData, setPaymentMethodsData] = useState<any[]>([])
+    const [categorySalesData, setCategorySalesData] = useState<any[]>([])
+    const [voidedItemsData, setVoidedItemsData] = useState<any[]>([])
+    const [peakHoursData, setPeakHoursData] = useState<any[]>([])
+    const [dayOfWeekRevenueData, setDayOfWeekRevenueData] = useState<any[]>([])
+    const [menuPerformanceData, setMenuPerformanceData] = useState<any[]>([])
+    const [topModifiersData, setTopModifiersData] = useState<any[]>([])
+    const [ratingVolumeData, setRatingVolumeData] = useState<any[]>([])
+    const [prepTimeData, setPrepTimeData] = useState<any[]>([])
 
     const tabs = ['Financial', 'Menu Insights', 'Operations']
 
     useEffect(() => {
-        fetchReportsData()
+        initializeAndFetchReportsData()
     }, [dateRange])
 
-    const fetchReportsData = async () => {
+    const initializeAndFetchReportsData = async () => {
         try {
             setLoading(true)
             setError(null)
 
-            const [statsData, revenueData, topItemsData] = await Promise.all([
+            // Auto-login in development mode if not authenticated
+            if (import.meta.env.DEV && !authApi.isAuthenticated()) {
+                try {
+                    await authApi.autoLoginDev()
+                } catch (loginError) {
+                    console.warn('Auto-login failed, continuing without auth:', loginError)
+                }
+            }
+
+            await fetchReportsData()
+        } catch (err: any) {
+            console.error('Error initializing reports:', err)
+            setError('Unable to load reports data. Please check if backend is running.')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const fetchReportsData = async () => {
+        try {
+            const [
+                statsData,
+                revenueData,
+                topItemsData,
+                paymentMethods,
+                categorySales,
+                voidedItems,
+                peakHours,
+                dayOfWeekRevenue,
+                menuPerformance,
+                topModifiers,
+                ratingVolume,
+                prepTimeTrends,
+            ] = await Promise.all([
                 reportsApi.getDashboardStats(),
                 reportsApi.getRevenueChart(
                     dateRange === '30' ? 'month' : 'week'
                 ),
                 reportsApi.getTopSellingItems(),
+                reportsApi.getPaymentMethodsBreakdown(),
+                reportsApi.getCategorySales(),
+                reportsApi.getVoidedItems(),
+                reportsApi.getPeakHours(),
+                reportsApi.getDayOfWeekRevenue(),
+                reportsApi.getMenuPerformance(),
+                reportsApi.getTopModifiers(),
+                reportsApi.getRatingVolume(),
+                reportsApi.getPrepTimeTrends(),
             ])
 
             setStats(statsData)
@@ -1214,11 +1317,41 @@ export default function ReportsPage() {
             setRevenueChartData(transformedData)
 
             setTopSellingItems(topItemsData || [])
+
+            // Transform payment methods data (add colors)
+            const paymentMethodColors: Record<string, string> = {
+                CARD: '#0f172a', // slate-900
+                CASH: '#f59e0b', // amber-500
+                QR_CODE: '#9ca3af', // gray-400
+                E_WALLET: '#64748b', // slate-500
+            }
+            const transformedPaymentMethods = (paymentMethods || []).map(
+                (item: any) => ({
+                    name: item.name.replace('_', ' '),
+                    value: item.value,
+                    color: paymentMethodColors[item.name] || '#64748b',
+                })
+            )
+            setPaymentMethodsData(transformedPaymentMethods)
+
+            setCategorySalesData(categorySales || [])
+            setVoidedItemsData(voidedItems || [])
+            setPeakHoursData(peakHours || [])
+            setDayOfWeekRevenueData(dayOfWeekRevenue || [])
+            setMenuPerformanceData(menuPerformance || [])
+            setTopModifiersData(topModifiers || [])
+            setRatingVolumeData(ratingVolume || [])
+            setPrepTimeData(prepTimeTrends || [])
         } catch (err: any) {
             console.error('Error fetching reports data:', err)
-            setError('Unable to load reports data. Please try again.')
-        } finally {
-            setLoading(false)
+            if (err.response?.status === 401) {
+                setError('Authentication required. Please login.')
+            } else if (err.response?.status === 404) {
+                setError('Backend endpoint not found. Please check if backend is running.')
+            } else {
+                setError(`Unable to load reports data: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            }
+            throw err
         }
     }
 
@@ -1256,16 +1389,29 @@ export default function ReportsPage() {
                         <FinancialHealthTab
                             stats={stats}
                             revenueChartData={revenueChartData}
+                            paymentMethodsData={paymentMethodsData}
+                            dayOfWeekRevenueData={dayOfWeekRevenueData}
                             loading={loading}
                         />
                     )}
                     {activeTab === 'Menu Insights' && (
                         <MenuInsightsTab
                             topSellingItems={topSellingItems}
+                            menuPerformanceData={menuPerformanceData}
+                            categorySalesData={categorySalesData}
+                            voidedItemsData={voidedItemsData}
+                            topModifiersData={topModifiersData}
+                            ratingVolumeData={ratingVolumeData}
                             loading={loading}
                         />
                     )}
-                    {activeTab === 'Operations' && <OperationalEfficiencyTab />}
+                    {activeTab === 'Operations' && (
+                        <OperationalEfficiencyTab
+                            peakHoursData={peakHoursData}
+                            prepTimeData={prepTimeData}
+                            loading={loading}
+                        />
+                    )}
                 </div>
             </div>
         </div>

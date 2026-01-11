@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Clock, CheckCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { ordersApi } from '../../services/api'
+import { authApi } from '../../services/auth'
 import type { OrderItemStatus } from '@aerodine/shared-types'
 
 interface OrderItem {
@@ -161,18 +162,39 @@ export default function KDSPage() {
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
-        fetchOrders()
+        initializeAndFetchOrders()
         // Refresh every 30 seconds
         const interval = setInterval(fetchOrders, 30000)
         return () => clearInterval(interval)
     }, [])
 
-    const fetchOrders = async () => {
+    const initializeAndFetchOrders = async () => {
         try {
             setLoading(true)
             setError(null)
+
+            // Auto-login in development mode if not authenticated
+            if (import.meta.env.DEV && !authApi.isAuthenticated()) {
+                try {
+                    await authApi.autoLoginDev()
+                } catch (loginError) {
+                    console.warn('Auto-login failed, continuing without auth:', loginError)
+                }
+            }
+
+            await fetchOrders()
+        } catch (err: any) {
+            console.error('Error initializing KDS:', err)
+            setError('Unable to load orders. Please check if backend is running.')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const fetchOrders = async () => {
+        try {
             // Get orders that are not completed (PENDING, IN_PROGRESS)
-            const ordersData = await ordersApi.getOrders({ restaurantId: 1 }) // TODO: Get from context
+            const ordersData = await ordersApi.getOrders({ restaurantId: 2 }) // TODO: Get from context - TEMP: using 2 to match database
             // Filter for active orders only
             const activeOrders = ordersData.filter(
                 (order: Order) => order.status === 'PENDING' || order.status === 'IN_PROGRESS'
@@ -180,9 +202,14 @@ export default function KDSPage() {
             setOrders(activeOrders)
         } catch (err: any) {
             console.error('Error fetching orders:', err)
-            setError('Unable to load orders. Please try again.')
-        } finally {
-            setLoading(false)
+            if (err.response?.status === 401) {
+                setError('Authentication required. Please login.')
+            } else if (err.response?.status === 404) {
+                setError('Backend endpoint not found. Please check if backend is running.')
+            } else {
+                setError(`Unable to load orders: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            }
+            throw err
         }
     }
 
