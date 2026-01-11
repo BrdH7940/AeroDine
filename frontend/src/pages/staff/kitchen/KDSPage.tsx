@@ -1,350 +1,347 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useKitchenEvents } from '../../../hooks/useSocket'
-import { orderService } from '../../../services/order.service'
-import KitchenOrderCard from '../../../components/staff/KitchenOrderCard'
-import type {
-    KitchenOrderEvent,
-    OrderItemStatusChangedEvent,
-    KitchenOrderView,
-} from '@aerodine/shared-types'
+import { useState, useEffect } from 'react'
+import { Clock } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { ordersApi } from '../../../services/api'
+import { authApi } from '../../../services/auth'
+import { OrderItemStatus } from '@aerodine/shared-types'
 
-/**
- * Kitchen Display System (KDS)
- * Real-time display of orders for kitchen staff
- * Features: Grid view, order cards, timer alerts, sound notifications
- *
- * @author Dev 2 - Operations Team
- */
+interface OrderItem {
+    id: number
+    menuItemId: number
+    quantity: number
+    pricePerUnit: number
+    status: OrderItemStatus
+    name: string
+    menuItem?: {
+        id: number
+        name: string
+        description?: string
+    }
+    modifiers?: Array<{
+        id: number
+        modifierOption?: {
+            name: string
+        }
+        modifierName?: string
+    }>
+}
+
+interface Order {
+    id: number
+    tableId: number
+    totalAmount: number
+    status: string
+    createdAt: string
+    table: {
+        name: string
+    }
+    items: OrderItem[]
+}
+
+interface TicketCardProps {
+    order: Order
+    onStatusChange: (orderId: number, itemId: number, newStatus: OrderItemStatus) => void
+}
+
+function TicketCard({ order, onStatusChange }: TicketCardProps) {
+    const getElapsedMinutes = () => {
+        const now = new Date()
+        const createdAt = new Date(order.createdAt)
+        return Math.floor((now.getTime() - createdAt.getTime()) / 60000)
+    }
+
+    const elapsedMinutes = getElapsedMinutes()
+    const isOverdue = elapsedMinutes > 20
+
+    // Get the overall status based on items
+    const getOverallStatus = (): 'pending' | 'preparing' | 'ready' => {
+        const allReady = order.items.every(item => item.status === OrderItemStatus.READY || item.status === OrderItemStatus.SERVED)
+        const anyPreparing = order.items.some(item => item.status === OrderItemStatus.PREPARING)
+        
+        if (allReady) return 'ready'
+        if (anyPreparing) return 'preparing'
+        return 'pending'
+    }
+
+    const overallStatus = getOverallStatus()
+
+    const handleItemStatusChange = async (itemId: number, newStatus: OrderItemStatus) => {
+        await onStatusChange(order.id, itemId, newStatus)
+    }
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow"
+        >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-100">
+                <div>
+                    <h3 className="text-lg font-semibold text-slate-900">
+                        {order.table.name}
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                        Order #{order.id} • {new Date(order.createdAt).toLocaleTimeString()}
+                    </p>
+                </div>
+                <div
+                    className={`flex items-center gap-1 px-2 py-1 rounded-full ${
+                        isOverdue
+                            ? 'bg-red-100 text-red-700'
+                            : overallStatus === 'ready'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-amber-100 text-amber-700'
+                    }`}
+                >
+                    <Clock size={14} />
+                    <span className="text-sm font-medium">
+                        {elapsedMinutes} min
+                    </span>
+                </div>
+            </div>
+
+            {/* Items */}
+            <div className="space-y-3 mb-4">
+                {order.items.map((item) => (
+                    <div key={item.id} className="border-b border-slate-100 pb-2">
+                        <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                                <span className="font-medium text-slate-900">
+                                    <span className="bg-gray-700 text-yellow-400 px-1.5 py-0.5 rounded mr-1.5">
+                                        {item.quantity}x
+                                    </span>
+                                    {item.menuItem?.name || item.name}
+                                </span>
+                                {item.modifiers && item.modifiers.length > 0 && (
+                                    <div className="mt-1 ml-8 space-y-0.5">
+                                        {item.modifiers.map((modifier) => (
+                                            <p
+                                                key={modifier.id}
+                                                className="text-sm text-slate-500"
+                                            >
+                                                + {modifier.modifierOption?.name || modifier.modifierName}
+                                            </p>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            {/* Item status buttons */}
+                            <div className="flex gap-1 ml-2">
+                                {item.status === OrderItemStatus.QUEUED && (
+                                    <button
+                                        onClick={() => handleItemStatusChange(item.id, OrderItemStatus.PREPARING)}
+                                        className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                                    >
+                                        Start
+                                    </button>
+                                )}
+                                {item.status === OrderItemStatus.PREPARING && (
+                                    <button
+                                        onClick={() => handleItemStatusChange(item.id, OrderItemStatus.READY)}
+                                        className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200"
+                                    >
+                                        Ready
+                                    </button>
+                                )}
+                                {(item.status === OrderItemStatus.READY || item.status === OrderItemStatus.SERVED) && (
+                                    <span className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded">
+                                        {item.status === OrderItemStatus.READY ? 'Ready' : 'Served'}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </motion.div>
+    )
+}
 
 export default function KDSPage() {
-    // TODO: Get from auth context
-    const restaurantId = 1
-    const userId = 1 // Kitchen staff ID
-
-    const [orders, setOrders] = useState<KitchenOrderView[]>([])
+    const [orders, setOrders] = useState<Order[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
-    const [soundEnabled, setSoundEnabled] = useState(true)
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-    const audioRef = useRef<HTMLAudioElement | null>(null)
 
-    // Timer to update elapsed times
-    const [, setTick] = useState(0)
     useEffect(() => {
-        const interval = setInterval(() => {
-            setTick((t) => t + 1)
-            // Update elapsed time for each order
-            setOrders((prevOrders) =>
-                prevOrders.map((order) => ({
-                    ...order,
-                    elapsedMinutes: Math.floor(
-                        (Date.now() - new Date(order.createdAt).getTime()) /
-                            60000
-                    ),
-                    isOverdue:
-                        Math.floor(
-                            (Date.now() - new Date(order.createdAt).getTime()) /
-                                60000
-                        ) > 30,
-                }))
-            )
-        }, 30000) // Update every 30 seconds
-
+        initializeAndFetchOrders()
+        // Refresh every 30 seconds
+        const interval = setInterval(fetchOrders, 30000)
         return () => clearInterval(interval)
     }, [])
 
-    // Sound notification
-    const playNotificationSound = useCallback(() => {
-        if (!soundEnabled) return
-        if (!audioRef.current) {
-            audioRef.current = new Audio('/sounds/kitchen-bell.mp3')
-        }
-        audioRef.current.play().catch(() => {
-            // Ignore autoplay errors
-        })
-    }, [soundEnabled])
-
-    // Fetch initial orders
-    const fetchOrders = useCallback(async () => {
+    const initializeAndFetchOrders = async () => {
         try {
             setLoading(true)
-            const data = await orderService.getKitchenOrders(restaurantId)
-            setOrders(data as unknown as KitchenOrderView[])
-        } catch {
-            setError('Failed to load orders')
+            setError(null)
+
+            // Auto-login in development mode if not authenticated
+            if (import.meta.env.DEV && !authApi.isAuthenticated()) {
+                try {
+                    await authApi.autoLoginDev()
+                } catch (loginError) {
+                    console.warn('Auto-login failed, continuing without auth:', loginError)
+                }
+            }
+
+            await fetchOrders()
+        } catch (err: any) {
+            console.error('Error initializing KDS:', err)
+            setError('Unable to load orders. Please check if backend is running.')
         } finally {
             setLoading(false)
         }
-    }, [restaurantId])
-
-    useEffect(() => {
-        fetchOrders()
-    }, [fetchOrders])
-
-    // Handle new order received
-    const handleOrderReceived = useCallback(
-        (event: KitchenOrderEvent) => {
-            setOrders((prev) => {
-                // Check if order already exists
-                if (prev.some((o) => o.id === event.order.id)) {
-                    return prev
-                }
-                return [event.order, ...prev]
-            })
-            playNotificationSound()
-        },
-        [playNotificationSound]
-    )
-
-    // Handle order accepted (sent to kitchen)
-    const handleOrderAccepted = useCallback(
-        (event: { orderId: number; waiterId: number }) => {
-            // Refresh to get the order
-            fetchOrders()
-            playNotificationSound()
-        },
-        [fetchOrders, playNotificationSound]
-    )
-
-    // Handle item status changed
-    const handleItemStatusChanged = useCallback(
-        (event: OrderItemStatusChangedEvent) => {
-            setOrders((prev) =>
-                prev.map((order) => {
-                    if (order.id !== event.orderId) return order
-
-                    return {
-                        ...order,
-                        items: order.items.map((item) => {
-                            if (item.id !== event.orderItemId) return item
-                            return {
-                                ...item,
-                                status: event.newStatus as any,
-                                startedAt:
-                                    event.newStatus === 'PREPARING'
-                                        ? new Date().toISOString()
-                                        : item.startedAt,
-                            }
-                        }),
-                    }
-                })
-            )
-        },
-        []
-    )
-
-    // Handle order ready (all items done)
-    const handleOrderReady = useCallback(
-        (event: { orderId: number; tableName: string }) => {
-            // Remove from display or mark as complete
-            setOrders((prev) => prev.filter((o) => o.id !== event.orderId))
-        },
-        []
-    )
-
-    // Setup socket event listeners
-    useKitchenEvents(restaurantId, userId, {
-        onOrderReceived: handleOrderReceived,
-        onOrderAccepted: handleOrderAccepted,
-        onItemStatusChanged: handleItemStatusChanged,
-        onOrderReady: handleOrderReady,
-    })
-
-    // Start preparing item
-    const handleStartPreparing = async (itemId: number) => {
-        try {
-            await orderService.startPreparingItem(itemId)
-        } catch {
-            // Failed to start preparing
-        }
     }
 
-    // Mark item as ready
-    const handleMarkReady = async (itemId: number) => {
+    const fetchOrders = async () => {
         try {
-            await orderService.markItemReady(itemId)
-        } catch {
-            // Failed to mark ready
-        }
-    }
-
-    // Bump entire order (mark all items as ready)
-    const handleBumpOrder = async (orderId: number) => {
-        try {
-            const order = orders.find((o) => o.id === orderId)
-            if (!order) return
-
-            // Mark all non-ready items as ready
-            const itemsToMark = order.items.filter(
-                (item) =>
-                    item.status === 'QUEUED' || item.status === 'PREPARING'
+            // Get orders that are not completed (PENDING, IN_PROGRESS)
+            const ordersData = await ordersApi.getOrders({ restaurantId: 2 }) // TODO: Get from context - TEMP: using 2 to match database
+            // Handle both array and object response
+            const ordersArray = Array.isArray(ordersData) ? ordersData : (ordersData.orders || [])
+            // Filter for active orders only
+            const activeOrders = ordersArray.filter(
+                (order: any) => order.status === 'PENDING' || order.status === 'IN_PROGRESS'
             )
-
-            for (const item of itemsToMark) {
-                await orderService.markItemReady(item.id)
+            setOrders(activeOrders)
+        } catch (err: any) {
+            console.error('Error fetching orders:', err)
+            if (err.response?.status === 401) {
+                setError('Authentication required. Please login.')
+            } else if (err.response?.status === 404) {
+                setError('Backend endpoint not found. Please check if backend is running.')
+            } else {
+                setError(`Unable to load orders: ${err.response?.data?.message || err.message || 'Unknown error'}`)
             }
-
-            // Remove from display
-            setOrders((prev) => prev.filter((o) => o.id !== orderId))
-        } catch {
-            // Failed to bump order
+            throw err
         }
     }
+
+    const handleStatusChange = async (orderId: number, itemId: number, newStatus: OrderItemStatus) => {
+        try {
+            await ordersApi.updateOrderItemStatus(orderId, itemId, newStatus)
+            // Refresh orders after update
+            await fetchOrders()
+        } catch (err: any) {
+            console.error('Error updating order item status:', err)
+            alert('Unable to update status. Please try again.')
+        }
+    }
+
+    const getOrdersByStatus = (status: 'pending' | 'preparing' | 'ready') => {
+        return orders.filter((order) => {
+            const allReady = order.items.every(item => item.status === OrderItemStatus.READY || item.status === OrderItemStatus.SERVED)
+            const anyPreparing = order.items.some(item => item.status === OrderItemStatus.PREPARING)
+            
+            if (status === 'ready' && allReady) return true
+            if (status === 'preparing' && anyPreparing && !allReady) return true
+            if (status === 'pending' && !anyPreparing && !allReady) return true
+            return false
+        })
+    }
+
+    const columns = [
+        {
+            title: 'Pending',
+            status: 'pending' as const,
+            borderColor: 'border-t-amber-500',
+            headerBgColor: 'bg-amber-500',
+            bgColor: 'bg-amber-50',
+            count: getOrdersByStatus('pending').length,
+        },
+        {
+            title: 'Preparing',
+            status: 'preparing' as const,
+            borderColor: 'border-t-blue-500',
+            headerBgColor: 'bg-blue-500',
+            bgColor: 'bg-blue-50',
+            count: getOrdersByStatus('preparing').length,
+        },
+        {
+            title: 'Ready',
+            status: 'ready' as const,
+            borderColor: 'border-t-emerald-500',
+            headerBgColor: 'bg-emerald-500',
+            bgColor: 'bg-emerald-50',
+            count: getOrdersByStatus('ready').length,
+        },
+    ]
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-screen bg-gray-900">
-                <div className="text-lg text-white">
-                    Loading kitchen orders...
+            <div className="p-6 lg:p-8 space-y-6">
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto"></div>
+                        <p className="mt-4 text-slate-500">Loading orders...</p>
+                    </div>
                 </div>
-            </div>
-        )
-    }
-
-    if (error) {
-        return (
-            <div className="flex items-center justify-center min-h-screen bg-gray-900">
-                <div className="text-red-400">{error}</div>
             </div>
         )
     }
 
     return (
-        <div className="min-h-screen bg-gray-900 text-white">
+        <div className="p-6 lg:p-8 space-y-6">
             {/* Header */}
-            <header className="bg-gray-800 shadow-lg">
-                <div className="max-w-full mx-auto px-4 py-3">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                            <h1 className="text-2xl font-bold text-white">
-                                🍳 Kitchen Display
-                            </h1>
-                            <span className="text-sm text-gray-400">
-                                {orders.length} active order
-                                {orders.length !== 1 ? 's' : ''}
-                            </span>
-                        </div>
-                        <div className="flex items-center space-x-4">
-                            {/* View Mode Toggle */}
-                            <div className="flex bg-gray-700 rounded-lg p-1">
-                                <button
-                                    onClick={() => setViewMode('grid')}
-                                    className={`px-3 py-1 rounded-md text-sm ${
-                                        viewMode === 'grid'
-                                            ? 'bg-blue-600 text-white'
-                                            : 'text-gray-300 hover:text-white'
-                                    }`}
-                                >
-                                    Grid
-                                </button>
-                                <button
-                                    onClick={() => setViewMode('list')}
-                                    className={`px-3 py-1 rounded-md text-sm ${
-                                        viewMode === 'list'
-                                            ? 'bg-blue-600 text-white'
-                                            : 'text-gray-300 hover:text-white'
-                                    }`}
-                                >
-                                    List
-                                </button>
-                            </div>
+            <div>
+                <h1 className="text-3xl font-semibold text-slate-900">
+                    Kitchen display system
+                </h1>
+                <p className="text-sm text-slate-500 mt-1">
+                    Manage and track order preparation
+                </p>
+            </div>
 
-                            {/* Sound Toggle */}
-                            <button
-                                onClick={() => setSoundEnabled(!soundEnabled)}
-                                className={`p-2 rounded-lg ${
-                                    soundEnabled
-                                        ? 'bg-green-600 text-white'
-                                        : 'bg-gray-600 text-gray-300'
-                                }`}
-                                title={
-                                    soundEnabled
-                                        ? 'Sound enabled'
-                                        : 'Sound disabled'
-                                }
-                            >
-                                {soundEnabled ? '🔔' : '🔕'}
-                            </button>
+            {/* Error Message */}
+            {error && (
+                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+                    {error}
+                </div>
+            )}
 
-                            {/* Refresh */}
-                            <button
-                                onClick={fetchOrders}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                            >
-                                Refresh
-                            </button>
-
-                            {/* Clock */}
-                            <div className="text-2xl font-mono text-gray-300">
-                                {new Date().toLocaleTimeString('vi-VN', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                })}
+            {/* Kanban Board */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {columns.map((column) => (
+                    <div key={column.status} className="flex flex-col">
+                        {/* Column Header */}
+                        <div
+                            className={`${column.headerBgColor} rounded-t-lg border-t-4 ${column.borderColor} p-4 shadow-sm relative`}
+                        >
+                            <div className="flex items-center justify-center">
+                                <h2 className="text-xl font-semibold text-white">
+                                    {column.title}
+                                </h2>
+                                <span className="absolute right-4 px-2 py-1 bg-white/20 text-white rounded-full text-sm font-semibold">
+                                    {column.count}
+                                </span>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </header>
 
-            {/* Orders Display */}
-            <main className="p-4">
-                {orders.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-96 text-gray-400">
-                        <div className="text-6xl mb-4">🍽️</div>
-                        <div className="text-xl">No orders in queue</div>
-                        <div className="text-sm">Waiting for new orders...</div>
+                        {/* Tickets */}
+                        <div className={`flex-1 ${column.bgColor} rounded-b-lg min-h-[600px] p-4`}>
+                            {getOrdersByStatus(column.status).length === 0 ? (
+                                <div className="flex items-center justify-center h-32 text-slate-400 text-sm">
+                                    No orders
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {getOrdersByStatus(column.status).map(
+                                        (order) => (
+                                            <TicketCard
+                                                key={order.id}
+                                                order={order}
+                                                onStatusChange={
+                                                    handleStatusChange
+                                                }
+                                            />
+                                        )
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
-                ) : viewMode === 'grid' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                        {orders.map((order) => (
-                            <KitchenOrderCard
-                                key={order.id}
-                                order={order}
-                                onStartPreparing={handleStartPreparing}
-                                onMarkReady={handleMarkReady}
-                                onBump={() => handleBumpOrder(order.id)}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        {orders.map((order) => (
-                            <KitchenOrderCard
-                                key={order.id}
-                                order={order}
-                                onStartPreparing={handleStartPreparing}
-                                onMarkReady={handleMarkReady}
-                                onBump={() => handleBumpOrder(order.id)}
-                                listView
-                            />
-                        ))}
-                    </div>
-                )}
-            </main>
-
-            {/* Legend */}
-            <footer className="fixed bottom-0 left-0 right-0 bg-gray-800 px-4 py-2">
-                <div className="flex items-center justify-center space-x-6 text-sm">
-                    <div className="flex items-center">
-                        <span className="w-3 h-3 bg-gray-500 rounded-full mr-2"></span>
-                        <span className="text-gray-400">Queued</span>
-                    </div>
-                    <div className="flex items-center">
-                        <span className="w-3 h-3 bg-orange-500 rounded-full mr-2 animate-pulse"></span>
-                        <span className="text-gray-400">Preparing</span>
-                    </div>
-                    <div className="flex items-center">
-                        <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
-                        <span className="text-gray-400">Ready</span>
-                    </div>
-                    <div className="flex items-center">
-                        <span className="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
-                        <span className="text-gray-400">
-                            Overdue (&gt;30min)
-                        </span>
-                    </div>
-                </div>
-            </footer>
+                ))}
+            </div>
         </div>
     )
 }
