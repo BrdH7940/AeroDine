@@ -10,6 +10,7 @@ import {
     Clock,
     XCircle,
     X,
+    Download,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { apiClient, tablesApi } from '../../services/api'
@@ -76,10 +77,12 @@ function TableCard({
     table,
     onEdit,
     onDelete,
+    onDownloadQR,
 }: {
     table: TableWithRestaurant
     onEdit: (table: TableWithRestaurant) => void
     onDelete: (table: TableWithRestaurant) => void
+    onDownloadQR: (table: TableWithRestaurant) => void
 }) {
     const statusKey = String(table.status)
     const config = statusConfig[statusKey] || statusConfig['AVAILABLE']
@@ -128,6 +131,16 @@ function TableCard({
                 >
                     <Edit size={16} />
                     Edit
+                </button>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        onDownloadQR(table)
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 rounded-lg transition-colors text-sm font-medium"
+                >
+                    <Download size={16} />
+                    QR
                 </button>
                 <button
                     onClick={() => onDelete(table)}
@@ -257,6 +270,29 @@ export default function TablesPage() {
             setTables(tables.filter((t) => t.id !== table.id))
         } catch (err: any) {
             alert(`Unable to delete table: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+        }
+    }
+
+    const handleDownloadQR = async (table: TableWithRestaurant) => {
+        try {
+            // Get QR URL from backend
+            const qrData = await tablesApi.getTableQrUrl(table.id)
+            const qrUrl = qrData.qrUrl
+
+            // Create QR code image using a simple approach
+            // We'll use a QR code API service or generate it client-side
+            // For simplicity, we'll use qr-server.com API
+            const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}`
+
+            // Create a temporary anchor element to download
+            const link = document.createElement('a')
+            link.href = qrCodeImageUrl
+            link.download = `QR-Table-${table.name}.png`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+        } catch (err: any) {
+            alert(`Unable to download QR code: ${err.response?.data?.message || err.message || 'Unknown error'}`)
         }
     }
 
@@ -456,6 +492,7 @@ export default function TablesPage() {
                                 table={table}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
+                                onDownloadQR={handleDownloadQR}
                             />
                         ))}
                     </div>

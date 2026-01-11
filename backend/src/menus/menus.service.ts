@@ -48,6 +48,23 @@ export class MenusService {
         })
     }
 
+    async deleteCategory(id: number) {
+        // Check if category exists
+        const category = await this.prisma.category.findUnique({
+            where: { id },
+            include: { items: true },
+        })
+
+        if (!category) {
+            throw new NotFoundException(`Category with ID ${id} not found`)
+        }
+
+        // Delete category (cascade will delete all menu items)
+        return this.prisma.category.delete({
+            where: { id },
+        })
+    }
+
     // Modifier groups
     async createModifierGroup(dto: CreateModifierGroupDto) {
         await this.validateRestaurant(dto.restaurantId)
@@ -206,6 +223,22 @@ export class MenusService {
                     include: { modifierGroup: true },
                 },
             },
+        })
+    }
+
+    async deleteMenuItem(id: number) {
+        // Check if menu item exists
+        const menuItem = await this.prisma.menuItem.findUnique({
+            where: { id },
+        })
+
+        if (!menuItem) {
+            throw new NotFoundException(`Menu item with ID ${id} not found`)
+        }
+
+        // Delete menu item (cascade will delete images, modifier groups, etc.)
+        return this.prisma.menuItem.delete({
+            where: { id },
         })
     }
 }

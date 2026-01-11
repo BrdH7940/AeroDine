@@ -1,6 +1,7 @@
 import {
     Body,
     Controller,
+    Delete,
     Get,
     Param,
     Patch,
@@ -59,6 +60,19 @@ export class MenusController {
     @ApiOperation({ summary: 'Update category (ADMIN only)' })
     updateCategory(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
         return this.menusService.updateCategory(+id, dto)
+    }
+
+    @ApiBearerAuth('JWT-auth')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    @Delete('categories/:id')
+    @ApiOperation({
+        summary: 'Delete category (ADMIN only)',
+        description:
+            'Deletes a category. Will cascade delete all menu items in this category.',
+    })
+    deleteCategory(@Param('id') id: string) {
+        return this.menusService.deleteCategory(+id)
     }
 
     // Modifier Groups
@@ -141,6 +155,19 @@ export class MenusController {
     @ApiOperation({ summary: 'Update menu item (ADMIN only)' })
     updateMenuItem(@Param('id') id: string, @Body() dto: UpdateMenuItemDto) {
         return this.menusService.updateMenuItem(+id, dto)
+    }
+
+    @ApiBearerAuth('JWT-auth')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
+    @Delete('menu-items/:id')
+    @ApiOperation({
+        summary: 'Delete menu item (ADMIN only)',
+        description:
+            'Permanently deletes a menu item. Use with caution as it will remove all associated data.',
+    })
+    deleteMenuItem(@Param('id') id: string) {
+        return this.menusService.deleteMenuItem(+id)
     }
 }
 

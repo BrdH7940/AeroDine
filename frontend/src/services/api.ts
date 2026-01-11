@@ -271,6 +271,14 @@ export const menusApi = {
   },
 
   /**
+   * Delete menu item
+   */
+  deleteMenuItem: async (id: number) => {
+    const response = await apiClient.delete(`/menu-items/${id}`);
+    return response.data;
+  },
+
+  /**
    * Get modifier groups for a restaurant
    */
   getModifierGroups: async (restaurantId: number) => {

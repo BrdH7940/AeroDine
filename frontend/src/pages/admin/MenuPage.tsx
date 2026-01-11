@@ -64,6 +64,7 @@ export default function MenuPage() {
     const itemsPerPage = 10
     const [items, setItems] = useState<MenuItem[]>([])
     const [categories, setCategories] = useState<Category[]>([])
+    const [modifierGroups, setModifierGroups] = useState<Array<{ id: number; name: string }>>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [restaurantId, setRestaurantId] = useState<number | null>(null)
@@ -139,9 +140,10 @@ export default function MenuPage() {
         }
 
         try {
-            const [menuItemsData, categoriesData] = await Promise.all([
+            const [menuItemsData, categoriesData, modifierGroupsData] = await Promise.all([
                 menusApi.getMenuItems(targetRestaurantId),
                 menusApi.getCategories(targetRestaurantId),
+                menusApi.getModifierGroups(targetRestaurantId),
             ])
 
             // Ensure we're setting arrays
@@ -149,9 +151,13 @@ export default function MenuPage() {
             const categoriesArray = Array.isArray(categoriesData)
                 ? categoriesData
                 : []
+            const modifierGroupsArray = Array.isArray(modifierGroupsData)
+                ? modifierGroupsData
+                : []
 
             setItems(itemsArray)
             setCategories(categoriesArray)
+            setModifierGroups(modifierGroupsArray)
         } catch (err: any) {
             if (err.response?.status === 401) {
                 setError('Authentication required. Please login.')
@@ -240,12 +246,11 @@ export default function MenuPage() {
     }
 
     const handleDelete = async (item: MenuItem) => {
-        if (!confirm(`Are you sure you want to delete ${item.name}?`)) {
+        if (!confirm(`Are you sure you want to permanently delete ${item.name}? This action cannot be undone.`)) {
             return
         }
         try {
-            // Update status to HIDDEN instead of deleting (backend doesn't have delete endpoint)
-            await menusApi.updateMenuItem(item.id, { status: 'HIDDEN' })
+            await menusApi.deleteMenuItem(item.id)
             // Refresh data
             if (restaurantId) {
                 await fetchData(restaurantId)
@@ -278,6 +283,8 @@ export default function MenuPage() {
         basePrice: number
         categoryId: number
         status: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN'
+        image?: string
+        modifierGroupIds?: number[]
     }) => {
         try {
             if (!restaurantId) {
@@ -293,6 +300,8 @@ export default function MenuPage() {
                     basePrice: formData.basePrice,
                     categoryId: formData.categoryId,
                     status: formData.status,
+                    image: formData.image,
+                    modifierGroupIds: formData.modifierGroupIds,
                 })
             } else {
                 // Create new item
@@ -303,6 +312,8 @@ export default function MenuPage() {
                     description: formData.description,
                     basePrice: formData.basePrice,
                     status: formData.status,
+                    image: formData.image,
+                    modifierGroupIds: formData.modifierGroupIds,
                 })
             }
 
@@ -605,6 +616,7 @@ export default function MenuPage() {
                     onSave={handleSaveItem}
                     item={selectedItem}
                     categories={categories}
+                    modifierGroups={modifierGroups}
                 />
             )}
         </div>
@@ -618,6 +630,7 @@ function MenuItemModal({
     onSave,
     item,
     categories,
+    modifierGroups,
 }: {
     isOpen: boolean
     onClose: () => void
@@ -627,9 +640,12 @@ function MenuItemModal({
         basePrice: number
         categoryId: number
         status: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN'
+        image?: string
+        modifierGroupIds?: number[]
     }) => void
     item: MenuItem | null
     categories: Category[]
+    modifierGroups: Array<{ id: number; name: string }>
 }) {
     const [name, setName] = useState(item?.name || '')
     const [description, setDescription] = useState(item?.description || '')
@@ -646,6 +662,13 @@ function MenuItemModal({
     const [status, setStatus] = useState<'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN'>(
         item?.status || 'AVAILABLE'
     )
+    const [selectedImage, setSelectedImage] = useState<File | null>(null)
+    const [imagePreview, setImagePreview] = useState<string | null>(
+        item?.images && item.images.length > 0 ? item.images[0].url : null
+    )
+    const [selectedModifierGroups, setSelectedModifierGroups] = useState<number[]>(
+        item?.modifierGroups?.map((mg) => mg.modifierGroup.id) || []
+    )
 
     useEffect(() => {
         if (item) {
@@ -658,27 +681,72 @@ function MenuItemModal({
             )
             setCategoryId(item.categoryId)
             setStatus(item.status)
+            setImagePreview(item.images && item.images.length > 0 ? item.images[0].url : null)
+            setSelectedModifierGroups(item.modifierGroups?.map((mg) => mg.modifierGroup.id) || [])
         } else {
             setName('')
             setDescription('')
             setBasePrice('')
             setCategoryId(categories[0]?.id || 0)
             setStatus('AVAILABLE')
+            setImagePreview(null)
+            setSelectedModifierGroups([])
         }
+        setSelectedImage(null)
     }, [item, categories])
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (file) {
+            setSelectedImage(file)
+            // Create preview
+            const reader = new FileReader()
+            reader.onloadend = () => {
+                setImagePreview(reader.result as string)
+            }
+            reader.readAsDataURL(file)
+        }
+    }
+
+    const convertImageToBase64 = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => {
+                const base64 = reader.result as string
+                // Remove data:image/...;base64, prefix if present
+                const base64Data = base64.includes(',') ? base64.split(',')[1] : base64
+                resolve(base64Data)
+            }
+            reader.onerror = reject
+            reader.readAsDataURL(file)
+        })
+    }
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!name || !basePrice || !categoryId) {
             alert('Please fill in all required fields')
             return
         }
+
+        let imageBase64: string | undefined
+        if (selectedImage) {
+            try {
+                imageBase64 = await convertImageToBase64(selectedImage)
+            } catch (error) {
+                alert('Failed to process image. Please try again.')
+                return
+            }
+        }
+
         onSave({
             name,
             description: description || undefined,
             basePrice: parseFloat(basePrice),
             categoryId,
             status,
+            image: imageBase64,
+            modifierGroupIds: selectedModifierGroups.length > 0 ? selectedModifierGroups : undefined,
         })
     }
 
@@ -787,6 +855,68 @@ function MenuItemModal({
                             <option value="SOLD_OUT">Sold Out</option>
                             <option value="HIDDEN">Hidden</option>
                         </select>
+                    </div>
+
+                    {/* Image Upload */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Image
+                        </label>
+                        {imagePreview && (
+                            <div className="mb-2">
+                                <img
+                                    src={imagePreview}
+                                    alt="Preview"
+                                    className="w-32 h-32 object-cover rounded-lg border border-slate-300"
+                                />
+                            </div>
+                        )}
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageChange}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        />
+                    </div>
+
+                    {/* Modifier Groups */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Modifier Groups
+                        </label>
+                        <div className="max-h-40 overflow-y-auto border border-slate-300 rounded-lg p-2">
+                            {modifierGroups.length === 0 ? (
+                                <p className="text-sm text-slate-500">No modifier groups available</p>
+                            ) : (
+                                modifierGroups.map((group) => (
+                                    <label
+                                        key={group.id}
+                                        className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedModifierGroups.includes(group.id)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedModifierGroups([
+                                                        ...selectedModifierGroups,
+                                                        group.id,
+                                                    ])
+                                                } else {
+                                                    setSelectedModifierGroups(
+                                                        selectedModifierGroups.filter(
+                                                            (id) => id !== group.id
+                                                        )
+                                                    )
+                                                }
+                                            }}
+                                            className="w-4 h-4 text-amber-500 border-slate-300 rounded focus:ring-amber-500"
+                                        />
+                                        <span className="text-sm text-slate-700">{group.name}</span>
+                                    </label>
+                                ))
+                            )}
+                        </div>
                     </div>
 
                     <div className="flex gap-3 pt-4">
