@@ -3,6 +3,7 @@ import { JwtModule, type JwtModuleOptions } from '@nestjs/jwt'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { OrdersService } from './orders.service'
 import { OrdersController } from './orders.controller'
+import { SocketModule } from '../socket/socket.module'
 
 @Module({
     imports: [
@@ -23,6 +24,7 @@ import { OrdersController } from './orders.controller'
                 }
             },
         }),
+        SocketModule,
     ],
     controllers: [OrdersController],
     providers: [OrdersService],

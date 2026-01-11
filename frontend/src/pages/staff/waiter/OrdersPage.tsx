@@ -1,0 +1,474 @@
+import { useState, useEffect, useCallback } from 'react'
+import { useWaiterEvents, useBillRequested } from '../../../hooks/useSocket'
+import { orderService } from '../../../services/order.service'
+import OrderCard from '../../../components/staff/OrderCard'
+import { OrderCreatedEvent, OrderItemStatusChangedEvent } from '@aerodine/shared-types'
+
+/**
+ * Waiter Orders Dashboard
+ * Shows pending orders that need to be accepted/rejected
+ * and ready items that need to be served
+ *
+ * @author Dev 2 - Operations Team
+ */
+
+interface Order {
+    id: number
+    tableId: number
+    tableName: string
+    status: string
+    totalAmount: number
+    guestCount: number
+    note?: string
+    createdAt: string
+    items: OrderItem[]
+}
+
+interface OrderItem {
+    id: number
+    name: string
+    quantity: number
+    status: string
+    pricePerUnit: number
+    note?: string
+    modifiers: { name: string; priceAdjustment: number }[]
+}
+
+export default function WaiterOrdersPage() {
+    // TODO: Get from auth context
+    const restaurantId = 1
+    const userId = 1 // Waiter ID
+
+    const [pendingOrders, setPendingOrders] = useState<Order[]>([])
+    const [activeOrders, setActiveOrders] = useState<Order[]>([])
+    const [readyItems, setReadyItems] = useState<
+        { orderId: number; itemId: number; itemName: string; tableName: string }[]
+    >([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+    const [activeTab, setActiveTab] = useState<'pending' | 'active' | 'ready'>(
+        'pending',
+    )
+
+    // Sound notification
+    const playNotificationSound = useCallback(() => {
+        const audio = new Audio('/sounds/notification.mp3')
+        audio.play().catch(() => {
+            // Ignore autoplay errors
+        })
+    }, [])
+
+    // Fetch initial data
+    const fetchOrders = useCallback(async () => {
+        try {
+            setLoading(true)
+            const [pendingRes, activeRes] = await Promise.all([
+                orderService.getOrders({
+                    restaurantId,
+                    status: 'PENDING' as any,
+                }),
+                orderService.getOrders({
+                    restaurantId,
+                    status: 'IN_PROGRESS' as any,
+                }),
+            ])
+
+            setPendingOrders(
+                pendingRes.orders.map((o: any) => ({
+                    id: o.id,
+                    tableId: o.tableId,
+                    tableName: o.table?.name || `Table ${o.tableId}`,
+                    status: o.status,
+                    totalAmount: Number(o.totalAmount),
+                    guestCount: o.guestCount,
+                    note: o.note,
+                    createdAt: o.createdAt,
+                    items: o.items.map((item: any) => ({
+                        id: item.id,
+                        name: item.name,
+                        quantity: item.quantity,
+                        status: item.status,
+                        pricePerUnit: Number(item.pricePerUnit),
+                        note: item.note,
+                        modifiers: item.modifiers || [],
+                    })),
+                })),
+            )
+
+            setActiveOrders(
+                activeRes.orders.map((o: any) => ({
+                    id: o.id,
+                    tableId: o.tableId,
+                    tableName: o.table?.name || `Table ${o.tableId}`,
+                    status: o.status,
+                    totalAmount: Number(o.totalAmount),
+                    guestCount: o.guestCount,
+                    note: o.note,
+                    createdAt: o.createdAt,
+                    items: o.items.map((item: any) => ({
+                        id: item.id,
+                        name: item.name,
+                        quantity: item.quantity,
+                        status: item.status,
+                        pricePerUnit: Number(item.pricePerUnit),
+                        note: item.note,
+                        modifiers: item.modifiers || [],
+                    })),
+                })),
+            )
+
+            // Find ready items from active orders
+            const ready: typeof readyItems = []
+            activeRes.orders.forEach((order: any) => {
+                order.items.forEach((item: any) => {
+                    if (item.status === 'READY') {
+                        ready.push({
+                            orderId: order.id,
+                            itemId: item.id,
+                            itemName: item.name,
+                            tableName: order.table?.name || `Table ${order.tableId}`,
+                        })
+                    }
+                })
+            })
+            setReadyItems(ready)
+        } catch (err) {
+            setError('Failed to load orders')
+            console.error(err)
+        } finally {
+            setLoading(false)
+        }
+    }, [restaurantId])
+
+    useEffect(() => {
+        fetchOrders()
+    }, [fetchOrders])
+
+    // Handle new order created
+    const handleOrderCreated = useCallback(
+        (event: OrderCreatedEvent) => {
+            setPendingOrders((prev) => [
+                {
+                    id: event.order.id,
+                    tableId: event.tableId,
+                    tableName: event.order.tableName,
+                    status: event.order.status,
+                    totalAmount: event.order.totalAmount,
+                    guestCount: event.order.guestCount,
+                    note: event.order.note,
+                    createdAt: event.order.createdAt,
+                    items: event.order.items.map((item) => ({
+                        id: item.id,
+                        name: item.name,
+                        quantity: item.quantity,
+                        status: item.status,
+                        pricePerUnit: item.pricePerUnit,
+                        note: item.note,
+                        modifiers: item.modifiers,
+                    })),
+                },
+                ...prev,
+            ])
+            playNotificationSound()
+        },
+        [playNotificationSound],
+    )
+
+    // Handle item ready
+    const handleItemReady = useCallback(
+        (event: OrderItemStatusChangedEvent) => {
+            if (event.newStatus === 'READY') {
+                setReadyItems((prev) => [
+                    ...prev,
+                    {
+                        orderId: event.orderId,
+                        itemId: event.orderItemId,
+                        itemName: event.itemName,
+                        tableName: '', // Will be updated
+                    },
+                ])
+                playNotificationSound()
+            }
+        },
+        [playNotificationSound],
+    )
+
+    // Handle bill requested
+    const handleBillRequested = useCallback(
+        (event: { orderId: number; tableId: number; tableName: string }) => {
+            // Show notification or modal
+            alert(`Bill requested for ${event.tableName}`)
+            playNotificationSound()
+        },
+        [playNotificationSound],
+    )
+
+    // Setup socket event listeners
+    useWaiterEvents(restaurantId, userId, {
+        onOrderCreated: handleOrderCreated,
+        onOrderItemReady: handleItemReady,
+    })
+
+    useBillRequested(handleBillRequested)
+
+    // Accept order
+    const handleAcceptOrder = async (orderId: number) => {
+        try {
+            await orderService.acceptOrder(orderId, userId)
+            // Move from pending to active
+            const order = pendingOrders.find((o) => o.id === orderId)
+            if (order) {
+                setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
+                setActiveOrders((prev) => [
+                    { ...order, status: 'IN_PROGRESS' },
+                    ...prev,
+                ])
+            }
+        } catch (err) {
+            console.error('Failed to accept order:', err)
+            alert('Failed to accept order')
+        }
+    }
+
+    // Reject order
+    const handleRejectOrder = async (orderId: number, reason?: string) => {
+        try {
+            await orderService.rejectOrder(orderId, userId, reason)
+            setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
+        } catch (err) {
+            console.error('Failed to reject order:', err)
+            alert('Failed to reject order')
+        }
+    }
+
+    // Mark order as served
+    const handleMarkServed = async (orderId: number) => {
+        try {
+            await orderService.markOrderServed(orderId)
+            // Remove ready items for this order
+            setReadyItems((prev) => prev.filter((item) => item.orderId !== orderId))
+            // Update order status
+            setActiveOrders((prev) =>
+                prev.map((o) =>
+                    o.id === orderId
+                        ? {
+                              ...o,
+                              items: o.items.map((item) =>
+                                  item.status === 'READY'
+                                      ? { ...item, status: 'SERVED' }
+                                      : item,
+                              ),
+                          }
+                        : o,
+                ),
+            )
+        } catch (err) {
+            console.error('Failed to mark served:', err)
+            alert('Failed to mark as served')
+        }
+    }
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-lg">Loading orders...</div>
+            </div>
+        )
+    }
+
+    if (error) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-red-500">{error}</div>
+            </div>
+        )
+    }
+
+    return (
+        <div className="min-h-screen bg-gray-100">
+            {/* Header */}
+            <header className="bg-white shadow-sm">
+                <div className="max-w-7xl mx-auto px-4 py-4">
+                    <div className="flex items-center justify-between">
+                        <h1 className="text-2xl font-bold text-gray-900">
+                            Waiter Dashboard
+                        </h1>
+                        <div className="flex items-center space-x-4">
+                            <span className="text-sm text-gray-500">
+                                {new Date().toLocaleDateString()}
+                            </span>
+                            <button
+                                onClick={fetchOrders}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            >
+                                Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            {/* Tab Navigation */}
+            <div className="max-w-7xl mx-auto px-4 py-4">
+                <div className="flex space-x-4 border-b border-gray-200">
+                    <button
+                        onClick={() => setActiveTab('pending')}
+                        className={`pb-4 px-4 font-medium ${
+                            activeTab === 'pending'
+                                ? 'text-blue-600 border-b-2 border-blue-600'
+                                : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                        Pending Orders
+                        {pendingOrders.length > 0 && (
+                            <span className="ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full">
+                                {pendingOrders.length}
+                            </span>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('active')}
+                        className={`pb-4 px-4 font-medium ${
+                            activeTab === 'active'
+                                ? 'text-blue-600 border-b-2 border-blue-600'
+                                : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                        Active Orders
+                        {activeOrders.length > 0 && (
+                            <span className="ml-2 px-2 py-1 bg-blue-500 text-white text-xs rounded-full">
+                                {activeOrders.length}
+                            </span>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('ready')}
+                        className={`pb-4 px-4 font-medium ${
+                            activeTab === 'ready'
+                                ? 'text-blue-600 border-b-2 border-blue-600'
+                                : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                        Ready to Serve
+                        {readyItems.length > 0 && (
+                            <span className="ml-2 px-2 py-1 bg-green-500 text-white text-xs rounded-full">
+                                {readyItems.length}
+                            </span>
+                        )}
+                    </button>
+                </div>
+            </div>
+
+            {/* Content */}
+            <main className="max-w-7xl mx-auto px-4 py-4">
+                {/* Pending Orders Tab */}
+                {activeTab === 'pending' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {pendingOrders.length === 0 ? (
+                            <div className="col-span-full text-center py-12 text-gray-500">
+                                No pending orders
+                            </div>
+                        ) : (
+                            pendingOrders.map((order) => (
+                                <OrderCard
+                                    key={order.id}
+                                    order={order}
+                                    type="pending"
+                                    onAccept={() => handleAcceptOrder(order.id)}
+                                    onReject={(reason) =>
+                                        handleRejectOrder(order.id, reason)
+                                    }
+                                />
+                            ))
+                        )}
+                    </div>
+                )}
+
+                {/* Active Orders Tab */}
+                {activeTab === 'active' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {activeOrders.length === 0 ? (
+                            <div className="col-span-full text-center py-12 text-gray-500">
+                                No active orders
+                            </div>
+                        ) : (
+                            activeOrders.map((order) => (
+                                <OrderCard
+                                    key={order.id}
+                                    order={order}
+                                    type="active"
+                                    onServe={() => handleMarkServed(order.id)}
+                                />
+                            ))
+                        )}
+                    </div>
+                )}
+
+                {/* Ready to Serve Tab */}
+                {activeTab === 'ready' && (
+                    <div className="space-y-4">
+                        {readyItems.length === 0 ? (
+                            <div className="text-center py-12 text-gray-500">
+                                No items ready to serve
+                            </div>
+                        ) : (
+                            <div className="bg-white rounded-lg shadow overflow-hidden">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Table
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Item
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Order #
+                                            </th>
+                                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Action
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {readyItems.map((item, index) => (
+                                            <tr
+                                                key={`${item.orderId}-${item.itemId}`}
+                                                className="hover:bg-gray-50"
+                                            >
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className="font-medium text-gray-900">
+                                                        {item.tableName ||
+                                                            'Unknown'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-gray-700">
+                                                    {item.itemName}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-gray-500">
+                                                    #{item.orderId}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                    <button
+                                                        onClick={() =>
+                                                            handleMarkServed(
+                                                                item.orderId,
+                                                            )
+                                                        }
+                                                        className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+                                                    >
+                                                        Mark Served
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </main>
+        </div>
+    )
+}

@@ -5,20 +5,25 @@ import {
     Body,
     Patch,
     Param,
+    Delete,
     Query,
-    UseGuards,
     ParseIntPipe,
+    HttpCode,
+    HttpStatus,
 } from '@nestjs/common'
 import { OrdersService } from './orders.service'
-import { CreateOrderDto } from './dto/create-order.dto'
+import { CreateOrderDto, AddItemsToOrderDto } from './dto/create-order.dto'
 import {
-    UpdateOrderStatusDto,
+    UpdateOrderDto,
     UpdateOrderItemStatusDto,
+    AssignWaiterDto,
+    AcceptRejectOrderDto,
 } from './dto/update-order.dto'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../auth/guards/roles.guard'
 import { Roles } from '../auth/decorators/roles.decorator'
-import { UserRole, OrderStatus, OrderItemStatus } from '@aerodine/shared-types'
+import { UserRole } from '@aerodine/shared-types'
+import { OrderStatus } from '@prisma/client'
 import {
     ApiTags,
     ApiOperation,
@@ -28,145 +33,226 @@ import {
     ApiParam,
 } from '@nestjs/swagger'
 
+/**
+ * Orders Controller - REST API endpoints for order management
+ *
+ * @author Dev 2 - Operations Team
+ */
 @ApiTags('orders')
 @Controller('orders')
 export class OrdersController {
     constructor(private readonly ordersService: OrdersService) {}
 
+    // ========================================================================
+    // ORDER CRUD
+    // ========================================================================
+
+    /**
+     * Create a new order
+     * POST /orders
+     */
     @Post()
-    @ApiOperation({
-        summary: 'Create a new order (Public)',
-        description:
-            'Creates a new order from QR token. Validates table token, fetches current prices from database, and creates order with all items and modifiers.',
-    })
-    @ApiResponse({
-        status: 201,
-        description: 'Order created successfully',
-    })
-    @ApiResponse({
-        status: 400,
-        description: 'Bad request (invalid items, inactive table, etc.)',
-    })
-    @ApiResponse({
-        status: 401,
-        description: 'Invalid or expired table token',
-    })
-    @ApiResponse({
-        status: 404,
-        description: 'Table or menu items not found',
-    })
     create(@Body() createOrderDto: CreateOrderDto) {
         return this.ordersService.create(createOrderDto)
     }
 
-    @ApiBearerAuth('JWT-auth')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.WAITER, UserRole.KITCHEN)
+    /**
+     * Get all orders with filters
+     * GET /orders?restaurantId=1&status=PENDING&page=1&pageSize=20
+     */
     @Get()
-    @ApiOperation({
-        summary: 'Get all orders (Staff/Admin only)',
-        description:
-            'Returns all orders with optional filters. Orders are sorted by createdAt (FIFO) for KDS. Includes full relations: items, modifiers, table, restaurant.',
-    })
-    @ApiQuery({
-        name: 'status',
-        required: false,
-        enum: OrderStatus,
-        description: 'Filter by order status',
-    })
-    @ApiQuery({
-        name: 'restaurantId',
-        required: false,
-        type: Number,
-        description: 'Filter by restaurant ID',
-    })
-    @ApiResponse({
-        status: 200,
-        description: 'List of orders',
-    })
     findAll(
-        @Query('status') status?: OrderStatus,
-        @Query('restaurantId') restaurantId?: string
+        @Query('restaurantId') restaurantId?: string,
+        @Query('tableId') tableId?: string,
+        @Query('waiterId') waiterId?: string,
+        @Query('status') status?: OrderStatus | string,
+        @Query('fromDate') fromDate?: string,
+        @Query('toDate') toDate?: string,
+        @Query('page') page?: string,
+        @Query('pageSize') pageSize?: string
     ) {
-        const restaurantIdNum = restaurantId
-            ? Number(restaurantId)
-            : undefined
-        return this.ordersService.findAll(status, restaurantIdNum)
+        const filters = {
+            restaurantId: restaurantId ? parseInt(restaurantId) : undefined,
+            tableId: tableId ? parseInt(tableId) : undefined,
+            waiterId: waiterId ? parseInt(waiterId) : undefined,
+            status: status
+                ? status.includes(',')
+                    ? (status.split(',') as OrderStatus[])
+                    : (status as OrderStatus)
+                : undefined,
+            fromDate: fromDate ? new Date(fromDate) : undefined,
+            toDate: toDate ? new Date(toDate) : undefined,
+            page: page ? parseInt(page) : 1,
+            pageSize: pageSize ? parseInt(pageSize) : 20,
+        }
+        return this.ordersService.findAll(filters)
     }
 
-    @ApiBearerAuth('JWT-auth')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.WAITER, UserRole.KITCHEN)
+    /**
+     * Get one order by ID
+     * GET /orders/:id
+     */
     @Get(':id')
-    @ApiOperation({
-        summary: 'Get order by ID (Staff/Admin only)',
-    })
-    @ApiParam({ name: 'id', type: Number, description: 'Order ID' })
-    @ApiResponse({
-        status: 200,
-        description: 'Order details',
-    })
-    @ApiResponse({
-        status: 404,
-        description: 'Order not found',
-    })
     findOne(@Param('id', ParseIntPipe) id: number) {
         return this.ordersService.findOne(id)
     }
 
-    @ApiBearerAuth('JWT-auth')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.WAITER)
-    @Patch(':id/status')
-    @ApiOperation({
-        summary: 'Update order status (Admin/Waiter only)',
-        description:
-            'Updates the order status (PENDING -> IN_PROGRESS -> COMPLETED)',
-    })
-    @ApiParam({ name: 'id', type: Number, description: 'Order ID' })
-    @ApiResponse({
-        status: 200,
-        description: 'Order status updated successfully',
-    })
-    @ApiResponse({
-        status: 404,
-        description: 'Order not found',
-    })
-    updateStatus(
+    /**
+     * Update order
+     * PATCH /orders/:id
+     */
+    @Patch(':id')
+    update(
         @Param('id', ParseIntPipe) id: number,
-        @Body() updateOrderStatusDto: UpdateOrderStatusDto
+        @Body() updateOrderDto: UpdateOrderDto
     ) {
-        return this.ordersService.updateStatus(id, updateOrderStatusDto)
+        return this.ordersService.update(id, updateOrderDto)
     }
 
-    @ApiBearerAuth('JWT-auth')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.KITCHEN)
-    @Patch(':id/items/:itemId/status')
-    @ApiOperation({
-        summary: 'Update order item status (Kitchen/Admin only)',
-        description:
-            'Updates individual order item status (QUEUED -> PREPARING -> READY -> SERVED)',
-    })
-    @ApiParam({ name: 'id', type: Number, description: 'Order ID' })
-    @ApiParam({ name: 'itemId', type: Number, description: 'Order Item ID' })
-    @ApiResponse({
-        status: 200,
-        description: 'Order item status updated successfully',
-    })
-    @ApiResponse({
-        status: 404,
-        description: 'Order or order item not found',
-    })
-    updateItemStatus(
-        @Param('id', ParseIntPipe) orderId: number,
-        @Param('itemId', ParseIntPipe) itemId: number,
-        @Body() updateOrderItemStatusDto: UpdateOrderItemStatusDto
+    /**
+     * Cancel order
+     * DELETE /orders/:id
+     */
+    @Delete(':id')
+    @HttpCode(HttpStatus.OK)
+    cancel(
+        @Param('id', ParseIntPipe) id: number,
+        @Query('reason') reason?: string
     ) {
-        return this.ordersService.updateItemStatus(
-            orderId,
-            itemId,
-            updateOrderItemStatusDto.status
-        )
+        return this.ordersService.cancel(id, reason)
+    }
+
+    // ========================================================================
+    // ORDER ITEMS
+    // ========================================================================
+
+    /**
+     * Add items to existing order
+     * POST /orders/:id/items
+     */
+    @Post(':id/items')
+    addItems(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() addItemsDto: AddItemsToOrderDto
+    ) {
+        return this.ordersService.addItemsToOrder(id, addItemsDto)
+    }
+
+    // ========================================================================
+    // WAITER OPERATIONS
+    // ========================================================================
+
+    /**
+     * Get pending orders for waiter dashboard
+     * GET /orders/waiter/pending?restaurantId=1
+     */
+    @Get('waiter/pending')
+    getPendingOrders(
+        @Query('restaurantId', ParseIntPipe) restaurantId: number
+    ) {
+        return this.ordersService.getPendingOrders(restaurantId)
+    }
+
+    /**
+     * Assign waiter to order
+     * POST /orders/:id/assign
+     */
+    @Post(':id/assign')
+    assignWaiter(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() assignDto: AssignWaiterDto
+    ) {
+        return this.ordersService.assignWaiter(id, assignDto)
+    }
+
+    /**
+     * Accept order (waiter)
+     * POST /orders/:id/accept
+     */
+    @Post(':id/accept')
+    acceptOrder(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { waiterId: number }
+    ) {
+        return this.ordersService.acceptOrder(id, body.waiterId)
+    }
+
+    /**
+     * Reject order (waiter)
+     * POST /orders/:id/reject
+     */
+    @Post(':id/reject')
+    rejectOrder(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: AcceptRejectOrderDto
+    ) {
+        return this.ordersService.rejectOrder(id, body.waiterId, body.reason)
+    }
+
+    /**
+     * Mark order as served
+     * POST /orders/:id/serve
+     */
+    @Post(':id/serve')
+    markServed(@Param('id', ParseIntPipe) id: number) {
+        return this.ordersService.markOrderServed(id)
+    }
+
+    // ========================================================================
+    // KITCHEN OPERATIONS
+    // ========================================================================
+
+    /**
+     * Get orders for Kitchen Display System
+     * GET /orders/kitchen?restaurantId=1
+     */
+    @Get('kitchen/display')
+    getKitchenOrders(
+        @Query('restaurantId', ParseIntPipe) restaurantId: number
+    ) {
+        return this.ordersService.getKitchenOrders(restaurantId)
+    }
+
+    /**
+     * Update order item status (Kitchen)
+     * PATCH /orders/items/:itemId/status
+     */
+    @Patch('items/:itemId/status')
+    updateItemStatus(
+        @Param('itemId', ParseIntPipe) itemId: number,
+        @Body() updateDto: UpdateOrderItemStatusDto
+    ) {
+        return this.ordersService.updateOrderItemStatus(itemId, updateDto)
+    }
+
+    /**
+     * Start preparing item (Kitchen)
+     * POST /orders/items/:itemId/start
+     */
+    @Post('items/:itemId/start')
+    startPreparingItem(@Param('itemId', ParseIntPipe) itemId: number) {
+        return this.ordersService.startPreparingItem(itemId)
+    }
+
+    /**
+     * Mark item as ready (Kitchen)
+     * POST /orders/items/:itemId/ready
+     */
+    @Post('items/:itemId/ready')
+    markItemReady(@Param('itemId', ParseIntPipe) itemId: number) {
+        return this.ordersService.markItemReady(itemId)
+    }
+
+    // ========================================================================
+    // BILL OPERATIONS
+    // ========================================================================
+
+    /**
+     * Request bill for order
+     * POST /orders/:id/bill
+     */
+    @Post(':id/bill')
+    requestBill(@Param('id', ParseIntPipe) id: number) {
+        return this.ordersService.requestBill(id)
     }
 }

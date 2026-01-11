@@ -3,24 +3,62 @@ import {
     NotFoundException,
     BadRequestException,
     UnauthorizedException,
+    Logger,
 } from '@nestjs/common'
 import { PrismaService } from '../database/prisma.service'
+import { SocketService } from '../socket/socket.service'
 import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
-import { CreateOrderDto } from './dto/create-order.dto'
-import { UpdateOrderStatusDto } from './dto/update-order.dto'
-import { OrderStatus, OrderItemStatus } from '@aerodine/shared-types'
-import { Decimal } from '@prisma/client/runtime/library'
+import {
+    CreateOrderDto,
+    CreateOrderItemDto,
+    AddItemsToOrderDto,
+} from './dto/create-order.dto'
+import {
+    UpdateOrderDto,
+    UpdateOrderItemStatusDto,
+    AssignWaiterDto,
+} from './dto/update-order.dto'
+import {
+    OrderStatus,
+    OrderItemStatus,
+    TableStatus,
+    Prisma,
+} from '@prisma/client'
+import {
+    OrderCreatedEvent,
+    OrderUpdatedEvent,
+    OrderStatusChangedEvent,
+    OrderItemStatusChangedEvent,
+    KitchenOrderEvent,
+    OrderSummary,
+    OrderItemSummary,
+    KitchenOrderView,
+    KitchenItemView,
+    canTransitionOrderStatus,
+    canTransitionOrderItemStatus,
+    OrderStatus as SharedOrderStatus,
+    OrderItemStatus as SharedOrderItemStatus,
+} from '@aerodine/shared-types'
 
 interface TableTokenPayload {
     tableId: number
     restaurantId: number
 }
 
+/**
+ * Orders Service - Handles all order-related business logic
+ * Includes order management, status transitions, and real-time notifications
+ *
+ * @author Dev 2 - Operations Team
+ */
 @Injectable()
 export class OrdersService {
+    private readonly logger = new Logger(OrdersService.name)
+
     constructor(
         private readonly prisma: PrismaService,
+        private readonly socketService: SocketService,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService
     ) {}
@@ -37,10 +75,10 @@ export class OrdersService {
         }
 
         try {
-            const payload = await this.jwtService.verifyAsync<TableTokenPayload>(
-                token,
-                { secret }
-            )
+            const payload =
+                await this.jwtService.verifyAsync<TableTokenPayload>(token, {
+                    secret,
+                })
 
             if (!payload.tableId || !payload.restaurantId) {
                 throw new UnauthorizedException('Invalid table token payload')
@@ -55,290 +93,313 @@ export class OrdersService {
         }
     }
 
-    /**
-     * Create a new order from QR token
-     */
-    async create(dto: CreateOrderDto) {
-        // Step 1: Verify token
-        const { tableId, restaurantId } = await this.verifyTableToken(
-            dto.tableToken
-        )
+    // ========================================================================
+    // ORDER CRUD
+    // ========================================================================
 
-        // Step 2: Verify table exists and is active
-        const table = await this.prisma.table.findUnique({
-            where: { id: tableId },
-            include: {
-                restaurant: true,
-            },
+    /**
+     * Create a new order
+     */
+    async create(createOrderDto: CreateOrderDto) {
+        const { restaurantId, tableId, userId, guestCount, note, items } =
+            createOrderDto
+
+        // Verify table exists and belongs to restaurant
+        const table = await this.prisma.table.findFirst({
+            where: { id: tableId, restaurantId, isActive: true },
         })
 
         if (!table) {
-            throw new NotFoundException(`Table with ID ${tableId} not found`)
+            throw new NotFoundException('Table not found')
         }
 
-        if (!table.isActive) {
-            throw new BadRequestException(
-                `Table "${table.name}" is not active`
-            )
+        // Calculate total amount
+        let totalAmount = 0
+        const orderItems: Prisma.OrderItemCreateWithoutOrderInput[] = []
+
+        for (const item of items) {
+            const menuItem = await this.prisma.menuItem.findFirst({
+                where: {
+                    id: item.menuItemId,
+                    restaurantId,
+                    status: 'AVAILABLE',
+                },
+            })
+
+            if (!menuItem) {
+                throw new BadRequestException(
+                    `Menu item ${item.menuItemId} not available`
+                )
+            }
+
+            const itemPrice = Number(menuItem.basePrice)
+            let modifiersPrice = 0
+            const modifiers: Prisma.OrderItemModifierCreateWithoutOrderItemInput[] =
+                []
+
+            if (item.modifiers) {
+                for (const mod of item.modifiers) {
+                    modifiers.push({
+                        modifierOption: mod.modifierOptionId
+                            ? { connect: { id: mod.modifierOptionId } }
+                            : undefined,
+                        modifierName: mod.modifierName,
+                        priceAdjustment: mod.priceAdjustment,
+                    })
+                    modifiersPrice += mod.priceAdjustment
+                }
+            }
+
+            const lineTotal = (itemPrice + modifiersPrice) * item.quantity
+            totalAmount += lineTotal
+
+            orderItems.push({
+                menuItem: { connect: { id: item.menuItemId } },
+                name: menuItem.name,
+                quantity: item.quantity,
+                pricePerUnit: itemPrice + modifiersPrice,
+                status: OrderItemStatus.QUEUED,
+                note: item.note,
+                modifiers: {
+                    create: modifiers,
+                },
+            })
         }
 
-        // Verify restaurantId matches
-        if (table.restaurantId !== restaurantId) {
-            throw new BadRequestException(
-                'Table token restaurantId does not match table'
-            )
-        }
-
-        // Step 3: Price snapshot - Fetch menu items and modifiers
-        const menuItemIds = dto.items.map((item) => item.menuItemId)
-        const menuItems = await this.prisma.menuItem.findMany({
-            where: {
-                id: { in: menuItemIds },
-                restaurantId: restaurantId,
+        // Create order with items
+        const order = await this.prisma.order.create({
+            data: {
+                restaurantId,
+                tableId,
+                userId,
+                guestCount: guestCount || 1,
+                note,
+                totalAmount,
+                status: OrderStatus.PENDING,
+                items: {
+                    create: orderItems,
+                },
+            },
+            include: {
+                table: true,
+                items: {
+                    include: {
+                        modifiers: true,
+                    },
+                },
             },
         })
 
-        if (menuItems.length !== menuItemIds.length) {
-            const foundIds = menuItems.map((item) => item.id)
-            const missingIds = menuItemIds.filter((id) => !foundIds.includes(id))
-            throw new NotFoundException(
-                `Menu items not found: ${missingIds.join(', ')}`
-            )
-        }
-
-        // Fetch all modifier options
-        const allModifierOptionIds = dto.items
-            .flatMap((item) => item.modifierOptionIds || [])
-            .filter((id): id is number => id !== undefined)
-
-        let modifierOptions: Array<{
-            id: number
-            priceAdjustment: Decimal
-            name: string
-        }> = []
-
-        if (allModifierOptionIds.length > 0) {
-            modifierOptions = await this.prisma.modifierOption.findMany({
-                where: {
-                    id: { in: allModifierOptionIds },
-                },
-                select: {
-                    id: true,
-                    priceAdjustment: true,
-                    name: true,
-                },
-            })
-
-            if (modifierOptions.length !== allModifierOptionIds.length) {
-                const foundIds = modifierOptions.map((opt) => opt.id)
-                const missingIds = allModifierOptionIds.filter(
-                    (id) => !foundIds.includes(id)
-                )
-                throw new NotFoundException(
-                    `Modifier options not found: ${missingIds.join(', ')}`
-                )
-            }
-        }
-
-        // Calculate prices
-        const orderItemsData = dto.items.map((itemDto) => {
-            const menuItem = menuItems.find(
-                (mi) => mi.id === itemDto.menuItemId
-            )!
-
-            // Calculate modifier adjustments
-            const itemModifiers = (itemDto.modifierOptionIds || [])
-                .map((optionId) =>
-                    modifierOptions.find((opt) => opt.id === optionId)
-                )
-                .filter((opt): opt is NonNullable<typeof opt> => opt !== undefined)
-
-            const modifierAdjustment = itemModifiers.reduce(
-                (sum, opt) => sum + opt.priceAdjustment.toNumber(),
-                0
-            )
-
-            const pricePerUnit =
-                menuItem.basePrice.toNumber() + modifierAdjustment
-
-            return {
-                menuItem,
-                itemDto,
-                pricePerUnit,
-                itemModifiers,
-            }
+        // Update table status to OCCUPIED
+        await this.prisma.table.update({
+            where: { id: tableId },
+            data: { status: TableStatus.OCCUPIED },
         })
 
-        // Calculate total amount
-        const totalAmount = orderItemsData.reduce(
-            (sum, item) => sum + item.pricePerUnit * item.itemDto.quantity,
-            0
-        )
-
-        // Step 4: Transaction - Create order, items, and modifiers
-        const order = await this.prisma.$transaction(async (tx) => {
-            // Create order
-            const createdOrder = await tx.order.create({
-                data: {
-                    restaurantId: restaurantId,
-                    tableId: tableId,
-                    guestCount: dto.guestCount,
-                    totalAmount: totalAmount,
-                    note: dto.note,
-                    status: OrderStatus.PENDING,
-                },
-            })
-
-            // Create order items
-            const createdItems = await Promise.all(
-                orderItemsData.map(async (itemData) => {
-                    const orderItem = await tx.orderItem.create({
-                        data: {
-                            orderId: createdOrder.id,
-                            menuItemId: itemData.menuItem.id,
-                            name: itemData.menuItem.name,
-                            quantity: itemData.itemDto.quantity,
-                            pricePerUnit: itemData.pricePerUnit,
-                            status: OrderItemStatus.QUEUED,
-                            note: itemData.itemDto.note,
-                        },
-                    })
-
-                    // Create modifiers if any
-                    if (itemData.itemModifiers.length > 0) {
-                        await Promise.all(
-                            itemData.itemModifiers.map((modifier) =>
-                                tx.orderItemModifier.create({
-                                    data: {
-                                        orderItemId: orderItem.id,
-                                        modifierOptionId: modifier.id,
-                                        modifierName: modifier.name,
-                                        priceAdjustment: modifier.priceAdjustment,
-                                    },
-                                })
-                            )
-                        )
-                    }
-
-                    return orderItem
-                })
-            )
-
-            // Fetch complete order with relations
-            return tx.order.findUnique({
-                where: { id: createdOrder.id },
-                include: {
-                    restaurant: {
-                        select: {
-                            id: true,
-                            name: true,
-                        },
-                    },
-                    table: {
-                        select: {
-                            id: true,
-                            name: true,
-                        },
-                    },
-                    items: {
-                        include: {
-                            menuItem: {
-                                select: {
-                                    id: true,
-                                    name: true,
-                                },
-                            },
-                            modifiers: {
-                                include: {
-                                    modifierOption: {
-                                        select: {
-                                            id: true,
-                                            name: true,
-                                        },
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
-            })
-        })
-
-        if (!order) {
-            throw new Error('Failed to create order')
+        // Emit real-time event
+        const orderSummary = this.mapToOrderSummary(order)
+        const event: OrderCreatedEvent = {
+            order: orderSummary,
+            tableId,
+            restaurantId,
         }
+        this.socketService.emitOrderCreated(restaurantId, event)
+
+        this.logger.log(`Order ${order.id} created for table ${table.name}`)
 
         return order
     }
 
     /**
-     * Find all orders with filters
+     * Add items to existing order
      */
-    async findAll(status?: OrderStatus, restaurantId?: number) {
-        const where: any = {}
+    async addItemsToOrder(orderId: number, addItemsDto: AddItemsToOrderDto) {
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            include: { table: true },
+        })
 
-        if (status) {
-            where.status = status
+        if (!order) {
+            throw new NotFoundException('Order not found')
         }
 
-        if (restaurantId) {
-            where.restaurantId = restaurantId
+        // Can only add items to pending or in-progress orders
+        if (
+            order.status === OrderStatus.COMPLETED ||
+            order.status === OrderStatus.CANCELLED
+        ) {
+            throw new BadRequestException('Cannot add items to this order')
         }
 
-        return this.prisma.order.findMany({
-            where,
+        let additionalAmount = 0
+        const newItems: Prisma.OrderItemCreateManyInput[] = []
+
+        for (const item of addItemsDto.items) {
+            const menuItem = await this.prisma.menuItem.findFirst({
+                where: {
+                    id: item.menuItemId,
+                    restaurantId: order.restaurantId,
+                    status: 'AVAILABLE',
+                },
+            })
+
+            if (!menuItem) {
+                throw new BadRequestException(
+                    `Menu item ${item.menuItemId} not available`
+                )
+            }
+
+            const itemPrice = Number(menuItem.basePrice)
+            let modifiersPrice = 0
+
+            if (item.modifiers) {
+                modifiersPrice = item.modifiers.reduce(
+                    (sum, m) => sum + m.priceAdjustment,
+                    0
+                )
+            }
+
+            const lineTotal = (itemPrice + modifiersPrice) * item.quantity
+            additionalAmount += lineTotal
+        }
+
+        // Create new items
+        for (const item of addItemsDto.items) {
+            const menuItem = await this.prisma.menuItem.findUnique({
+                where: { id: item.menuItemId },
+            })
+
+            const itemPrice = Number(menuItem!.basePrice)
+            let modifiersPrice = 0
+
+            if (item.modifiers) {
+                modifiersPrice = item.modifiers.reduce(
+                    (sum, m) => sum + m.priceAdjustment,
+                    0
+                )
+            }
+
+            const orderItem = await this.prisma.orderItem.create({
+                data: {
+                    orderId,
+                    menuItemId: item.menuItemId,
+                    name: menuItem!.name,
+                    quantity: item.quantity,
+                    pricePerUnit: itemPrice + modifiersPrice,
+                    status: OrderItemStatus.QUEUED,
+                    note: item.note,
+                    modifiers: item.modifiers
+                        ? {
+                              create: item.modifiers.map((m) => ({
+                                  modifierOptionId: m.modifierOptionId,
+                                  modifierName: m.modifierName,
+                                  priceAdjustment: m.priceAdjustment,
+                              })),
+                          }
+                        : undefined,
+                },
+            })
+        }
+
+        // Update total amount
+        const updatedOrder = await this.prisma.order.update({
+            where: { id: orderId },
+            data: {
+                totalAmount: {
+                    increment: additionalAmount,
+                },
+            },
             include: {
-                restaurant: {
-                    select: {
-                        id: true,
-                        name: true,
-                    },
-                },
-                table: {
-                    select: {
-                        id: true,
-                        name: true,
-                    },
-                },
-                customer: {
-                    select: {
-                        id: true,
-                        email: true,
-                        fullName: true,
-                    },
-                },
-                waiter: {
-                    select: {
-                        id: true,
-                        email: true,
-                        fullName: true,
-                    },
-                },
+                table: true,
                 items: {
                     include: {
-                        menuItem: {
-                            select: {
-                                id: true,
-                                name: true,
-                            },
-                        },
-                        modifiers: {
-                            include: {
-                                modifierOption: {
-                                    select: {
-                                        id: true,
-                                        name: true,
-                                    },
-                                },
-                            },
-                        },
+                        modifiers: true,
                     },
                 },
             },
-            orderBy: {
-                createdAt: 'asc', // FIFO for KDS
-            },
         })
+
+        // Emit real-time event
+        const orderSummary = this.mapToOrderSummary(updatedOrder)
+        const event: OrderUpdatedEvent = {
+            order: orderSummary,
+            updatedFields: ['items', 'totalAmount'],
+        }
+        this.socketService.emitOrderItemsAdded(
+            order.restaurantId,
+            order.tableId,
+            event
+        )
+
+        this.logger.log(`Items added to order ${orderId}`)
+
+        return updatedOrder
+    }
+
+    /**
+     * Find all orders with filters
+     */
+    async findAll(filters: {
+        restaurantId?: number
+        tableId?: number
+        waiterId?: number
+        status?: OrderStatus | OrderStatus[]
+        fromDate?: Date
+        toDate?: Date
+        page?: number
+        pageSize?: number
+    }) {
+        const {
+            restaurantId,
+            tableId,
+            waiterId,
+            status,
+            fromDate,
+            toDate,
+            page = 1,
+            pageSize = 20,
+        } = filters
+
+        const where: Prisma.OrderWhereInput = {}
+
+        if (restaurantId) where.restaurantId = restaurantId
+        if (tableId) where.tableId = tableId
+        if (waiterId) where.waiterId = waiterId
+        if (status) {
+            where.status = Array.isArray(status) ? { in: status } : status
+        }
+        if (fromDate || toDate) {
+            where.createdAt = {}
+            if (fromDate) where.createdAt.gte = fromDate
+            if (toDate) where.createdAt.lte = toDate
+        }
+
+        const [orders, total] = await Promise.all([
+            this.prisma.order.findMany({
+                where,
+                include: {
+                    table: true,
+                    waiter: { select: { id: true, fullName: true } },
+                    items: {
+                        include: {
+                            modifiers: true,
+                        },
+                    },
+                },
+                orderBy: { createdAt: 'desc' },
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+            }),
+            this.prisma.order.count({ where }),
+        ])
+
+        return {
+            orders,
+            total,
+            page,
+            pageSize,
+            totalPages: Math.ceil(total / pageSize),
+        }
     }
 
     /**
@@ -348,153 +409,600 @@ export class OrdersService {
         const order = await this.prisma.order.findUnique({
             where: { id },
             include: {
-                restaurant: {
-                    select: {
-                        id: true,
-                        name: true,
-                    },
-                },
-                table: {
-                    select: {
-                        id: true,
-                        name: true,
-                    },
-                },
-                customer: {
-                    select: {
-                        id: true,
-                        email: true,
-                        fullName: true,
-                    },
-                },
-                waiter: {
-                    select: {
-                        id: true,
-                        email: true,
-                        fullName: true,
-                    },
-                },
+                table: true,
+                customer: { select: { id: true, fullName: true, email: true } },
+                waiter: { select: { id: true, fullName: true } },
                 items: {
                     include: {
-                        menuItem: {
-                            select: {
-                                id: true,
-                                name: true,
-                            },
-                        },
-                        modifiers: {
-                            include: {
-                                modifierOption: {
-                                    select: {
-                                        id: true,
-                                        name: true,
-                                    },
-                                },
-                            },
-                        },
+                        modifiers: true,
+                        menuItem: true,
                     },
                 },
+                payment: true,
             },
         })
 
         if (!order) {
-            throw new NotFoundException(`Order with ID ${id} not found`)
+            throw new NotFoundException('Order not found')
         }
 
         return order
     }
 
     /**
-     * Update order status
+     * Update order
      */
-    async updateStatus(id: number, dto: UpdateOrderStatusDto) {
-        // Verify order exists
-        await this.findOne(id)
+    async update(id: number, updateOrderDto: UpdateOrderDto) {
+        const order = await this.findOne(id)
 
-        return this.prisma.order.update({
+        // Validate status transition if status is being updated
+        if (
+            updateOrderDto.status &&
+            !canTransitionOrderStatus(
+                order.status as unknown as SharedOrderStatus,
+                updateOrderDto.status as unknown as SharedOrderStatus
+            )
+        ) {
+            throw new BadRequestException(
+                `Cannot transition from ${order.status} to ${updateOrderDto.status}`
+            )
+        }
+
+        const previousStatus = order.status
+        const updatedOrder = await this.prisma.order.update({
             where: { id },
-            data: {
-                status: dto.status as OrderStatus,
-            },
+            data: updateOrderDto,
             include: {
-                restaurant: {
-                    select: {
-                        id: true,
-                        name: true,
-                    },
-                },
-                table: {
-                    select: {
-                        id: true,
-                        name: true,
-                    },
-                },
+                table: true,
                 items: {
                     include: {
-                        menuItem: {
-                            select: {
-                                id: true,
-                                name: true,
-                            },
-                        },
-                        modifiers: {
-                            include: {
-                                modifierOption: {
-                                    select: {
-                                        id: true,
-                                        name: true,
-                                    },
-                                },
-                            },
-                        },
+                        modifiers: true,
                     },
                 },
             },
+        })
+
+        // Emit status change if status was updated
+        if (updateOrderDto.status && updateOrderDto.status !== previousStatus) {
+            const event: OrderStatusChangedEvent = {
+                orderId: id,
+                previousStatus,
+                newStatus: updateOrderDto.status,
+                updatedAt: new Date().toISOString(),
+            }
+            this.socketService.emitOrderStatusChanged(
+                order.restaurantId,
+                order.tableId,
+                event
+            )
+
+            // If order completed, update table status
+            if (updateOrderDto.status === OrderStatus.COMPLETED) {
+                await this.prisma.table.update({
+                    where: { id: order.tableId },
+                    data: { status: TableStatus.AVAILABLE },
+                })
+            }
+        }
+
+        return updatedOrder
+    }
+
+    /**
+     * Cancel order
+     */
+    async cancel(id: number, reason?: string) {
+        const order = await this.findOne(id)
+
+        if (
+            order.status === OrderStatus.COMPLETED ||
+            order.status === OrderStatus.CANCELLED
+        ) {
+            throw new BadRequestException('Cannot cancel this order')
+        }
+
+        const updatedOrder = await this.prisma.order.update({
+            where: { id },
+            data: {
+                status: OrderStatus.CANCELLED,
+                note: reason
+                    ? `${order.note || ''} [Cancelled: ${reason}]`
+                    : order.note,
+            },
+        })
+
+        // Cancel all queued/preparing items
+        await this.prisma.orderItem.updateMany({
+            where: {
+                orderId: id,
+                status: {
+                    in: [OrderItemStatus.QUEUED, OrderItemStatus.PREPARING],
+                },
+            },
+            data: { status: OrderItemStatus.CANCELLED },
+        })
+
+        // Update table status
+        await this.prisma.table.update({
+            where: { id: order.tableId },
+            data: { status: TableStatus.AVAILABLE },
+        })
+
+        // Emit events
+        const event: OrderStatusChangedEvent = {
+            orderId: id,
+            previousStatus: order.status,
+            newStatus: OrderStatus.CANCELLED,
+            updatedAt: new Date().toISOString(),
+        }
+        this.socketService.emitOrderStatusChanged(
+            order.restaurantId,
+            order.tableId,
+            event
+        )
+
+        return updatedOrder
+    }
+
+    // ========================================================================
+    // WAITER OPERATIONS
+    // ========================================================================
+
+    /**
+     * Get pending orders for waiter
+     */
+    async getPendingOrders(restaurantId: number) {
+        return this.prisma.order.findMany({
+            where: {
+                restaurantId,
+                status: OrderStatus.PENDING,
+            },
+            include: {
+                table: true,
+                items: {
+                    include: {
+                        modifiers: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'asc' },
         })
     }
 
     /**
-     * Update order item status
+     * Assign waiter to order
      */
-    async updateItemStatus(
-        orderId: number,
-        itemId: number,
-        status: OrderItemStatus
-    ) {
-        // Verify order exists
+    async assignWaiter(orderId: number, assignDto: AssignWaiterDto) {
         const order = await this.findOne(orderId)
+        const waiter = await this.prisma.user.findFirst({
+            where: { id: assignDto.waiterId, role: 'WAITER' },
+        })
 
-        // Verify item belongs to order
-        const orderItem = order.items.find((item) => item.id === itemId)
-        if (!orderItem) {
-            throw new NotFoundException(
-                `Order item with ID ${itemId} not found in order ${orderId}`
-            )
+        if (!waiter) {
+            throw new NotFoundException('Waiter not found')
         }
 
-        return this.prisma.orderItem.update({
-            where: { id: itemId },
+        const updatedOrder = await this.prisma.order.update({
+            where: { id: orderId },
+            data: { waiterId: assignDto.waiterId },
+            include: { table: true },
+        })
+
+        this.socketService.emitWaiterAssigned(
+            order.restaurantId,
+            order.tableId,
+            orderId,
+            waiter.id,
+            waiter.fullName
+        )
+
+        return updatedOrder
+    }
+
+    /**
+     * Accept order (by waiter)
+     */
+    async acceptOrder(orderId: number, waiterId: number) {
+        const order = await this.findOne(orderId)
+
+        if (order.status !== OrderStatus.PENDING) {
+            throw new BadRequestException('Order is not pending')
+        }
+
+        const updatedOrder = await this.prisma.order.update({
+            where: { id: orderId },
             data: {
-                status: status,
+                status: OrderStatus.IN_PROGRESS,
+                waiterId,
             },
             include: {
-                menuItem: {
-                    select: {
-                        id: true,
-                        name: true,
-                    },
-                },
-                modifiers: {
+                table: true,
+                items: {
                     include: {
-                        modifierOption: {
-                            select: {
-                                id: true,
-                                name: true,
-                            },
-                        },
+                        modifiers: true,
                     },
                 },
             },
         })
+
+        // Emit accepted event
+        this.socketService.emitOrderAccepted(
+            order.restaurantId,
+            order.tableId,
+            orderId,
+            waiterId
+        )
+
+        // Send to kitchen
+        const kitchenView = this.mapToKitchenOrderView(updatedOrder)
+        const kitchenEvent: KitchenOrderEvent = {
+            order: kitchenView,
+            priority: 'normal',
+        }
+        this.socketService.emitKitchenOrderReceived(
+            order.restaurantId,
+            kitchenEvent
+        )
+
+        // Emit status change
+        const statusEvent: OrderStatusChangedEvent = {
+            orderId,
+            previousStatus: OrderStatus.PENDING,
+            newStatus: OrderStatus.IN_PROGRESS,
+            updatedAt: new Date().toISOString(),
+            updatedBy: waiterId,
+        }
+        this.socketService.emitOrderStatusChanged(
+            order.restaurantId,
+            order.tableId,
+            statusEvent
+        )
+
+        this.logger.log(`Order ${orderId} accepted by waiter ${waiterId}`)
+
+        return updatedOrder
+    }
+
+    /**
+     * Reject order (by waiter)
+     */
+    async rejectOrder(orderId: number, waiterId: number, reason?: string) {
+        const order = await this.findOne(orderId)
+
+        if (order.status !== OrderStatus.PENDING) {
+            throw new BadRequestException('Order is not pending')
+        }
+
+        const updatedOrder = await this.prisma.order.update({
+            where: { id: orderId },
+            data: {
+                status: OrderStatus.CANCELLED,
+                note: reason
+                    ? `${order.note || ''} [Rejected: ${reason}]`
+                    : order.note,
+            },
+        })
+
+        // Cancel all items
+        await this.prisma.orderItem.updateMany({
+            where: { orderId },
+            data: { status: OrderItemStatus.CANCELLED },
+        })
+
+        // Update table status
+        await this.prisma.table.update({
+            where: { id: order.tableId },
+            data: { status: TableStatus.AVAILABLE },
+        })
+
+        // Emit rejected event
+        this.socketService.emitOrderRejected(
+            order.restaurantId,
+            order.tableId,
+            orderId,
+            reason
+        )
+
+        this.logger.log(`Order ${orderId} rejected by waiter ${waiterId}`)
+
+        return updatedOrder
+    }
+
+    /**
+     * Mark order as served
+     */
+    async markOrderServed(orderId: number) {
+        const order = await this.findOne(orderId)
+
+        // Check all items are ready or served
+        const allReady = order.items.every(
+            (item) =>
+                item.status === OrderItemStatus.READY ||
+                item.status === OrderItemStatus.SERVED
+        )
+
+        if (!allReady) {
+            throw new BadRequestException('Not all items are ready')
+        }
+
+        // Update all ready items to served
+        await this.prisma.orderItem.updateMany({
+            where: {
+                orderId,
+                status: OrderItemStatus.READY,
+            },
+            data: { status: OrderItemStatus.SERVED },
+        })
+
+        this.socketService.emitOrderServed(
+            order.restaurantId,
+            order.tableId,
+            orderId
+        )
+
+        this.logger.log(`Order ${orderId} marked as served`)
+
+        return this.findOne(orderId)
+    }
+
+    // ========================================================================
+    // KITCHEN OPERATIONS
+    // ========================================================================
+
+    /**
+     * Get orders for Kitchen Display System
+     */
+    async getKitchenOrders(restaurantId: number) {
+        const orders = await this.prisma.order.findMany({
+            where: {
+                restaurantId,
+                status: OrderStatus.IN_PROGRESS,
+                items: {
+                    some: {
+                        status: {
+                            in: [
+                                OrderItemStatus.QUEUED,
+                                OrderItemStatus.PREPARING,
+                            ],
+                        },
+                    },
+                },
+            },
+            include: {
+                table: true,
+                items: {
+                    where: {
+                        status: {
+                            in: [
+                                OrderItemStatus.QUEUED,
+                                OrderItemStatus.PREPARING,
+                                OrderItemStatus.READY,
+                            ],
+                        },
+                    },
+                    include: {
+                        modifiers: true,
+                    },
+                    orderBy: { createdAt: 'asc' },
+                },
+            },
+            orderBy: { createdAt: 'asc' },
+        })
+
+        return orders.map((order) => this.mapToKitchenOrderView(order))
+    }
+
+    /**
+     * Update order item status (Kitchen)
+     */
+    async updateOrderItemStatus(
+        orderItemId: number,
+        updateDto: UpdateOrderItemStatusDto
+    ) {
+        const orderItem = await this.prisma.orderItem.findUnique({
+            where: { id: orderItemId },
+            include: {
+                order: {
+                    include: { table: true },
+                },
+            },
+        })
+
+        if (!orderItem) {
+            throw new NotFoundException('Order item not found')
+        }
+
+        // Validate status transition
+        if (
+            !canTransitionOrderItemStatus(
+                orderItem.status as unknown as SharedOrderItemStatus,
+                updateDto.status as unknown as SharedOrderItemStatus
+            )
+        ) {
+            throw new BadRequestException(
+                `Cannot transition from ${orderItem.status} to ${updateDto.status}`
+            )
+        }
+
+        const previousStatus = orderItem.status
+        const updatedItem = await this.prisma.orderItem.update({
+            where: { id: orderItemId },
+            data: { status: updateDto.status },
+            include: {
+                modifiers: true,
+            },
+        })
+
+        // Emit item status change
+        const event: OrderItemStatusChangedEvent = {
+            orderId: orderItem.orderId,
+            orderItemId,
+            itemName: orderItem.name,
+            previousStatus,
+            newStatus: updateDto.status,
+            updatedAt: new Date().toISOString(),
+        }
+        this.socketService.emitOrderItemStatusChanged(
+            orderItem.order.restaurantId,
+            orderItem.order.tableId,
+            event
+        )
+
+        // If item is ready, send special notification
+        if (updateDto.status === OrderItemStatus.READY) {
+            this.socketService.emitOrderItemReady(
+                orderItem.order.restaurantId,
+                orderItem.order.tableId,
+                event
+            )
+
+            // Check if all items are ready
+            const allItems = await this.prisma.orderItem.findMany({
+                where: { orderId: orderItem.orderId },
+            })
+
+            const allReady = allItems.every(
+                (item) =>
+                    item.status === OrderItemStatus.READY ||
+                    item.status === OrderItemStatus.SERVED ||
+                    item.status === OrderItemStatus.CANCELLED
+            )
+
+            if (allReady) {
+                this.socketService.emitKitchenOrderReady(
+                    orderItem.order.restaurantId,
+                    orderItem.orderId,
+                    orderItem.order.table.name
+                )
+            }
+        }
+
+        this.logger.log(
+            `Order item ${orderItemId} status: ${previousStatus} -> ${updateDto.status}`
+        )
+
+        return updatedItem
+    }
+
+    /**
+     * Start preparing an item (Kitchen)
+     */
+    async startPreparingItem(orderItemId: number) {
+        return this.updateOrderItemStatus(orderItemId, {
+            status: OrderItemStatus.PREPARING,
+        })
+    }
+
+    /**
+     * Mark item as ready (Kitchen)
+     */
+    async markItemReady(orderItemId: number) {
+        return this.updateOrderItemStatus(orderItemId, {
+            status: OrderItemStatus.READY,
+        })
+    }
+
+    // ========================================================================
+    // BILL OPERATIONS
+    // ========================================================================
+
+    /**
+     * Request bill for order
+     */
+    async requestBill(orderId: number) {
+        const order = await this.findOne(orderId)
+
+        if (
+            order.status === OrderStatus.CANCELLED ||
+            order.status === OrderStatus.PENDING
+        ) {
+            throw new BadRequestException('Cannot request bill for this order')
+        }
+
+        this.socketService.emitBillRequested(
+            order.restaurantId,
+            orderId,
+            order.tableId,
+            order.table.name
+        )
+
+        return {
+            orderId,
+            tableId: order.tableId,
+            tableName: order.table.name,
+            totalAmount: order.totalAmount,
+            items: order.items,
+        }
+    }
+
+    // ========================================================================
+    // HELPER METHODS
+    // ========================================================================
+
+    private mapToOrderSummary(order: any): OrderSummary {
+        return {
+            id: order.id,
+            tableId: order.tableId,
+            tableName: order.table?.name || '',
+            status: order.status,
+            totalAmount: Number(order.totalAmount),
+            guestCount: order.guestCount,
+            note: order.note,
+            waiterName: order.waiter?.fullName,
+            createdAt: order.createdAt.toISOString(),
+            updatedAt: order.updatedAt.toISOString(),
+            items: order.items.map(
+                (item: any): OrderItemSummary => ({
+                    id: item.id,
+                    menuItemId: item.menuItemId,
+                    name: item.name,
+                    quantity: item.quantity,
+                    pricePerUnit: Number(item.pricePerUnit),
+                    status: item.status,
+                    note: item.note,
+                    createdAt: item.createdAt.toISOString(),
+                    modifiers:
+                        item.modifiers?.map((m: any) => ({
+                            id: m.id,
+                            name: m.modifierName,
+                            priceAdjustment: Number(m.priceAdjustment),
+                        })) || [],
+                })
+            ),
+        }
+    }
+
+    private mapToKitchenOrderView(order: any): KitchenOrderView {
+        const createdAt = new Date(order.createdAt)
+        const now = new Date()
+        const elapsedMinutes = Math.floor(
+            (now.getTime() - createdAt.getTime()) / 60000
+        )
+
+        return {
+            id: order.id,
+            tableName: order.table?.name || '',
+            note: order.note,
+            createdAt: order.createdAt.toISOString(),
+            elapsedMinutes,
+            isOverdue: elapsedMinutes > 30, // Orders older than 30 min are overdue
+            items: order.items.map(
+                (item: any): KitchenItemView => ({
+                    id: item.id,
+                    name: item.name,
+                    quantity: item.quantity,
+                    status: item.status,
+                    note: item.note,
+                    modifiers:
+                        item.modifiers?.map((m: any) => m.modifierName) || [],
+                    prepTimeMinutes: 15, // Default prep time
+                    startedAt:
+                        item.status === OrderItemStatus.PREPARING
+                            ? item.updatedAt.toISOString()
+                            : undefined,
+                    isOverdue: false,
+                })
+            ),
+        }
     }
 }
