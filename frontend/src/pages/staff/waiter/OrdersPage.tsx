@@ -2,7 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { useWaiterEvents, useBillRequested } from '../../../hooks/useSocket'
 import { orderService } from '../../../services/order.service'
 import OrderCard from '../../../components/staff/OrderCard'
-import { OrderCreatedEvent, OrderItemStatusChangedEvent } from '@aerodine/shared-types'
+import type {
+    OrderCreatedEvent,
+    OrderItemStatusChangedEvent,
+} from '@aerodine/shared-types'
 
 /**
  * Waiter Orders Dashboard
@@ -42,12 +45,17 @@ export default function WaiterOrdersPage() {
     const [pendingOrders, setPendingOrders] = useState<Order[]>([])
     const [activeOrders, setActiveOrders] = useState<Order[]>([])
     const [readyItems, setReadyItems] = useState<
-        { orderId: number; itemId: number; itemName: string; tableName: string }[]
+        {
+            orderId: number
+            itemId: number
+            itemName: string
+            tableName: string
+        }[]
     >([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<'pending' | 'active' | 'ready'>(
-        'pending',
+        'pending'
     )
 
     // Sound notification
@@ -92,7 +100,7 @@ export default function WaiterOrdersPage() {
                         note: item.note,
                         modifiers: item.modifiers || [],
                     })),
-                })),
+                }))
             )
 
             setActiveOrders(
@@ -114,7 +122,7 @@ export default function WaiterOrdersPage() {
                         note: item.note,
                         modifiers: item.modifiers || [],
                     })),
-                })),
+                }))
             )
 
             // Find ready items from active orders
@@ -126,15 +134,15 @@ export default function WaiterOrdersPage() {
                             orderId: order.id,
                             itemId: item.id,
                             itemName: item.name,
-                            tableName: order.table?.name || `Table ${order.tableId}`,
+                            tableName:
+                                order.table?.name || `Table ${order.tableId}`,
                         })
                     }
                 })
             })
             setReadyItems(ready)
-        } catch (err) {
+        } catch {
             setError('Failed to load orders')
-            console.error(err)
         } finally {
             setLoading(false)
         }
@@ -171,7 +179,7 @@ export default function WaiterOrdersPage() {
             ])
             playNotificationSound()
         },
-        [playNotificationSound],
+        [playNotificationSound]
     )
 
     // Handle item ready
@@ -190,7 +198,7 @@ export default function WaiterOrdersPage() {
                 playNotificationSound()
             }
         },
-        [playNotificationSound],
+        [playNotificationSound]
     )
 
     // Handle bill requested
@@ -200,7 +208,7 @@ export default function WaiterOrdersPage() {
             alert(`Bill requested for ${event.tableName}`)
             playNotificationSound()
         },
-        [playNotificationSound],
+        [playNotificationSound]
     )
 
     // Setup socket event listeners
@@ -224,8 +232,7 @@ export default function WaiterOrdersPage() {
                     ...prev,
                 ])
             }
-        } catch (err) {
-            console.error('Failed to accept order:', err)
+        } catch {
             alert('Failed to accept order')
         }
     }
@@ -235,8 +242,7 @@ export default function WaiterOrdersPage() {
         try {
             await orderService.rejectOrder(orderId, userId, reason)
             setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
-        } catch (err) {
-            console.error('Failed to reject order:', err)
+        } catch {
             alert('Failed to reject order')
         }
     }
@@ -246,7 +252,9 @@ export default function WaiterOrdersPage() {
         try {
             await orderService.markOrderServed(orderId)
             // Remove ready items for this order
-            setReadyItems((prev) => prev.filter((item) => item.orderId !== orderId))
+            setReadyItems((prev) =>
+                prev.filter((item) => item.orderId !== orderId)
+            )
             // Update order status
             setActiveOrders((prev) =>
                 prev.map((o) =>
@@ -256,14 +264,13 @@ export default function WaiterOrdersPage() {
                               items: o.items.map((item) =>
                                   item.status === 'READY'
                                       ? { ...item, status: 'SERVED' }
-                                      : item,
+                                      : item
                               ),
                           }
-                        : o,
-                ),
+                        : o
+                )
             )
-        } catch (err) {
-            console.error('Failed to mark served:', err)
+        } catch {
             alert('Failed to mark as served')
         }
     }
@@ -452,7 +459,7 @@ export default function WaiterOrdersPage() {
                                                     <button
                                                         onClick={() =>
                                                             handleMarkServed(
-                                                                item.orderId,
+                                                                item.orderId
                                                             )
                                                         }
                                                         className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"

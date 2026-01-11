@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useKitchenEvents } from '../../../hooks/useSocket'
 import { orderService } from '../../../services/order.service'
 import KitchenOrderCard from '../../../components/staff/KitchenOrderCard'
-import {
+import type {
     KitchenOrderEvent,
     OrderItemStatusChangedEvent,
     KitchenOrderView,
@@ -39,14 +39,14 @@ export default function KDSPage() {
                     ...order,
                     elapsedMinutes: Math.floor(
                         (Date.now() - new Date(order.createdAt).getTime()) /
-                            60000,
+                            60000
                     ),
                     isOverdue:
                         Math.floor(
                             (Date.now() - new Date(order.createdAt).getTime()) /
-                                60000,
+                                60000
                         ) > 30,
-                })),
+                }))
             )
         }, 30000) // Update every 30 seconds
 
@@ -69,10 +69,9 @@ export default function KDSPage() {
         try {
             setLoading(true)
             const data = await orderService.getKitchenOrders(restaurantId)
-            setOrders(data)
-        } catch (err) {
+            setOrders(data as unknown as KitchenOrderView[])
+        } catch {
             setError('Failed to load orders')
-            console.error(err)
         } finally {
             setLoading(false)
         }
@@ -94,7 +93,7 @@ export default function KDSPage() {
             })
             playNotificationSound()
         },
-        [playNotificationSound],
+        [playNotificationSound]
     )
 
     // Handle order accepted (sent to kitchen)
@@ -104,7 +103,7 @@ export default function KDSPage() {
             fetchOrders()
             playNotificationSound()
         },
-        [fetchOrders, playNotificationSound],
+        [fetchOrders, playNotificationSound]
     )
 
     // Handle item status changed
@@ -128,10 +127,10 @@ export default function KDSPage() {
                             }
                         }),
                     }
-                }),
+                })
             )
         },
-        [],
+        []
     )
 
     // Handle order ready (all items done)
@@ -140,7 +139,7 @@ export default function KDSPage() {
             // Remove from display or mark as complete
             setOrders((prev) => prev.filter((o) => o.id !== event.orderId))
         },
-        [],
+        []
     )
 
     // Setup socket event listeners
@@ -155,8 +154,8 @@ export default function KDSPage() {
     const handleStartPreparing = async (itemId: number) => {
         try {
             await orderService.startPreparingItem(itemId)
-        } catch (err) {
-            console.error('Failed to start preparing:', err)
+        } catch {
+            // Failed to start preparing
         }
     }
 
@@ -164,8 +163,8 @@ export default function KDSPage() {
     const handleMarkReady = async (itemId: number) => {
         try {
             await orderService.markItemReady(itemId)
-        } catch (err) {
-            console.error('Failed to mark ready:', err)
+        } catch {
+            // Failed to mark ready
         }
     }
 
@@ -178,7 +177,7 @@ export default function KDSPage() {
             // Mark all non-ready items as ready
             const itemsToMark = order.items.filter(
                 (item) =>
-                    item.status === 'QUEUED' || item.status === 'PREPARING',
+                    item.status === 'QUEUED' || item.status === 'PREPARING'
             )
 
             for (const item of itemsToMark) {
@@ -187,15 +186,17 @@ export default function KDSPage() {
 
             // Remove from display
             setOrders((prev) => prev.filter((o) => o.id !== orderId))
-        } catch (err) {
-            console.error('Failed to bump order:', err)
+        } catch {
+            // Failed to bump order
         }
     }
 
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gray-900">
-                <div className="text-lg text-white">Loading kitchen orders...</div>
+                <div className="text-lg text-white">
+                    Loading kitchen orders...
+                </div>
             </div>
         )
     }
@@ -291,9 +292,7 @@ export default function KDSPage() {
                     <div className="flex flex-col items-center justify-center h-96 text-gray-400">
                         <div className="text-6xl mb-4">🍽️</div>
                         <div className="text-xl">No orders in queue</div>
-                        <div className="text-sm">
-                            Waiting for new orders...
-                        </div>
+                        <div className="text-sm">Waiting for new orders...</div>
                     </div>
                 ) : viewMode === 'grid' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
@@ -340,7 +339,9 @@ export default function KDSPage() {
                     </div>
                     <div className="flex items-center">
                         <span className="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
-                        <span className="text-gray-400">Overdue (&gt;30min)</span>
+                        <span className="text-gray-400">
+                            Overdue (&gt;30min)
+                        </span>
                     </div>
                 </div>
             </footer>

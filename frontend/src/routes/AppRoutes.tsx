@@ -6,6 +6,7 @@ import MenuPage from '../pages/admin/MenuPage'
 import TablesPage from '../pages/admin/TablesPage'
 import StaffPage from '../pages/admin/StaffPage'
 import ReportsPage from '../pages/admin/ReportsPage'
+import KDSPage from '../pages/staff/kitchen/KDSPage'
 
 /**
  * Main Application Routes
@@ -25,6 +26,7 @@ export default function AppRoutes() {
                     <Route path="menu" element={<MenuPage />} />
                     <Route path="tables" element={<TablesPage />} />
                     <Route path="staff" element={<StaffPage />} />
+                    <Route path="kds" element={<KDSPage />} />
                     <Route path="reports" element={<ReportsPage />} />
                 </Route>
 
@@ -32,7 +34,7 @@ export default function AppRoutes() {
                 <Route path="/staff/*" element={<StaffRoutes />} />
 
                 {/* Customer Routes - Dev 1 */}
-                <Route path="/menu/*" element={<div>Menu Page (Dev 1)</div>} />
+                <Route path="/menu" element={<div style={{ padding: '2rem' }}>Menu Page (Dev 1)</div>} />
                 <Route path="/cart" element={<div>Cart Page (Dev 1)</div>} />
                 <Route path="/order/*" element={<div>Order Page (Dev 1)</div>} />
 

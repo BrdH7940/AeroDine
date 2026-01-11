@@ -21,12 +21,12 @@ interface SidebarProps {
 }
 
 const navigationItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/menu', label: 'Menu', icon: UtensilsCrossed },
-  { path: '/tables', label: 'Tables', icon: Table },
-  { path: '/staff', label: 'Staff', icon: Users },
-  { path: '/kds', label: 'Kitchen Display System', icon: ChefHat },
-  { path: '/reports', label: 'Reports', icon: BarChart3 },
+  { path: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/admin/menu', label: 'Menu', icon: UtensilsCrossed },
+  { path: '/admin/tables', label: 'Tables', icon: Table },
+  { path: '/admin/staff', label: 'Staff', icon: Users },
+  { path: '/admin/kds', label: 'Kitchen Display System', icon: ChefHat },
+  { path: '/admin/reports', label: 'Reports', icon: BarChart3 },
 ];
 
 export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {

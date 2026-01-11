@@ -8,18 +8,42 @@ export class PrismaService
 {
     constructor() {
         super({
-            log:
-                process.env.NODE_ENV === 'development'
-                    ? ['query', 'info', 'warn', 'error']
-                    : ['error'],
+            log: [],
         })
     }
 
     async onModuleInit() {
-        await this.$connect()
+        await this.connectWithRetry()
     }
 
     async onModuleDestroy() {
         await this.$disconnect()
+    }
+
+    private async connectWithRetry(retries = 5, delay = 2000) {
+        for (let i = 0; i < retries; i++) {
+            try {
+                await this.$connect()
+                return
+            } catch (error: any) {
+                if (i < retries - 1) {
+                    await new Promise((resolve) => setTimeout(resolve, delay))
+                } else {
+                    throw error
+                }
+            }
+        }
+    }
+
+    /**
+     * Handle connection errors and attempt to reconnect
+     */
+    async handleConnectionError() {
+        try {
+            await this.$disconnect()
+            await this.connectWithRetry(3, 1000)
+        } catch (error: any) {
+            throw error
+        }
     }
 }

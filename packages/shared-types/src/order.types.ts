@@ -27,6 +27,7 @@ export enum OrderItemStatus {
 export enum PaymentMethod {
     CASH = 'CASH',
     QR_CODE = 'QR_CODE',
+    E_WALLET = 'E_WALLET',
     CARD = 'CARD',
 }
 

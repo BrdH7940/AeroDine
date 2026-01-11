@@ -118,7 +118,11 @@ export default function MenuPage() {
             }
         } catch (err: any) {
             setError(
-                'Unable to load menu data. Please check if backend is running.'
+                `Unable to load menu data: ${
+                    err.response?.data?.message ||
+                    err.message ||
+                    'Please check if backend is running.'
+                }`
             )
         } finally {
             setLoading(false)
@@ -247,8 +251,13 @@ export default function MenuPage() {
                 await fetchData(restaurantId)
             }
         } catch (err: any) {
-            console.error('Error deleting menu item:', err)
-            alert(`Unable to delete menu item: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            alert(
+                `Unable to delete menu item: ${
+                    err.response?.data?.message ||
+                    err.message ||
+                    'Unknown error'
+                }`
+            )
         }
     }
 
@@ -301,8 +310,13 @@ export default function MenuPage() {
             await fetchData(restaurantId)
             handleCloseModals()
         } catch (err: any) {
-            console.error('Error saving menu item:', err)
-            alert(`Unable to save menu item: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            alert(
+                `Unable to save menu item: ${
+                    err.response?.data?.message ||
+                    err.message ||
+                    'Unknown error'
+                }`
+            )
         }
     }
 
@@ -343,7 +357,7 @@ export default function MenuPage() {
                         Manage your restaurant menu items
                     </p>
                 </div>
-                <button 
+                <button
                     onClick={handleAddItem}
                     className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors shadow-sm hover:shadow-md"
                 >
@@ -737,7 +751,9 @@ function MenuItemModal({
                             </label>
                             <select
                                 value={categoryId}
-                                onChange={(e) => setCategoryId(Number(e.target.value))}
+                                onChange={(e) =>
+                                    setCategoryId(Number(e.target.value))
+                                }
                                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                                 required
                             >
@@ -758,7 +774,10 @@ function MenuItemModal({
                             value={status}
                             onChange={(e) =>
                                 setStatus(
-                                    e.target.value as 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN'
+                                    e.target.value as
+                                        | 'AVAILABLE'
+                                        | 'SOLD_OUT'
+                                        | 'HIDDEN'
                                 )
                             }
                             className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"

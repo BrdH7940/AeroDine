@@ -14,7 +14,8 @@ import {
 import { motion } from 'framer-motion'
 import { apiClient, tablesApi } from '../../services/api'
 import { authApi } from '../../services/auth'
-import type { Table, TableStatus } from '@aerodine/shared-types'
+import { TableStatus } from '@aerodine/shared-types'
+import type { Table } from '@aerodine/shared-types'
 
 // Table status types
 type TableStatusType = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'UNAVAILABLE'
@@ -168,14 +169,13 @@ export default function TablesPage() {
             if (import.meta.env.DEV && !authApi.isAuthenticated()) {
                 try {
                     await authApi.autoLoginDev()
-                } catch (loginError) {
-                    console.warn('Auto-login failed, continuing without auth:', loginError)
+                } catch {
+                    // Auto-login failed, continuing without auth
                 }
             }
 
             await fetchTables()
-        } catch (err: any) {
-            console.error('Error initializing tables page:', err)
+        } catch {
             setError('Unable to load table list. Please check if backend is running.')
         } finally {
             setLoading(false)
@@ -194,7 +194,6 @@ export default function TablesPage() {
                 setRestaurantId(2)
             }
         } catch (err: any) {
-            console.error('Error fetching tables:', err)
             if (err.response?.status === 401) {
                 setError('Authentication required. Please login.')
             } else if (err.response?.status === 404) {
@@ -257,7 +256,6 @@ export default function TablesPage() {
             await tablesApi.deleteTable(table.id)
             setTables(tables.filter((t) => t.id !== table.id))
         } catch (err: any) {
-            console.error('Error deleting table:', err)
             alert(`Unable to delete table: ${err.response?.data?.message || err.message || 'Unknown error'}`)
         }
     }
@@ -300,7 +298,6 @@ export default function TablesPage() {
             await fetchTables()
             handleCloseModals()
         } catch (err: any) {
-            console.error('Error saving table:', err)
             alert(`Unable to save table: ${err.response?.data?.message || err.message || 'Unknown error'}`)
         }
     }
@@ -565,18 +562,18 @@ function TableModal({
     const [name, setName] = useState(table?.name || '')
     const [capacity, setCapacity] = useState(table?.capacity?.toString() || '4')
     const [status, setStatus] = useState<TableStatus>(
-        (table?.status as TableStatus) || 'AVAILABLE'
+        (table?.status as TableStatus) || TableStatus.AVAILABLE
     )
 
     useEffect(() => {
         if (table) {
             setName(table.name)
             setCapacity(table.capacity?.toString() || '4')
-            setStatus((table.status as TableStatus) || 'AVAILABLE')
+            setStatus((table.status as TableStatus) || TableStatus.AVAILABLE)
         } else {
             setName('')
             setCapacity('4')
-            setStatus('AVAILABLE')
+            setStatus(TableStatus.AVAILABLE)
         }
     }, [table])
 

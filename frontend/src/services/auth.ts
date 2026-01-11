@@ -66,7 +66,6 @@ export const authApi = {
      */
     autoLoginDev: async (): Promise<boolean> => {
         if (import.meta.env.PROD) {
-            console.warn('autoLoginDev should not be used in production')
             return false
         }
 
@@ -77,8 +76,7 @@ export const authApi = {
                 password: 'password123',
             })
             return !!response.access_token
-        } catch (error) {
-            console.error('Auto-login failed:', error)
+        } catch {
             return false
         }
     },

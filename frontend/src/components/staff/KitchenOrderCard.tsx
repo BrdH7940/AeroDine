@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { KitchenOrderView, KitchenItemView } from '@aerodine/shared-types'
+import type { KitchenOrderView, KitchenItemView } from '@aerodine/shared-types'
 
 /**
  * Kitchen Order Card Component for KDS
@@ -79,7 +79,7 @@ export default function KitchenOrderCard({
 
     const queuedItems = order.items.filter((item) => item.status === 'QUEUED')
     const preparingItems = order.items.filter(
-        (item) => item.status === 'PREPARING',
+        (item) => item.status === 'PREPARING'
     )
     const readyItems = order.items.filter((item) => item.status === 'READY')
 
@@ -107,7 +107,7 @@ export default function KitchenOrderCard({
                         </div>
                         <div
                             className={`text-xl font-mono ${getTimerColor(
-                                elapsed,
+                                elapsed
                             )}`}
                         >
                             {formatElapsed(elapsed)}
@@ -171,7 +171,9 @@ export default function KitchenOrderCard({
                 </div>
                 <div className="text-right">
                     <div
-                        className={`text-2xl font-mono ${getTimerColor(elapsed)}`}
+                        className={`text-2xl font-mono ${getTimerColor(
+                            elapsed
+                        )}`}
                     >
                         {formatElapsed(elapsed)}
                     </div>
@@ -351,7 +353,7 @@ function ItemBadge({
         <button
             onClick={handleClick}
             className={`px-3 py-2 rounded-lg ${getStatusStyle(
-                item.status,
+                item.status
             )} transition-colors`}
             disabled={item.status === 'READY'}
         >

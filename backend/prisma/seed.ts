@@ -11,7 +11,9 @@ import {
 import * as bcrypt from 'bcrypt'
 import * as jwt from 'jsonwebtoken'
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({
+    log: [],
+})
 
 // JWT configuration for table token generation
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key-for-seeding'

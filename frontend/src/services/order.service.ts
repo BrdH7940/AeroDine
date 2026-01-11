@@ -5,14 +5,14 @@
  */
 
 import api from './api'
-import {
+import { OrderStatus } from '@aerodine/shared-types'
+import type {
     CreateOrderDto,
     AddItemsToOrderDto,
     Order,
     OrderWithDetails,
     OrderListResponse,
     KitchenOrderCard,
-    OrderStatus,
 } from '@aerodine/shared-types'
 
 // ============================================================================

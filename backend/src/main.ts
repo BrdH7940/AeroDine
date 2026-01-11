@@ -55,9 +55,5 @@ async function bootstrap() {
     const nodeEnv = configService.get<string>('nodeEnv') || 'development'
 
     await app.listen(port)
-
-    console.log(`Application is running on: http://localhost:${port}/api`)
-    console.log(`Swagger documentation: http://localhost:${port}/api/docs`)
-    console.log(`Environment: ${nodeEnv}`)
 }
 bootstrap()

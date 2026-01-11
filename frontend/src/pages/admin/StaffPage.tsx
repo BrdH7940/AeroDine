@@ -134,7 +134,6 @@ export default function StaffPage() {
                     : []
             setStaff(staffMembers)
         } catch (err: any) {
-            console.error('Error fetching staff:', err)
             if (err.response?.status === 401) {
                 setError('Authentication required. Please login.')
             } else if (err.response?.status === 404) {
@@ -171,7 +170,6 @@ export default function StaffPage() {
             await usersApi.deleteUser(staffMember.id)
             setStaff(staff.filter((s) => s.id !== staffMember.id))
         } catch (err: any) {
-            console.error('Error deleting staff:', err)
             alert(`Unable to delete staff: ${err.response?.data?.message || err.message || 'Unknown error'}`)
         }
     }
@@ -214,7 +212,6 @@ export default function StaffPage() {
             await fetchStaff()
             handleCloseModals()
         } catch (err: any) {
-            console.error('Error saving staff:', err)
             alert(`Unable to save staff: ${err.response?.data?.message || err.message || 'Unknown error'}`)
         }
     }

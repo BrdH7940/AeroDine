@@ -167,14 +167,13 @@ export default function DashboardPage() {
             if (import.meta.env.DEV && !authApi.isAuthenticated()) {
                 try {
                     await authApi.autoLoginDev()
-                } catch (loginError) {
-                    console.warn('Auto-login failed, continuing without auth:', loginError)
+                } catch {
+                    // Auto-login failed, continuing without auth
                 }
             }
 
             await fetchDashboardData()
-        } catch (err: any) {
-            console.error('Error initializing dashboard:', err)
+        } catch {
             setError('Unable to load dashboard data. Please check if backend is running.')
         } finally {
             setLoading(false)
@@ -202,7 +201,7 @@ export default function DashboardPage() {
             setChartData(transformedChartData)
 
             // Get recent 5 orders sorted by date
-            const sortedOrders = (ordersData || [])
+            const sortedOrders = (ordersData?.orders || [])
                 .sort(
                     (a: RecentOrder, b: RecentOrder) =>
                         new Date(b.createdAt).getTime() -
@@ -210,8 +209,7 @@ export default function DashboardPage() {
                 )
                 .slice(0, 5)
             setRecentOrders(sortedOrders)
-        } catch (err: any) {
-            console.error('Error fetching dashboard data:', err)
+        } catch {
             if (err.response?.status === 401) {
                 setError('Authentication required. Please login.')
             } else if (err.response?.status === 404) {

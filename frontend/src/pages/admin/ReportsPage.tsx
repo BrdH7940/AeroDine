@@ -405,12 +405,14 @@ function FinancialHealthTab({
                                     dataKey="value"
                                 >
                                     {paymentMethodsData.length > 0 &&
-                                        paymentMethodsData.map((entry, index) => (
-                                            <Cell
-                                                key={`cell-${index}`}
-                                                fill={entry.color}
-                                            />
-                                        ))}
+                                        paymentMethodsData.map(
+                                            (entry, index) => (
+                                                <Cell
+                                                    key={`cell-${index}`}
+                                                    fill={entry.color}
+                                                />
+                                            )
+                                        )}
                                 </Pie>
                                 <Tooltip
                                     formatter={(value: number | undefined) =>
@@ -1258,15 +1260,16 @@ export default function ReportsPage() {
             if (import.meta.env.DEV && !authApi.isAuthenticated()) {
                 try {
                     await authApi.autoLoginDev()
-                } catch (loginError) {
-                    console.warn('Auto-login failed, continuing without auth:', loginError)
+                } catch {
+                    // Auto-login failed, continuing without auth
                 }
             }
 
             await fetchReportsData()
-        } catch (err: any) {
-            console.error('Error initializing reports:', err)
-            setError('Unable to load reports data. Please check if backend is running.')
+        } catch {
+            setError(
+                'Unable to load reports data. Please check if backend is running.'
+            )
         } finally {
             setLoading(false)
         }
@@ -1343,13 +1346,20 @@ export default function ReportsPage() {
             setRatingVolumeData(ratingVolume || [])
             setPrepTimeData(prepTimeTrends || [])
         } catch (err: any) {
-            console.error('Error fetching reports data:', err)
             if (err.response?.status === 401) {
                 setError('Authentication required. Please login.')
             } else if (err.response?.status === 404) {
-                setError('Backend endpoint not found. Please check if backend is running.')
+                setError(
+                    'Backend endpoint not found. Please check if backend is running.'
+                )
             } else {
-                setError(`Unable to load reports data: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+                setError(
+                    `Unable to load reports data: ${
+                        err.response?.data?.message ||
+                        err.message ||
+                        'Unknown error'
+                    }`
+                )
             }
             throw err
         }
