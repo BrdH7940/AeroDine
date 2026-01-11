@@ -6,6 +6,7 @@ import {
     Trash2,
     ChevronLeft,
     ChevronRight,
+    X,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { menusApi, tablesApi } from '../../services/api'
@@ -66,6 +67,9 @@ export default function MenuPage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [restaurantId, setRestaurantId] = useState<number | null>(null)
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+    const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
 
     useEffect(() => {
         initializeAndFetchData()
@@ -227,24 +231,79 @@ export default function MenuPage() {
     }, [searchQuery, selectedCategory, statusFilter, sortBy])
 
     const handleRowClick = (item: MenuItem) => {
-        // TODO: Open edit modal
-        const price =
-            typeof item.basePrice === 'string'
-                ? parseFloat(item.basePrice).toFixed(2)
-                : Number(item.basePrice).toFixed(2)
-        alert(
-            `Edit Item: ${item.name}\nPrice: $${price}\nCategory: ${
-                item.category?.name || 'N/A'
-            }`
-        )
+        setSelectedItem(item)
+        setIsEditModalOpen(true)
     }
 
     const handleDelete = async (item: MenuItem) => {
         if (!confirm(`Are you sure you want to delete ${item.name}?`)) {
             return
         }
-        // TODO: Implement delete functionality
-        alert('Delete functionality will be implemented')
+        try {
+            // Update status to HIDDEN instead of deleting (backend doesn't have delete endpoint)
+            await menusApi.updateMenuItem(item.id, { status: 'HIDDEN' })
+            // Refresh data
+            if (restaurantId) {
+                await fetchData(restaurantId)
+            }
+        } catch (err: any) {
+            console.error('Error deleting menu item:', err)
+            alert(`Unable to delete menu item: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+        }
+    }
+
+    const handleAddItem = () => {
+        setSelectedItem(null)
+        setIsAddModalOpen(true)
+    }
+
+    const handleCloseModals = () => {
+        setIsAddModalOpen(false)
+        setIsEditModalOpen(false)
+        setSelectedItem(null)
+    }
+
+    const handleSaveItem = async (formData: {
+        name: string
+        description?: string
+        basePrice: number
+        categoryId: number
+        status: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN'
+    }) => {
+        try {
+            if (!restaurantId) {
+                alert('Restaurant ID not found')
+                return
+            }
+
+            if (selectedItem) {
+                // Update existing item
+                await menusApi.updateMenuItem(selectedItem.id, {
+                    name: formData.name,
+                    description: formData.description,
+                    basePrice: formData.basePrice,
+                    categoryId: formData.categoryId,
+                    status: formData.status,
+                })
+            } else {
+                // Create new item
+                await menusApi.createMenuItem({
+                    restaurantId,
+                    categoryId: formData.categoryId,
+                    name: formData.name,
+                    description: formData.description,
+                    basePrice: formData.basePrice,
+                    status: formData.status,
+                })
+            }
+
+            // Refresh data
+            await fetchData(restaurantId)
+            handleCloseModals()
+        } catch (err: any) {
+            console.error('Error saving menu item:', err)
+            alert(`Unable to save menu item: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+        }
     }
 
     const getCategoryIcon = (categoryName?: string) => {
@@ -284,7 +343,10 @@ export default function MenuPage() {
                         Manage your restaurant menu items
                     </p>
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors shadow-sm hover:shadow-md">
+                <button 
+                    onClick={handleAddItem}
+                    className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors shadow-sm hover:shadow-md"
+                >
                     <Plus size={20} />
                     Add item
                 </button>
@@ -520,6 +582,211 @@ export default function MenuPage() {
                     </div>
                 </div>
             )}
+
+            {/* Add/Edit Modal */}
+            {(isAddModalOpen || isEditModalOpen) && (
+                <MenuItemModal
+                    isOpen={isAddModalOpen || isEditModalOpen}
+                    onClose={handleCloseModals}
+                    onSave={handleSaveItem}
+                    item={selectedItem}
+                    categories={categories}
+                />
+            )}
+        </div>
+    )
+}
+
+// Menu Item Modal Component
+function MenuItemModal({
+    isOpen,
+    onClose,
+    onSave,
+    item,
+    categories,
+}: {
+    isOpen: boolean
+    onClose: () => void
+    onSave: (data: {
+        name: string
+        description?: string
+        basePrice: number
+        categoryId: number
+        status: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN'
+    }) => void
+    item: MenuItem | null
+    categories: Category[]
+}) {
+    const [name, setName] = useState(item?.name || '')
+    const [description, setDescription] = useState(item?.description || '')
+    const [basePrice, setBasePrice] = useState(
+        item
+            ? typeof item.basePrice === 'string'
+                ? parseFloat(item.basePrice).toString()
+                : Number(item.basePrice).toString()
+            : ''
+    )
+    const [categoryId, setCategoryId] = useState<number>(
+        item?.categoryId || categories[0]?.id || 0
+    )
+    const [status, setStatus] = useState<'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN'>(
+        item?.status || 'AVAILABLE'
+    )
+
+    useEffect(() => {
+        if (item) {
+            setName(item.name)
+            setDescription(item.description || '')
+            setBasePrice(
+                typeof item.basePrice === 'string'
+                    ? parseFloat(item.basePrice).toString()
+                    : Number(item.basePrice).toString()
+            )
+            setCategoryId(item.categoryId)
+            setStatus(item.status)
+        } else {
+            setName('')
+            setDescription('')
+            setBasePrice('')
+            setCategoryId(categories[0]?.id || 0)
+            setStatus('AVAILABLE')
+        }
+    }, [item, categories])
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!name || !basePrice || !categoryId) {
+            alert('Please fill in all required fields')
+            return
+        }
+        onSave({
+            name,
+            description: description || undefined,
+            basePrice: parseFloat(basePrice),
+            categoryId,
+            status,
+        })
+    }
+
+    if (!isOpen) return null
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            >
+                <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-center justify-between">
+                    <h2 className="text-2xl font-semibold text-slate-900">
+                        {item ? 'Edit Menu Item' : 'Add Menu Item'}
+                    </h2>
+                    <button
+                        onClick={onClose}
+                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                        <X size={24} className="text-slate-600" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Description
+                        </label>
+                        <textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            rows={3}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Price <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={basePrice}
+                                onChange={(e) => setBasePrice(e.target.value)}
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Category <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                                value={categoryId}
+                                onChange={(e) => setCategoryId(Number(e.target.value))}
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                required
+                            >
+                                {categories.map((cat) => (
+                                    <option key={cat.id} value={cat.id}>
+                                        {cat.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Status <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                            value={status}
+                            onChange={(e) =>
+                                setStatus(
+                                    e.target.value as 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN'
+                                )
+                            }
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            required
+                        >
+                            <option value="AVAILABLE">Available</option>
+                            <option value="SOLD_OUT">Sold Out</option>
+                            <option value="HIDDEN">Hidden</option>
+                        </select>
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+                        >
+                            {item ? 'Update' : 'Create'}
+                        </button>
+                    </div>
+                </form>
+            </motion.div>
         </div>
     )
 }

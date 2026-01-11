@@ -9,11 +9,12 @@ import {
     CheckCircle2,
     Clock,
     XCircle,
+    X,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { apiClient, tablesApi } from '../../services/api'
 import { authApi } from '../../services/auth'
-import type { Table } from '@aerodine/shared-types'
+import type { Table, TableStatus } from '@aerodine/shared-types'
 
 // Table status types
 type TableStatusType = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'UNAVAILABLE'
@@ -149,6 +150,10 @@ export default function TablesPage() {
     )
     const [currentPage, setCurrentPage] = useState(1)
     const itemsPerPage = 10
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+    const [selectedTable, setSelectedTable] = useState<TableWithRestaurant | null>(null)
+    const [restaurantId, setRestaurantId] = useState<number | null>(null)
 
     useEffect(() => {
         initializeAndFetchTables()
@@ -179,8 +184,15 @@ export default function TablesPage() {
 
     const fetchTables = async () => {
         try {
-            const tablesData = await apiClient.get('/tables')
-            setTables(tablesData.data || [])
+            const tablesData = await tablesApi.getTables()
+            setTables(Array.isArray(tablesData) ? tablesData : [])
+            // Get restaurantId from first table if available
+            if (tablesData && Array.isArray(tablesData) && tablesData.length > 0 && tablesData[0].restaurantId) {
+                setRestaurantId(tablesData[0].restaurantId)
+            } else {
+                // Fallback: use restaurantId = 2 (matches current database)
+                setRestaurantId(2)
+            }
         } catch (err: any) {
             console.error('Error fetching tables:', err)
             if (err.response?.status === 401) {
@@ -219,13 +231,17 @@ export default function TablesPage() {
     }, [searchQuery, statusFilter])
 
     const handleAddTable = () => {
-        // TODO: Open add table modal/form
-        alert('Add table feature will be implemented')
+        if (!restaurantId) {
+            alert('Restaurant ID not found. Please check database configuration.')
+            return
+        }
+        setSelectedTable(null)
+        setIsAddModalOpen(true)
     }
 
     const handleEdit = (table: TableWithRestaurant) => {
-        // TODO: Open edit table modal/form
-        alert(`Edit table: ${table.name}`)
+        setSelectedTable(table)
+        setIsEditModalOpen(true)
     }
 
     const handleDelete = async (table: TableWithRestaurant) => {
@@ -238,11 +254,54 @@ export default function TablesPage() {
         }
 
         try {
-            await apiClient.delete(`/tables/${table.id}`)
+            await tablesApi.deleteTable(table.id)
             setTables(tables.filter((t) => t.id !== table.id))
         } catch (err: any) {
             console.error('Error deleting table:', err)
-            alert('Unable to delete table. Please try again.')
+            alert(`Unable to delete table: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+        }
+    }
+
+    const handleCloseModals = () => {
+        setIsAddModalOpen(false)
+        setIsEditModalOpen(false)
+        setSelectedTable(null)
+    }
+
+    const handleSaveTable = async (formData: {
+        name: string
+        capacity: number
+        status: TableStatus
+    }) => {
+        try {
+            if (!restaurantId) {
+                alert('Restaurant ID not found')
+                return
+            }
+
+            if (selectedTable) {
+                // Update existing table
+                await tablesApi.updateTable(selectedTable.id, {
+                    name: formData.name,
+                    capacity: formData.capacity,
+                    status: formData.status,
+                })
+            } else {
+                // Create new table
+                await tablesApi.createTable({
+                    restaurantId,
+                    name: formData.name,
+                    capacity: formData.capacity,
+                    status: formData.status,
+                })
+            }
+
+            // Refresh data
+            await fetchTables()
+            handleCloseModals()
+        } catch (err: any) {
+            console.error('Error saving table:', err)
+            alert(`Unable to save table: ${err.response?.data?.message || err.message || 'Unknown error'}`)
         }
     }
 
@@ -473,6 +532,150 @@ export default function TablesPage() {
                     )}
                 </>
             )}
+
+            {/* Add/Edit Modal */}
+            {(isAddModalOpen || isEditModalOpen) && (
+                <TableModal
+                    isOpen={isAddModalOpen || isEditModalOpen}
+                    onClose={handleCloseModals}
+                    onSave={handleSaveTable}
+                    table={selectedTable}
+                />
+            )}
+        </div>
+    )
+}
+
+// Table Modal Component
+function TableModal({
+    isOpen,
+    onClose,
+    onSave,
+    table,
+}: {
+    isOpen: boolean
+    onClose: () => void
+    onSave: (data: {
+        name: string
+        capacity: number
+        status: TableStatus
+    }) => void
+    table: TableWithRestaurant | null
+}) {
+    const [name, setName] = useState(table?.name || '')
+    const [capacity, setCapacity] = useState(table?.capacity?.toString() || '4')
+    const [status, setStatus] = useState<TableStatus>(
+        (table?.status as TableStatus) || 'AVAILABLE'
+    )
+
+    useEffect(() => {
+        if (table) {
+            setName(table.name)
+            setCapacity(table.capacity?.toString() || '4')
+            setStatus((table.status as TableStatus) || 'AVAILABLE')
+        } else {
+            setName('')
+            setCapacity('4')
+            setStatus('AVAILABLE')
+        }
+    }, [table])
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!name || !capacity) {
+            alert('Please fill in all required fields')
+            return
+        }
+        onSave({
+            name,
+            capacity: parseInt(capacity),
+            status,
+        })
+    }
+
+    if (!isOpen) return null
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-lg shadow-xl max-w-md w-full"
+            >
+                <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-center justify-between">
+                    <h2 className="text-2xl font-semibold text-slate-900">
+                        {table ? 'Edit Table' : 'Add Table'}
+                    </h2>
+                    <button
+                        onClick={onClose}
+                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                        <X size={24} className="text-slate-600" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Table Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Capacity <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={capacity}
+                            onChange={(e) => setCapacity(e.target.value)}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Status <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                            value={status}
+                            onChange={(e) => setStatus(e.target.value as TableStatus)}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            required
+                        >
+                            <option value="AVAILABLE">Available</option>
+                            <option value="OCCUPIED">Occupied</option>
+                            <option value="RESERVED">Reserved</option>
+                        </select>
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+                        >
+                            {table ? 'Update' : 'Create'}
+                        </button>
+                    </div>
+                </form>
+            </motion.div>
         </div>
     )
 }

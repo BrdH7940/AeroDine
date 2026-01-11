@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Plus, Mail, Phone, User as UserIcon } from 'lucide-react'
+import { Plus, Mail, Phone, User as UserIcon, Edit, Trash2, X } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { apiClient } from '../../services/api'
+import { apiClient, usersApi } from '../../services/api'
 
 // User role types
 type UserRoleType = 'ADMIN' | 'WAITER' | 'KITCHEN' | 'CUSTOMER'
@@ -32,7 +32,15 @@ function getInitials(name: string): string {
     return name.substring(0, 2).toUpperCase()
 }
 
-function StaffCard({ staff }: { staff: StaffMember }) {
+function StaffCard({ 
+    staff, 
+    onEdit, 
+    onDelete 
+}: { 
+    staff: StaffMember
+    onEdit: (staff: StaffMember) => void
+    onDelete: (staff: StaffMember) => void
+}) {
     const initials = getInitials(staff.fullName)
     const roleName = roleMap[staff.role] || staff.role
 
@@ -76,6 +84,24 @@ function StaffCard({ staff }: { staff: StaffMember }) {
                             </div>
                         )}
                     </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-2 pt-4 mt-4 border-t border-slate-100">
+                        <button
+                            onClick={() => onEdit(staff)}
+                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-600 rounded-lg transition-colors text-sm font-medium"
+                        >
+                            <Edit size={16} />
+                            Edit
+                        </button>
+                        <button
+                            onClick={() => onDelete(staff)}
+                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-600 rounded-lg transition-colors text-sm font-medium"
+                        >
+                            <Trash2 size={16} />
+                            Delete
+                        </button>
+                    </div>
                 </div>
             </div>
         </motion.div>
@@ -86,6 +112,9 @@ export default function StaffPage() {
     const [staff, setStaff] = useState<StaffMember[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+    const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null)
 
     useEffect(() => {
         fetchStaff()
@@ -95,12 +124,14 @@ export default function StaffPage() {
         try {
             setLoading(true)
             setError(null)
-            const response = await apiClient.get('/users')
+            const usersData = await usersApi.getUsers()
             // Filter out CUSTOMER role users for staff management
             const staffMembers =
-                response.data?.filter(
-                    (user: StaffMember) => String(user.role) !== 'CUSTOMER'
-                ) || []
+                Array.isArray(usersData)
+                    ? usersData.filter(
+                          (user: StaffMember) => String(user.role) !== 'CUSTOMER'
+                      )
+                    : []
             setStaff(staffMembers)
         } catch (err: any) {
             console.error('Error fetching staff:', err)
@@ -118,8 +149,74 @@ export default function StaffPage() {
     }
 
     const handleAddStaff = () => {
-        // TODO: Open add staff modal/form
-        alert('Add staff functionality will be implemented')
+        setSelectedStaff(null)
+        setIsAddModalOpen(true)
+    }
+
+    const handleEdit = (staffMember: StaffMember) => {
+        setSelectedStaff(staffMember)
+        setIsEditModalOpen(true)
+    }
+
+    const handleDelete = async (staffMember: StaffMember) => {
+        if (
+            !confirm(
+                `Are you sure you want to delete ${staffMember.fullName}? This action cannot be undone.`
+            )
+        ) {
+            return
+        }
+
+        try {
+            await usersApi.deleteUser(staffMember.id)
+            setStaff(staff.filter((s) => s.id !== staffMember.id))
+        } catch (err: any) {
+            console.error('Error deleting staff:', err)
+            alert(`Unable to delete staff: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+        }
+    }
+
+    const handleCloseModals = () => {
+        setIsAddModalOpen(false)
+        setIsEditModalOpen(false)
+        setSelectedStaff(null)
+    }
+
+    const handleSaveStaff = async (formData: {
+        email: string
+        password?: string
+        name: string
+        role: string
+    }) => {
+        try {
+            if (selectedStaff) {
+                // Update existing staff
+                await usersApi.updateUser(selectedStaff.id, {
+                    email: formData.email,
+                    fullName: formData.name,
+                    role: formData.role,
+                })
+            } else {
+                // Create new staff
+                if (!formData.password) {
+                    alert('Password is required for new staff members')
+                    return
+                }
+                await usersApi.createUser({
+                    email: formData.email,
+                    password: formData.password,
+                    fullName: formData.name,
+                    role: formData.role,
+                })
+            }
+
+            // Refresh data
+            await fetchStaff()
+            handleCloseModals()
+        } catch (err: any) {
+            console.error('Error saving staff:', err)
+            alert(`Unable to save staff: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+        }
     }
 
     return (
@@ -182,10 +279,179 @@ export default function StaffPage() {
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {staff.map((member) => (
-                        <StaffCard key={member.id} staff={member} />
+                        <StaffCard 
+                            key={member.id} 
+                            staff={member}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                        />
                     ))}
                 </div>
             )}
+
+            {/* Add/Edit Modal */}
+            {(isAddModalOpen || isEditModalOpen) && (
+                <StaffModal
+                    isOpen={isAddModalOpen || isEditModalOpen}
+                    onClose={handleCloseModals}
+                    onSave={handleSaveStaff}
+                    staff={selectedStaff}
+                />
+            )}
+        </div>
+    )
+}
+
+// Staff Modal Component
+function StaffModal({
+    isOpen,
+    onClose,
+    onSave,
+    staff,
+}: {
+    isOpen: boolean
+    onClose: () => void
+    onSave: (data: {
+        email: string
+        password?: string
+        name: string
+        role: string
+    }) => void
+    staff: StaffMember | null
+}) {
+    const [email, setEmail] = useState(staff?.email || '')
+    const [password, setPassword] = useState('')
+    const [name, setName] = useState(staff?.fullName || '')
+    const [role, setRole] = useState<string>(staff?.role || 'WAITER')
+
+    useEffect(() => {
+        if (staff) {
+            setEmail(staff.email)
+            setPassword('') // Don't show password for existing users
+            setName(staff.fullName)
+            setRole(staff.role)
+        } else {
+            setEmail('')
+            setPassword('')
+            setName('')
+            setRole('WAITER')
+        }
+    }, [staff])
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!email || !name || !role) {
+            alert('Please fill in all required fields')
+            return
+        }
+        if (!staff && !password) {
+            alert('Password is required for new staff members')
+            return
+        }
+        onSave({
+            email,
+            password: password || undefined,
+            name,
+            role,
+        })
+    }
+
+    if (!isOpen) return null
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-lg shadow-xl max-w-md w-full"
+            >
+                <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-center justify-between">
+                    <h2 className="text-2xl font-semibold text-slate-900">
+                        {staff ? 'Edit Staff Member' : 'Add Staff Member'}
+                    </h2>
+                    <button
+                        onClick={onClose}
+                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                        <X size={24} className="text-slate-600" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Full Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Email <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            required
+                        />
+                    </div>
+
+                    {!staff && (
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Password <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                required={!staff}
+                            />
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Role <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                            value={role}
+                            onChange={(e) => setRole(e.target.value)}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            required
+                        >
+                            <option value="ADMIN">Admin</option>
+                            <option value="WAITER">Waiter</option>
+                            <option value="KITCHEN">Kitchen</option>
+                        </select>
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+                        >
+                            {staff ? 'Update' : 'Create'}
+                        </button>
+                    </div>
+                </form>
+            </motion.div>
         </div>
     )
 }

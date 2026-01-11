@@ -216,8 +216,8 @@ export interface CreateMenuItemDto {
   description?: string;
   basePrice: number;
   image?: string;
-  prepTime?: number;
-  isAvailable?: boolean;
+  status?: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN';
+  modifierGroupIds?: number[];
 }
 
 export interface UpdateMenuItemDto {
@@ -226,8 +226,8 @@ export interface UpdateMenuItemDto {
   description?: string;
   basePrice?: number;
   image?: string;
-  prepTime?: number;
-  isAvailable?: boolean;
+  status?: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN';
+  modifierGroupIds?: number[];
 }
 
 export const menusApi = {
@@ -366,13 +366,13 @@ export const tablesApi = {
 export interface CreateUserDto {
   email: string;
   password: string;
-  name: string;
+  fullName: string;
   role?: string;
 }
 
 export interface UpdateUserDto {
   email?: string;
-  name?: string;
+  fullName?: string;
   role?: string;
 }
 
