@@ -199,8 +199,9 @@ export const ordersApi = {
   /**
    * Update order item status (for KDS)
    */
-  updateOrderItemStatus: async (orderId: number, itemId: number, status: OrderItemStatus) => {
-    const response = await apiClient.patch(`/orders/${orderId}/items/${itemId}/status`, { status });
+  updateOrderItemStatus: async (_orderId: number, itemId: number, status: OrderItemStatus) => {
+    // Note: orderId is not used in the API endpoint, kept for backward compatibility
+    const response = await apiClient.patch(`/orders/items/${itemId}/status`, { status });
     return response.data;
   },
 };

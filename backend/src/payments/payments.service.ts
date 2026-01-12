@@ -12,6 +12,11 @@ import {
     PaymentStatus,
     OrderStatus,
 } from '@aerodine/shared-types'
+import {
+    PaymentMethod as PrismaPaymentMethod,
+    PaymentStatus as PrismaPaymentStatus,
+    OrderStatus as PrismaOrderStatus,
+} from '@prisma/client'
 
 /**
  * Payment Service (Context in Strategy Pattern)
@@ -82,8 +87,8 @@ export class PaymentsService {
                 data: {
                     orderId: order.id,
                     amount: order.totalAmount,
-                    method: method,
-                    status: PaymentStatus.PENDING,
+                    method: method as unknown as PrismaPaymentMethod,
+                    status: PaymentStatus.PENDING as unknown as PrismaPaymentStatus,
                 },
             })
         } else {
@@ -91,8 +96,8 @@ export class PaymentsService {
             payment = await this.prisma.payment.update({
                 where: { id: payment.id },
                 data: {
-                    method: method,
-                    status: PaymentStatus.PENDING,
+                    method: method as unknown as PrismaPaymentMethod,
+                    status: PaymentStatus.PENDING as unknown as PrismaPaymentStatus,
                 },
             })
         }
@@ -200,7 +205,7 @@ export class PaymentsService {
             await this.prisma.payment.update({
                 where: { id: payment.id },
                 data: {
-                    status: PaymentStatus.SUCCESS,
+                    status: PaymentStatus.SUCCESS as unknown as PrismaPaymentStatus,
                     externalTransactionId: verificationResult.transactionId,
                 },
             })
@@ -209,7 +214,7 @@ export class PaymentsService {
             await this.prisma.order.update({
                 where: { id: verificationResult.orderId },
                 data: {
-                    status: OrderStatus.COMPLETED,
+                    status: OrderStatus.COMPLETED as unknown as PrismaOrderStatus,
                 },
             })
 

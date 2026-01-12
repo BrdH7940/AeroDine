@@ -725,6 +725,11 @@ export class OrdersService {
             throw new BadRequestException('Not all items are ready')
         }
 
+        // Get items that will be changed
+        const readyItems = order.items.filter(
+            (item) => item.status === OrderItemStatus.READY
+        )
+
         // Update all ready items to served
         await this.prisma.orderItem.updateMany({
             where: {
@@ -733,6 +738,23 @@ export class OrdersService {
             },
             data: { status: OrderItemStatus.SERVED },
         })
+
+        // Emit item status changes for each item (for real-time sync)
+        for (const item of readyItems) {
+            const event: OrderItemStatusChangedEvent = {
+                orderId,
+                orderItemId: item.id,
+                itemName: item.name,
+                previousStatus: OrderItemStatus.READY,
+                newStatus: OrderItemStatus.SERVED,
+                updatedAt: new Date().toISOString(),
+            }
+            this.socketService.emitOrderItemStatusChanged(
+                order.restaurantId,
+                order.tableId,
+                event
+            )
+        }
 
         this.socketService.emitOrderServed(
             order.restaurantId,
@@ -743,6 +765,66 @@ export class OrdersService {
         this.logger.log(`Order ${orderId} marked as served`)
 
         return this.findOne(orderId)
+    }
+
+    /**
+     * Process cash payment for order
+     */
+    async processCashPayment(orderId: number) {
+        const order = await this.findOne(orderId)
+
+        if (order.status === OrderStatus.COMPLETED) {
+            throw new BadRequestException('Order is already completed')
+        }
+
+        if (order.status === OrderStatus.CANCELLED) {
+            throw new BadRequestException('Cannot pay for cancelled order')
+        }
+
+        // Update order status to COMPLETED
+        const updatedOrder = await this.prisma.order.update({
+            where: { id: orderId },
+            data: {
+                status: OrderStatus.COMPLETED,
+            },
+            include: {
+                table: true,
+                items: true,
+            },
+        })
+
+        // Create payment record
+        await this.prisma.payment.create({
+            data: {
+                orderId,
+                amount: order.totalAmount,
+                method: 'CASH',
+                status: 'SUCCESS',
+            },
+        })
+
+        // Reset table status to AVAILABLE
+        await this.prisma.table.update({
+            where: { id: order.tableId },
+            data: { status: TableStatus.AVAILABLE },
+        })
+
+        // Emit order completed event
+        const statusEvent: OrderStatusChangedEvent = {
+            orderId,
+            previousStatus: order.status,
+            newStatus: OrderStatus.COMPLETED,
+            updatedAt: new Date().toISOString(),
+        }
+        this.socketService.emitOrderStatusChanged(
+            order.restaurantId,
+            order.tableId,
+            statusEvent
+        )
+
+        this.logger.log(`Order ${orderId} paid with cash and completed`)
+
+        return updatedOrder
     }
 
     // ========================================================================
@@ -973,7 +1055,9 @@ export class OrdersService {
     }
 
     private mapToKitchenOrderView(order: any): KitchenOrderView {
-        const createdAt = new Date(order.createdAt)
+        const createdAt = order.createdAt instanceof Date 
+            ? order.createdAt 
+            : new Date(order.createdAt)
         const now = new Date()
         const elapsedMinutes = Math.floor(
             (now.getTime() - createdAt.getTime()) / 60000
@@ -983,25 +1067,30 @@ export class OrdersService {
             id: order.id,
             tableName: order.table?.name || '',
             note: order.note,
-            createdAt: order.createdAt.toISOString(),
+            createdAt: createdAt.toISOString(),
             elapsedMinutes,
             isOverdue: elapsedMinutes > 30, // Orders older than 30 min are overdue
             items: order.items.map(
-                (item: any): KitchenItemView => ({
-                    id: item.id,
-                    name: item.name,
-                    quantity: item.quantity,
-                    status: item.status,
-                    note: item.note,
-                    modifiers:
-                        item.modifiers?.map((m: any) => m.modifierName) || [],
-                    prepTimeMinutes: 15, // Default prep time
-                    startedAt:
-                        item.status === OrderItemStatus.PREPARING
-                            ? item.updatedAt.toISOString()
-                            : undefined,
-                    isOverdue: false,
-                })
+                (item: any): KitchenItemView => {
+                    const itemUpdatedAt = item.updatedAt instanceof Date
+                        ? item.updatedAt
+                        : (item.updatedAt ? new Date(item.updatedAt) : null)
+                    return {
+                        id: item.id,
+                        name: item.name,
+                        quantity: item.quantity,
+                        status: item.status,
+                        note: item.note,
+                        modifiers:
+                            item.modifiers?.map((m: any) => m.modifierName) || [],
+                        prepTimeMinutes: 15, // Default prep time
+                        startedAt:
+                            item.status === OrderItemStatus.PREPARING && itemUpdatedAt
+                                ? itemUpdatedAt.toISOString()
+                                : undefined,
+                        isOverdue: false,
+                    }
+                }
             ),
         }
     }

@@ -198,6 +198,15 @@ export class OrdersController {
         return this.ordersService.markOrderServed(id)
     }
 
+    /**
+     * Process cash payment for order
+     * POST /orders/:id/pay-cash
+     */
+    @Post(':id/pay-cash')
+    payCash(@Param('id', ParseIntPipe) id: number) {
+        return this.ordersService.processCashPayment(id)
+    }
+
     // ========================================================================
     // KITCHEN OPERATIONS
     // ========================================================================

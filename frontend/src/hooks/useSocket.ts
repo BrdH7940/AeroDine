@@ -314,6 +314,7 @@ interface WaiterOrderEvents {
     onOrderCreated?: (event: OrderCreatedEvent) => void
     onOrderAccepted?: (event: { orderId: number; waiterId: number }) => void
     onOrderRejected?: (event: { orderId: number; reason?: string }) => void
+    onItemStatusChanged?: (event: OrderItemStatusChangedEvent) => void
     onOrderItemReady?: (event: OrderItemStatusChangedEvent) => void
     onBillRequested?: (event: {
         orderId: number
@@ -341,6 +342,9 @@ export const useWaiterEvents = (
         if (events.onOrderRejected) {
             socket.on(SocketEvents.ORDER_REJECTED, events.onOrderRejected)
         }
+        if (events.onItemStatusChanged) {
+            socket.on(SocketEvents.ORDER_ITEM_STATUS_CHANGED, events.onItemStatusChanged)
+        }
         if (events.onOrderItemReady) {
             socket.on(SocketEvents.ORDER_ITEM_READY, events.onOrderItemReady)
         }
@@ -352,6 +356,7 @@ export const useWaiterEvents = (
             socket.off(SocketEvents.ORDER_CREATED)
             socket.off(SocketEvents.ORDER_ACCEPTED)
             socket.off(SocketEvents.ORDER_REJECTED)
+            socket.off(SocketEvents.ORDER_ITEM_STATUS_CHANGED)
             socket.off(SocketEvents.ORDER_ITEM_READY)
             socket.off(SocketEvents.BILL_REQUESTED)
         }
@@ -369,6 +374,7 @@ interface KitchenEvents {
     onOrderAccepted?: (event: { orderId: number; waiterId: number }) => void
     onItemStatusChanged?: (event: OrderItemStatusChangedEvent) => void
     onOrderReady?: (event: { orderId: number; tableName: string }) => void
+    onOrderServed?: (event: { orderId: number }) => void
 }
 
 export const useKitchenEvents = (
@@ -399,12 +405,16 @@ export const useKitchenEvents = (
         if (events.onOrderReady) {
             socket.on(SocketEvents.KITCHEN_ORDER_READY, events.onOrderReady)
         }
+        if (events.onOrderServed) {
+            socket.on(SocketEvents.ORDER_SERVED, events.onOrderServed)
+        }
 
         return () => {
             socket.off(SocketEvents.KITCHEN_ORDER_RECEIVED)
             socket.off(SocketEvents.ORDER_ACCEPTED)
             socket.off(SocketEvents.ORDER_ITEM_STATUS_CHANGED)
             socket.off(SocketEvents.KITCHEN_ORDER_READY)
+            socket.off(SocketEvents.ORDER_SERVED)
         }
     }, [socket, isConnected, events])
 

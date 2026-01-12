@@ -34,6 +34,7 @@ interface OrderCardProps {
     onAccept?: () => void
     onReject?: (reason?: string) => void
     onServe?: () => void
+    onCashPayment?: () => void
 }
 
 export default function OrderCard({
@@ -42,6 +43,7 @@ export default function OrderCard({
     onAccept,
     onReject,
     onServe,
+    onCashPayment,
 }: OrderCardProps) {
     const [showRejectModal, setShowRejectModal] = useState(false)
     const [rejectReason, setRejectReason] = useState('')
@@ -108,6 +110,18 @@ export default function OrderCard({
         setIsProcessing(true)
         try {
             await onServe?.()
+        } finally {
+            setIsProcessing(false)
+        }
+    }
+
+    const handleCashPayment = async () => {
+        if (!window.confirm(`Confirm cash payment of $${order.totalAmount.toFixed(2)} for ${order.tableName}?`)) {
+            return
+        }
+        setIsProcessing(true)
+        try {
+            await onCashPayment?.()
         } finally {
             setIsProcessing(false)
         }
@@ -249,13 +263,23 @@ export default function OrderCard({
                         <button
                             onClick={handleServe}
                             disabled={isProcessing}
-                            className="w-full px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed mb-2"
                         >
                             {isProcessing
                                 ? 'Processing...'
                                 : `Serve ${readyItemsCount} Ready Item${
                                       readyItemsCount > 1 ? 's' : ''
                                   }`}
+                        </button>
+                    )}
+
+                    {type === 'active' && onCashPayment && (
+                        <button
+                            onClick={handleCashPayment}
+                            disabled={isProcessing}
+                            className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                            💵 {isProcessing ? 'Processing...' : 'Cash Payment'}
                         </button>
                     )}
                 </div>

@@ -317,6 +317,16 @@ export class SocketService {
 
         this.logger.log(`Order ${orderId} served`)
 
+        // Notify kitchen (so they can update KDS)
+        this.server
+            .to(this.getKitchenRoom(restaurantId))
+            .emit(SocketEvents.ORDER_SERVED, { orderId })
+
+        // Notify waiters
+        this.server
+            .to(this.getWaiterRoom(restaurantId))
+            .emit(SocketEvents.ORDER_SERVED, { orderId })
+
         // Notify customer
         this.server
             .to(this.getTableRoom(tableId))

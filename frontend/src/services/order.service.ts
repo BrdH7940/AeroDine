@@ -135,6 +135,14 @@ export const orderService = {
         return response.data
     },
 
+    /**
+     * Process cash payment for order
+     */
+    async processCashPayment(orderId: number): Promise<Order> {
+        const response = await api.post(`/orders/${orderId}/pay-cash`)
+        return response.data
+    },
+
     // ========================================================================
     // KITCHEN OPERATIONS
     // ========================================================================

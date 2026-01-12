@@ -39,8 +39,8 @@ interface OrderItem {
 
 export default function WaiterOrdersPage() {
     // TODO: Get from auth context
-    const restaurantId = 1
-    const userId = 1 // Waiter ID
+    const restaurantId = 4 // AeroDine Signature restaurant
+    const userId = 12 // Waiter User ID (waiter@aerodine.com)
 
     const [pendingOrders, setPendingOrders] = useState<Order[]>([])
     const [activeOrders, setActiveOrders] = useState<Order[]>([])
@@ -186,19 +186,58 @@ export default function WaiterOrdersPage() {
     const handleItemReady = useCallback(
         (event: OrderItemStatusChangedEvent) => {
             if (event.newStatus === 'READY') {
-                setReadyItems((prev) => [
-                    ...prev,
-                    {
-                        orderId: event.orderId,
-                        itemId: event.orderItemId,
-                        itemName: event.itemName,
-                        tableName: '', // Will be updated
-                    },
-                ])
+                // Find the table name from active or pending orders
+                setActiveOrders((currentActiveOrders) => {
+                    setPendingOrders((currentPendingOrders) => {
+                        const activeOrder = currentActiveOrders.find(o => o.id === event.orderId)
+                        const pendingOrder = currentPendingOrders.find(o => o.id === event.orderId)
+                        const tableName = activeOrder?.tableName || pendingOrder?.tableName || `Order #${event.orderId}`
+                        
+                        setReadyItems((prev) => {
+                            // Avoid duplicates
+                            if (prev.some(item => item.orderId === event.orderId && item.itemId === event.orderItemId)) {
+                                return prev
+                            }
+                            return [
+                                ...prev,
+                                {
+                                    orderId: event.orderId,
+                                    itemId: event.orderItemId,
+                                    itemName: event.itemName,
+                                    tableName,
+                                },
+                            ]
+                        })
+                        
+                        return currentPendingOrders // No change
+                    })
+                    return currentActiveOrders // No change
+                })
                 playNotificationSound()
             }
         },
         [playNotificationSound]
+    )
+
+    // Handle item status changed (real-time sync with KDS)
+    const handleItemStatusChanged = useCallback(
+        (event: OrderItemStatusChangedEvent) => {
+            console.log('🔔 Item status changed:', event)
+            // Update item status in active orders
+            setActiveOrders((prev) =>
+                prev.map((order) => {
+                    if (order.id !== event.orderId) return order
+                    return {
+                        ...order,
+                        items: order.items.map((item) => {
+                            if (item.id !== event.orderItemId) return item
+                            return { ...item, status: event.newStatus }
+                        }),
+                    }
+                })
+            )
+        },
+        []
     )
 
     // Handle bill requested
@@ -214,6 +253,7 @@ export default function WaiterOrdersPage() {
     // Setup socket event listeners
     useWaiterEvents(restaurantId, userId, {
         onOrderCreated: handleOrderCreated,
+        onItemStatusChanged: handleItemStatusChanged,
         onOrderItemReady: handleItemReady,
     })
 
@@ -272,6 +312,22 @@ export default function WaiterOrdersPage() {
             )
         } catch {
             alert('Failed to mark as served')
+        }
+    }
+
+    // Handle cash payment
+    const handleCashPayment = async (orderId: number) => {
+        try {
+            await orderService.processCashPayment(orderId)
+            // Remove order from active orders
+            setActiveOrders((prev) => prev.filter((o) => o.id !== orderId))
+            // Remove any ready items for this order
+            setReadyItems((prev) =>
+                prev.filter((item) => item.orderId !== orderId)
+            )
+            alert('Payment successful! Order completed.')
+        } catch (err: any) {
+            alert(err?.response?.data?.message || 'Failed to process payment')
         }
     }
 
@@ -405,6 +461,7 @@ export default function WaiterOrdersPage() {
                                     order={order}
                                     type="active"
                                     onServe={() => handleMarkServed(order.id)}
+                                    onCashPayment={() => handleCashPayment(order.id)}
                                 />
                             ))
                         )}

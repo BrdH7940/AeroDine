@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Clock } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { ordersApi } from '../../../services/api'
 import { authApi } from '../../../services/auth'
 import { OrderItemStatus } from '@aerodine/shared-types'
+import { useKitchenEvents } from '../../../hooks/useSocket'
+import type { KitchenOrderEvent, OrderItemStatusChangedEvent } from '@aerodine/shared-types'
 
 interface OrderItem {
     id: number
@@ -159,16 +161,115 @@ function TicketCard({ order, onStatusChange }: TicketCardProps) {
 }
 
 export default function KDSPage() {
+    // TODO: Get from auth context
+    const restaurantId = 4 // AeroDine Signature restaurant
+    const userId = 13 // Kitchen Staff ID (kitchen@aerodine.com)
+
     const [orders, setOrders] = useState<Order[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
+    // Fetch orders function - KDS only shows orders that have been accepted (IN_PROGRESS)
+    const fetchOrders = useCallback(async () => {
+        try {
+            const ordersData = await ordersApi.getOrders({ restaurantId })
+            const ordersArray = Array.isArray(ordersData) ? ordersData : (ordersData.orders || [])
+            // Only show IN_PROGRESS orders (waiter has already accepted)
+            const activeOrders = ordersArray.filter(
+                (order: any) => order.status === 'IN_PROGRESS'
+            )
+            setOrders(activeOrders)
+        } catch (err: any) {
+            console.error('Error fetching orders:', err)
+            if (err.response?.status === 401) {
+                setError('Authentication required. Please login.')
+            } else if (err.response?.status === 404) {
+                setError('Backend endpoint not found. Please check if backend is running.')
+            } else {
+                setError(`Unable to load orders: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            }
+        }
+    }, [restaurantId])
+
+    // Socket.IO: Handle new order received
+    const handleOrderReceived = useCallback((event: KitchenOrderEvent) => {
+        console.log('🔔 New order received via Socket:', event)
+        // Add new order to the list
+        setOrders(prev => {
+            if (prev.some(o => o.id === event.order.id)) return prev
+            // Map KitchenOrderView to Order format
+            const newOrder: Order = {
+                id: event.order.id,
+                tableId: 0, // Not available in KitchenOrderView
+                totalAmount: 0,
+                status: 'PENDING',
+                createdAt: event.order.createdAt,
+                table: { name: event.order.tableName },
+                items: event.order.items.map(item => ({
+                    id: item.id,
+                    menuItemId: 0,
+                    quantity: item.quantity,
+                    pricePerUnit: 0,
+                    status: item.status as OrderItemStatus,
+                    name: item.name,
+                    modifiers: item.modifiers.map((m, idx) => ({
+                        id: idx,
+                        modifierName: m
+                    }))
+                }))
+            }
+            return [newOrder, ...prev]
+        })
+    }, [])
+
+    // Socket.IO: Handle order accepted (refresh to get full data)
+    const handleOrderAccepted = useCallback(() => {
+        console.log('🔔 Order accepted, refreshing...')
+        fetchOrders()
+    }, [fetchOrders])
+
+    // Socket.IO: Handle item status changed
+    const handleItemStatusChanged = useCallback((event: OrderItemStatusChangedEvent) => {
+        console.log('🔔 Item status changed via Socket:', event)
+        setOrders(prev => prev.map(order => {
+            if (order.id !== event.orderId) return order
+            return {
+                ...order,
+                items: order.items.map(item => {
+                    if (item.id !== event.orderItemId) return item
+                    return { ...item, status: event.newStatus as OrderItemStatus }
+                })
+            }
+        }))
+    }, [])
+
+    // Socket.IO: Handle order ready (remove from KDS)
+    const handleOrderReady = useCallback((event: { orderId: number }) => {
+        console.log('🔔 Order ready, removing from KDS:', event)
+        setOrders(prev => prev.filter(o => o.id !== event.orderId))
+    }, [])
+
+    // Socket.IO: Handle order served (remove from KDS when all items served)
+    const handleOrderServed = useCallback((event: { orderId: number }) => {
+        console.log('🔔 Order served, removing from KDS:', event)
+        setOrders(prev => prev.filter(o => o.id !== event.orderId))
+    }, [])
+
+    // Setup Socket.IO event listeners
+    useKitchenEvents(restaurantId, userId, {
+        onOrderReceived: handleOrderReceived,
+        onOrderAccepted: handleOrderAccepted,
+        onItemStatusChanged: handleItemStatusChanged,
+        onOrderReady: handleOrderReady,
+        onOrderServed: handleOrderServed,
+    })
+
+    // Initial fetch + fallback polling every 30s (in case socket misses something)
     useEffect(() => {
         initializeAndFetchOrders()
-        // Refresh every 30 seconds
-        const interval = setInterval(fetchOrders, 30000)
+        const interval = setInterval(fetchOrders, 30000) // Fallback polling every 30s
         return () => clearInterval(interval)
-    }, [])
+    }, [fetchOrders])
 
     const initializeAndFetchOrders = async () => {
         try {
@@ -193,30 +294,6 @@ export default function KDSPage() {
         }
     }
 
-    const fetchOrders = async () => {
-        try {
-            // Get orders that are not completed (PENDING, IN_PROGRESS)
-            const ordersData = await ordersApi.getOrders({ restaurantId: 2 }) // TODO: Get from context - TEMP: using 2 to match database
-            // Handle both array and object response
-            const ordersArray = Array.isArray(ordersData) ? ordersData : (ordersData.orders || [])
-            // Filter for active orders only
-            const activeOrders = ordersArray.filter(
-                (order: any) => order.status === 'PENDING' || order.status === 'IN_PROGRESS'
-            )
-            setOrders(activeOrders)
-        } catch (err: any) {
-            console.error('Error fetching orders:', err)
-            if (err.response?.status === 401) {
-                setError('Authentication required. Please login.')
-            } else if (err.response?.status === 404) {
-                setError('Backend endpoint not found. Please check if backend is running.')
-            } else {
-                setError(`Unable to load orders: ${err.response?.data?.message || err.message || 'Unknown error'}`)
-            }
-            throw err
-        }
-    }
-
     const handleStatusChange = async (orderId: number, itemId: number, newStatus: OrderItemStatus) => {
         try {
             await ordersApi.updateOrderItemStatus(orderId, itemId, newStatus)
@@ -230,8 +307,14 @@ export default function KDSPage() {
 
     const getOrdersByStatus = (status: 'pending' | 'preparing' | 'ready') => {
         return orders.filter((order) => {
-            const allReady = order.items.every(item => item.status === OrderItemStatus.READY || item.status === OrderItemStatus.SERVED)
-            const anyPreparing = order.items.some(item => item.status === OrderItemStatus.PREPARING)
+            // Filter out items that are already served
+            const activeItems = order.items.filter(item => item.status !== OrderItemStatus.SERVED)
+            
+            // Skip orders where all items are served
+            if (activeItems.length === 0) return false
+            
+            const allReady = activeItems.every(item => item.status === OrderItemStatus.READY)
+            const anyPreparing = activeItems.some(item => item.status === OrderItemStatus.PREPARING)
             
             if (status === 'ready' && allReady) return true
             if (status === 'preparing' && anyPreparing && !allReady) return true
