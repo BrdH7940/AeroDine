@@ -38,7 +38,7 @@ export const CartPage: React.FC = () => {
     try {
       const orderData = {
         tableId,
-        restaurantId: restaurantId || 1, // Default to 1 if not set
+        restaurantId: restaurantId || 4, // Default to 4 if not set
         guestCount,
         note: note || undefined,
         items: items.map((item) => ({
@@ -55,17 +55,32 @@ export const CartPage: React.FC = () => {
         })),
       };
 
+      // Create order
       const response = await apiClient.post('/orders', orderData);
-      
-      // Clear cart after successful order
+      const orderId = response.data.id;
+
+      // Store orderId for later use
+      localStorage.setItem('lastOrderId', orderId.toString());
+
+      // Create Stripe checkout session
+      const baseUrl = window.location.origin;
+      const checkoutResponse = await apiClient.post(`/orders/${orderId}/checkout`, {
+        successUrl: `${baseUrl}/customer/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${baseUrl}/customer/payment/cancel?order_id=${orderId}`,
+      });
+
+      // Clear cart before redirecting to Stripe
       clearCart();
-      
-      // Navigate to order tracking page
-      navigate(`/customer/orders/${response.data.id}`);
+
+      // Redirect to Stripe checkout
+      if (checkoutResponse.data.url) {
+        window.location.href = checkoutResponse.data.url;
+      } else {
+        throw new Error('Failed to get checkout URL');
+      }
     } catch (error: any) {
       console.error('Failed to place order:', error);
       alert(error.response?.data?.message || 'Failed to place order. Please try again.');
-    } finally {
       setIsPlacingOrder(false);
     }
   };

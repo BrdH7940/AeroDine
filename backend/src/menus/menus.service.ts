@@ -10,22 +10,36 @@ export class MenusService {
 
   // Categories
   async getCategories(restaurantId?: number) {
-    const where = restaurantId ? { restaurantId, restaurant: { isActive: true } } : { restaurant: { isActive: true } };
-    return this.prisma.category.findMany({
-      where,
-      include: {
+    try {
+      const where: any = {
         restaurant: {
-          select: {
-            id: true,
-            name: true,
-            isActive: true,
+          isActive: true,
+        },
+      };
+      
+      if (restaurantId) {
+        where.restaurantId = restaurantId;
+      }
+
+      return await this.prisma.category.findMany({
+        where,
+        include: {
+          restaurant: {
+            select: {
+              id: true,
+              name: true,
+              isActive: true,
+            },
           },
         },
-      },
-      orderBy: {
-        rank: 'asc',
-      },
-    });
+        orderBy: {
+          rank: 'asc',
+        },
+      });
+    } catch (error) {
+      console.error('Error in getCategories service:', error);
+      throw error;
+    }
   }
 
   async getCategoryById(id: number) {
@@ -103,59 +117,64 @@ export class MenusService {
 
   // Menu Items
   async getMenuItems(restaurantId?: number, categoryId?: number, includeSoldOut = false) {
-    const where: any = {
-      restaurant: { isActive: true },
-    };
+    try {
+      const where: any = {
+        restaurant: { isActive: true },
+      };
 
-    if (restaurantId) {
-      where.restaurantId = restaurantId;
-    }
+      if (restaurantId) {
+        where.restaurantId = restaurantId;
+      }
 
-    if (categoryId) {
-      where.categoryId = categoryId;
-    }
+      if (categoryId) {
+        where.categoryId = categoryId;
+      }
 
-    if (!includeSoldOut) {
-      where.status = 'AVAILABLE';
-    }
+      if (!includeSoldOut) {
+        where.status = 'AVAILABLE';
+      }
 
-    return this.prisma.menuItem.findMany({
-      where,
-      include: {
-        category: true,
-        images: {
-          orderBy: {
-            rank: 'asc',
+      return await this.prisma.menuItem.findMany({
+        where,
+        include: {
+          category: true,
+          images: {
+            orderBy: {
+              rank: 'asc',
+            },
           },
-        },
-        modifierGroups: {
-          include: {
-            modifierGroup: {
-              include: {
-                options: {
-                  where: {
-                    isAvailable: true,
-                  },
-                  orderBy: {
-                    id: 'asc',
+          modifierGroups: {
+            include: {
+              modifierGroup: {
+                include: {
+                  options: {
+                    where: {
+                      isAvailable: true,
+                    },
+                    orderBy: {
+                      id: 'asc',
+                    },
                   },
                 },
               },
             },
           },
-        },
-        restaurant: {
-          select: {
-            id: true,
-            name: true,
-            isActive: true,
+          restaurant: {
+            select: {
+              id: true,
+              name: true,
+              isActive: true,
+            },
           },
         },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+    } catch (error) {
+      console.error('Error in getMenuItems service:', error);
+      throw error;
+    }
   }
 
   async getMenuItemById(id: number) {

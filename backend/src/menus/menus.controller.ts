@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, HttpException, HttpStatus } from '@nestjs/common';
 import { MenusService } from './menus.service';
 import { CreateMenuDto, CreateMenuItemDto, CreateCategoryDto, CreateModifierGroupDto, CreateModifierOptionDto, UpdateModifierGroupDto } from './dto/create-menu.dto';
 import { UpdateMenuDto } from './dto/update-menu.dto';
@@ -9,8 +9,20 @@ export class MenusController {
 
   // Categories endpoints
   @Get('categories')
-  getCategories(@Query('restaurantId') restaurantId?: string) {
-    return this.menusService.getCategories(restaurantId ? +restaurantId : undefined);
+  async getCategories(@Query('restaurantId') restaurantId?: string) {
+    try {
+      return await this.menusService.getCategories(restaurantId ? +restaurantId : undefined);
+    } catch (error) {
+      console.error('Error in getCategories:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch categories',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Get('categories/:id')
@@ -35,16 +47,28 @@ export class MenusController {
 
   // Menu items endpoints
   @Get('items')
-  getMenuItems(
+  async getMenuItems(
     @Query('restaurantId') restaurantId?: string,
     @Query('categoryId') categoryId?: string,
     @Query('includeSoldOut') includeSoldOut?: string,
   ) {
-    return this.menusService.getMenuItems(
-      restaurantId ? +restaurantId : undefined,
-      categoryId ? +categoryId : undefined,
-      includeSoldOut === 'true',
-    );
+    try {
+      return await this.menusService.getMenuItems(
+        restaurantId ? +restaurantId : undefined,
+        categoryId ? +categoryId : undefined,
+        includeSoldOut === 'true',
+      );
+    } catch (error) {
+      console.error('Error in getMenuItems:', error);
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to fetch menu items',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Get('items/:id')

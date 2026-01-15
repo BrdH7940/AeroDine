@@ -11,6 +11,7 @@ export class CreateMenuItemDto {
   basePrice: number;
   status?: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN';
   images?: CreateMenuItemImageDto[];
+  modifierGroupIds?: number[]; // IDs of modifier groups to assign to this item
 }
 
 export class CreateCategoryDto {
@@ -39,17 +40,6 @@ export class UpdateModifierGroupDto {
   minSelection?: number;
   maxSelection?: number;
   options?: CreateModifierOptionDto[];
-}
-
-export class CreateMenuItemDto {
-  restaurantId: number;
-  categoryId: number;
-  name: string;
-  description?: string;
-  basePrice: number;
-  status?: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN';
-  images?: CreateMenuItemImageDto[];
-  modifierGroupIds?: number[]; // IDs of modifier groups to assign to this item
 }
 
 export class CreateMenuDto extends CreateMenuItemDto {}
