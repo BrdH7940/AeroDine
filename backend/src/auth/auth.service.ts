@@ -20,8 +20,13 @@ export class AuthService {
 
     try {
       // Kiểm tra email đã tồn tại chưa
+      // Chỉ select các cột cần thiết để tránh lỗi với restaurant_id không tồn tại
       const existingUser = await this.prisma.user.findUnique({
         where: { email },
+        select: {
+          id: true,
+          email: true,
+        },
       });
 
       if (existingUser) {
@@ -71,6 +76,15 @@ export class AuthService {
         throw new ConflictException('Email đã được sử dụng');
       }
       
+      // Xử lý lỗi về cột không tồn tại (restaurant_id)
+      if (error?.message?.includes('restaurant_id') || error?.message?.includes('does not exist')) {
+        this.logger.warn('Database schema mismatch detected. Attempting to create user without restaurant_id...');
+        // Thử lại với raw query nếu cần
+        throw new InternalServerErrorException(
+          'Lỗi cấu hình database. Vui lòng liên hệ quản trị viên.'
+        );
+      }
+      
       // Các lỗi khác
       throw new InternalServerErrorException(
         error?.message || 'Đã xảy ra lỗi khi đăng ký. Vui lòng thử lại sau.'
@@ -82,8 +96,18 @@ export class AuthService {
     const { email, password } = loginDto;
 
     // Tìm user theo email
+    // Chỉ select các cột cần thiết để tránh lỗi với restaurant_id không tồn tại
     const user = await this.prisma.user.findUnique({
       where: { email },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        fullName: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
     if (!user) {

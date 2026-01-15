@@ -5,8 +5,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql" // Đã chốt PostgreSQL
-  url       = env("DATABASE_URL")
+  provider = "postgresql" // Đã chốt PostgreSQL
+  url      = env("DATABASE_URL")
   // Neon connection pooling is handled via connection string parameters
   // Use ?pgbouncer=true for pooled connections (recommended for production)
   // Use direct connection (no pgbouncer) for migrations
@@ -63,14 +63,14 @@ enum PaymentStatus {
 // --- MODELS ---
 
 model Restaurant {
-  id             Int             @id @default(autoincrement())
-  name           String
-  address        String?
-  isActive       Boolean         @default(true) @map("is_active")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  id        Int      @id @default(autoincrement())
+  name      String
+  address   String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  users          User[]
+  // users          User[] // Tạm thời comment vì User model không có restaurantId
   tables         Table[]
   categories     Category[]
   modifierGroups ModifierGroup[]
@@ -81,19 +81,19 @@ model Restaurant {
 }
 
 model User {
-  id           Int       @id @default(autoincrement())
-  restaurantId Int?      @map("restaurant_id")
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  fullName     String    @map("full_name")
-  role         UserRole  @default(CUSTOMER)
-  refreshToken String?   @map("refresh_token")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id           Int      @id @default(autoincrement())
+  // restaurantId Int?      @map("restaurant_id") // Tạm thời comment vì database chưa có cột này
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  fullName     String   @map("full_name")
+  role         UserRole @default(CUSTOMER)
+  refreshToken String?  @map("refresh_token")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
-  orders       Order[]     @relation("CustomerOrders")
-  servedOrders Order[]     @relation("WaiterOrders")
+  // restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull) // Tạm thời comment
+  orders       Order[]  @relation("CustomerOrders")
+  servedOrders Order[]  @relation("WaiterOrders")
   reviews      Review[]
 
   @@map("users")
@@ -108,21 +108,21 @@ model Table {
   token        String      @unique
   isActive     Boolean     @default(true) @map("is_active")
 
-  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  orders       Order[]
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orders     Order[]
 
   @@map("tables")
 }
 
 model Category {
-  id           Int        @id @default(autoincrement())
-  restaurantId Int        @map("restaurant_id")
+  id           Int     @id @default(autoincrement())
+  restaurantId Int     @map("restaurant_id")
   name         String
   image        String?
-  rank         Int        @default(0)
+  rank         Int     @default(0)
 
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  items        MenuItem[]
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items      MenuItem[]
 
   @@map("categories")
 }
@@ -138,8 +138,8 @@ model MenuItem {
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  category     Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category   Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   images         MenuItemImage[]
   modifierGroups ItemModifierGroup[]
@@ -151,19 +151,19 @@ model MenuItem {
 }
 
 model MenuItemImage {
-  id         Int      @id @default(autoincrement())
-  menuItemId Int      @map("menu_item_id")
+  id         Int    @id @default(autoincrement())
+  menuItemId Int    @map("menu_item_id")
   url        String
-  rank       Int      @default(0)
+  rank       Int    @default(0)
 
-  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 
   @@map("menu_item_images")
 }
 
 model ItemModifierGroup {
-  itemId        Int      @map("item_id")
-  groupId       Int      @map("group_id")
+  itemId  Int @map("item_id")
+  groupId Int @map("group_id")
 
   menuItem      MenuItem      @relation(fields: [itemId], references: [id], onDelete: Cascade)
   modifierGroup ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -173,15 +173,15 @@ model ItemModifierGroup {
 }
 
 model ModifierGroup {
-  id           Int      @id @default(autoincrement())
-  restaurantId Int      @map("restaurant_id")
+  id           Int    @id @default(autoincrement())
+  restaurantId Int    @map("restaurant_id")
   name         String
-  minSelection Int      @default(0) @map("min_selection")
-  maxSelection Int      @default(1) @map("max_selection")
+  minSelection Int    @default(0) @map("min_selection")
+  maxSelection Int    @default(1) @map("max_selection")
 
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  options      ModifierOption[]
-  items        ItemModifierGroup[]
+  restaurant Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  options    ModifierOption[]
+  items      ItemModifierGroup[]
 
   @@map("modifier_groups")
 }
@@ -193,34 +193,34 @@ model ModifierOption {
   priceAdjustment Decimal @default(0) @map("price_adjustment") @db.Decimal(10, 2)
   isAvailable     Boolean @default(true) @map("is_available")
 
-  group           ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  orderItems      OrderItemModifier[]
+  group      ModifierGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  orderItems OrderItemModifier[]
 
   @@map("modifier_options")
 }
 
 model Order {
-  id           Int         @id @default(autoincrement())
-  restaurantId Int         @map("restaurant_id")
-  tableId      Int         @map("table_id")
-  userId       Int?        @map("user_id")
-  waiterId     Int?        @map("waiter_id")
+  id           Int  @id @default(autoincrement())
+  restaurantId Int  @map("restaurant_id")
+  tableId      Int  @map("table_id")
+  userId       Int? @map("user_id")
+  waiterId     Int? @map("waiter_id")
 
-  status       OrderStatus @default(PENDING)
-  totalAmount  Decimal     @default(0) @map("total_amount") @db.Decimal(10, 2)
-  guestCount   Int         @default(1) @map("guest_count")
-  note         String?
+  status      OrderStatus @default(PENDING)
+  totalAmount Decimal     @default(0) @map("total_amount") @db.Decimal(10, 2)
+  guestCount  Int         @default(1) @map("guest_count")
+  note        String?
 
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  table        Table       @relation(fields: [tableId], references: [id])
-  customer     User?       @relation("CustomerOrders", fields: [userId], references: [id])
-  waiter       User?       @relation("WaiterOrders", fields: [waiterId], references: [id])
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table      Table      @relation(fields: [tableId], references: [id])
+  customer   User?      @relation("CustomerOrders", fields: [userId], references: [id])
+  waiter     User?      @relation("WaiterOrders", fields: [waiterId], references: [id])
 
-  items        OrderItem[]
-  payment      Payment?
+  items   OrderItem[]
+  payment Payment?
 
   @@index([restaurantId, status])
   @@map("orders")
@@ -238,9 +238,9 @@ model OrderItem {
   createdAt    DateTime        @default(now()) @map("created_at")
   updatedAt    DateTime        @updatedAt @map("updated_at")
 
-  order        Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItem     MenuItem        @relation(fields: [menuItemId], references: [id])
-  modifiers    OrderItemModifier[]
+  order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem  MenuItem            @relation(fields: [menuItemId], references: [id])
+  modifiers OrderItemModifier[]
 
   @@map("order_items")
 }
@@ -252,8 +252,8 @@ model OrderItemModifier {
   modifierName     String
   priceAdjustment  Decimal @map("price_adjustment") @db.Decimal(10, 2)
 
-  orderItem        OrderItem       @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  modifierOption   ModifierOption? @relation(fields: [modifierOptionId], references: [id], onDelete: SetNull)
+  orderItem      OrderItem       @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  modifierOption ModifierOption? @relation(fields: [modifierOptionId], references: [id], onDelete: SetNull)
 
   @@map("order_item_modifiers")
 }
@@ -267,7 +267,7 @@ model Payment {
   createdAt DateTime      @default(now()) @map("created_at")
   updatedAt DateTime      @updatedAt @map("updated_at")
 
-  order     Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("payments")
 }
@@ -280,9 +280,8 @@ model Review {
   comment    String?  @db.Text
   createdAt  DateTime @default(now()) @map("created_at")
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 
   @@map("reviews")
 }
-
