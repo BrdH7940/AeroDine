@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core'
 import { ConfigService } from '@nestjs/config'
+import { ValidationPipe } from '@nestjs/common'
 import { AppModule } from './app.module'
 
 async function bootstrap() {
@@ -11,6 +12,15 @@ async function bootstrap() {
     // Enable CORS from configuration
     const corsConfig = configService.get('cors')
     app.enableCors(corsConfig)
+
+    // Enable global validation pipe
+    app.useGlobalPipes(
+        new ValidationPipe({
+            whitelist: true,
+            forbidNonWhitelisted: true,
+            transform: true,
+        }),
+    )
 
     // Set global API prefix
     app.setGlobalPrefix('api')

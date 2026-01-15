@@ -1,11 +1,16 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { MenuPage, CartPage, OrderTrackingPage, PaymentSuccessPage, PaymentCancelPage } from '../pages/customer';
+import { LoginPage, RegisterPage } from '../pages/auth';
 
 export const AppRoutes: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Auth Routes */}
+        <Route path="/auth/login" element={<LoginPage />} />
+        <Route path="/auth/register" element={<RegisterPage />} />
+        
         {/* Customer Routes */}
         <Route path="/customer/menu" element={<MenuPage />} />
         <Route path="/customer/cart" element={<CartPage />} />

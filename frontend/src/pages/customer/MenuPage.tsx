@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../services/api';
-import { MenuList, CategoryTabs, ModifierSelectionDialog } from '../../components/customer';
+import { MenuList, CategoryTabs, ModifierSelectionDialog, BottomNavigation } from '../../components/customer';
 import type { Category } from '../../components/customer';
 import { useCartStore, type CartItemModifier } from '../../store/cartStore';
+import { useUserStore } from '../../store/userStore';
+import { authService } from '../../services/auth.service';
 import type { ModifierGroup } from '@aerodine/shared-types';
 
 // Menu item type matching backend response
@@ -29,13 +31,16 @@ interface MenuItem {
 
 export const MenuPage: React.FC = () => {
   const navigate = useNavigate();
-  const { addItem, getItemCount } = useCartStore();
+  const { addItem, getItemCount, tableId } = useCartStore();
+  const { user, isAuthenticated, clearUser } = useUserStore();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [isModifierDialogOpen, setIsModifierDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     loadCategories();
@@ -43,8 +48,11 @@ export const MenuPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    loadMenuItems();
-  }, [selectedCategoryId]);
+    const timeoutId = setTimeout(() => {
+      loadMenuItems();
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [selectedCategoryId, searchQuery]);
 
   const loadCategories = async () => {
     try {
@@ -62,6 +70,9 @@ export const MenuPage: React.FC = () => {
       if (selectedCategoryId) {
         params.categoryId = selectedCategoryId;
       }
+      if (searchQuery) {
+        params.search = searchQuery;
+      }
       const response = await apiClient.get('/menus/items', { params });
       setMenuItems(response.data);
     } catch (error) {
@@ -70,6 +81,7 @@ export const MenuPage: React.FC = () => {
       setLoading(false);
     }
   };
+
 
   const handleAddToCart = (item: any) => {
     const menuItem = menuItems.find((mi) => mi.id.toString() === item.id);
@@ -114,6 +126,13 @@ export const MenuPage: React.FC = () => {
     setSelectedCategoryId(categoryId);
   };
 
+  const handleLogout = () => {
+    authService.logout();
+    clearUser();
+    setIsMenuOpen(false);
+    navigate('/auth/login');
+  };
+
   // Convert MenuItem to Menu format for MenuCard
   const convertToMenuFormat = (item: MenuItem) => ({
     id: item.id.toString(),
@@ -125,32 +144,233 @@ export const MenuPage: React.FC = () => {
     available: item.status === 'AVAILABLE',
   });
 
+  const filteredItems = menuItems.filter((item) => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      item.name.toLowerCase().includes(query) ||
+      item.description?.toLowerCase().includes(query)
+    );
+  });
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Menu</h1>
-        <button
-          onClick={() => navigate('/customer/cart')}
-          className="relative px-6 py-2 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors duration-200 font-medium"
-        >
-          Cart ({getItemCount()})
-        </button>
+    <div className="min-h-screen bg-gray-50 pb-20">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-40">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="relative">
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              
+              {/* Dropdown Menu */}
+              {isMenuOpen && (
+                <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                  <div className="py-1">
+                    {isAuthenticated && user ? (
+                      <>
+                        <div className="px-4 py-2 border-b border-gray-200">
+                          <p className="text-sm font-medium text-gray-800">{user.fullName}</p>
+                          <p className="text-xs text-gray-500">{user.email}</p>
+                        </div>
+                        <button
+                          onClick={handleLogout}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                            Logout
+                          </div>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          navigate('/auth/login');
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                          </svg>
+                          Login
+                        </div>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-gray-800">Smart Restaurant</span>
+              {tableId && (
+                <span className="px-3 py-1 bg-[#eba157] text-white rounded-full text-sm font-medium">
+                  Table {tableId}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
-
-      <CategoryTabs
-        categories={categories}
-        activeCategoryId={selectedCategoryId}
-        onCategorySelect={handleCategorySelect}
-        loading={loading && categories.length === 0}
-      />
-
-      <div className="mt-8">
-        <MenuList
-          items={menuItems.map(convertToMenuFormat)}
-          onAddToCart={handleAddToCart}
-          loading={loading}
+      
+      {/* Overlay to close menu when clicking outside */}
+      {isMenuOpen && (
+        <div
+          className="fixed inset-0 z-30"
+          onClick={() => setIsMenuOpen(false)}
         />
+      )}
+
+      <div className="container mx-auto px-4 py-4">
+        {/* Search Bar */}
+        <div className="mb-4">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              placeholder="Search menu items..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#eba157] focus:border-transparent"
+            />
+          </div>
+        </div>
+
+        {/* Category Filters */}
+        <div className="mb-4 flex gap-2 overflow-x-auto scrollbar-hide pb-2">
+          <button
+            onClick={() => setSelectedCategoryId(undefined)}
+            className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
+              selectedCategoryId === undefined
+                ? 'bg-[#eba157] text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            [All]
+          </button>
+          {categories.map((category) => (
+            <button
+              key={category.id}
+              onClick={() => setSelectedCategoryId(category.id)}
+              className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
+                selectedCategoryId === category.id
+                  ? 'bg-[#eba157] text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              [{category.name}]
+            </button>
+          ))}
+        </div>
+
+        {/* Menu Items List */}
+        <div className="space-y-4">
+          {loading ? (
+            <div className="space-y-4">
+              {[...Array(5)].map((_, index) => (
+                <div key={index} className="bg-white rounded-lg p-4 animate-pulse">
+                  <div className="flex gap-4">
+                    <div className="w-20 h-20 bg-gray-200 rounded"></div>
+                    <div className="flex-1">
+                      <div className="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500 text-lg">No menu items found</p>
+            </div>
+          ) : (
+            filteredItems.map((item) => {
+              const menuItem = convertToMenuFormat(item);
+              return (
+                <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200">
+                  <div className="flex gap-4">
+                    {item.images?.[0]?.url ? (
+                      <img
+                        src={item.images[0].url}
+                        alt={item.name}
+                        className="w-20 h-20 object-cover rounded"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://via.placeholder.com/80x80?text=No+Image';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-20 h-20 bg-gray-200 rounded flex items-center justify-center">
+                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between mb-1">
+                        <h3 className="text-lg font-semibold text-gray-800">{item.name}</h3>
+                        <span className="text-lg font-bold text-[#eba157]">
+                          ${Number(item.basePrice).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="flex text-yellow-400">
+                          {[...Array(5)].map((_, i) => (
+                            <svg key={i} className="w-4 h-4 fill-current" viewBox="0 0 20 20">
+                              <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                            </svg>
+                          ))}
+                        </div>
+                        <span className="text-sm text-gray-500">(24 reviews)</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {item.status === 'AVAILABLE' ? (
+                            <>
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span className="text-sm text-gray-600">Available</span>
+                            </>
+                          ) : (
+                            <>
+                              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                              <span className="text-sm text-gray-600">Sold Out</span>
+                            </>
+                          )}
+                        </div>
+                        {item.status === 'AVAILABLE' && (
+                          <button
+                            onClick={() => handleAddToCart(menuItem)}
+                            className="px-4 py-1.5 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors text-sm font-medium"
+                          >
+                            [+ Add]
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
+
+      {/* Bottom Navigation */}
+      <BottomNavigation />
 
       {/* Modifier Selection Dialog */}
       {selectedItem && (
