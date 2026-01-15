@@ -22,6 +22,7 @@ export const CartPage: React.FC = () => {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [guestCount, setGuestCount] = useState(1);
   const [note, setNote] = useState('');
+  const [tableInputValue, setTableInputValue] = useState('');
 
   const handlePlaceOrder = async () => {
     if (!tableId) {
@@ -141,7 +142,10 @@ export const CartPage: React.FC = () => {
             </h2>
             {tableId && (
               <button
-                onClick={() => setTableId(0)}
+                onClick={() => {
+                  setTableId(0);
+                  setTableInputValue('');
+                }}
                 className="text-xs text-[#eba157] hover:text-[#d88f3f] font-medium"
               >
                 Change
@@ -155,11 +159,40 @@ export const CartPage: React.FC = () => {
               </label>
               <input
                 type="number"
-                value={tableId && tableId !== 0 ? tableId : ''}
+                value={tableInputValue}
                 onChange={(e) => {
                   const value = e.target.value;
-                  if (value && Number(value) > 0) {
-                    setTableId(Number(value));
+                  setTableInputValue(value);
+                }}
+                onBlur={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    setTableId(0);
+                    setTableInputValue('');
+                  } else {
+                    const numValue = Number(value);
+                    if (!isNaN(numValue) && numValue > 0) {
+                      setTableId(numValue);
+                    } else {
+                      setTableInputValue('');
+                    }
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const value = tableInputValue;
+                    if (value === '') {
+                      setTableId(0);
+                      setTableInputValue('');
+                    } else {
+                      const numValue = Number(value);
+                      if (!isNaN(numValue) && numValue > 0) {
+                        setTableId(numValue);
+                      } else {
+                        setTableInputValue('');
+                      }
+                    }
+                    e.currentTarget.blur();
                   }
                 }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#eba157] focus:border-transparent"
