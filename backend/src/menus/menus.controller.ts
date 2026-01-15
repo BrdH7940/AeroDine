@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe } from '@nestjs/common';
 import { MenusService } from './menus.service';
-import { CreateMenuDto, CreateMenuItemDto, CreateCategoryDto } from './dto/create-menu.dto';
+import { CreateMenuDto, CreateMenuItemDto, CreateCategoryDto, CreateModifierGroupDto, CreateModifierOptionDto, UpdateModifierGroupDto } from './dto/create-menu.dto';
 import { UpdateMenuDto } from './dto/update-menu.dto';
 
 @Controller('menus')
@@ -99,5 +99,47 @@ export class MenusController {
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.menusService.remove(id);
+  }
+
+  // Modifier Groups endpoints
+  @Get('modifier-groups')
+  getModifierGroups(@Query('restaurantId') restaurantId?: string) {
+    return this.menusService.getModifierGroups(restaurantId ? +restaurantId : undefined);
+  }
+
+  @Get('modifier-groups/:id')
+  getModifierGroupById(@Param('id', ParseIntPipe) id: number) {
+    return this.menusService.getModifierGroupById(id);
+  }
+
+  @Post('modifier-groups')
+  createModifierGroup(@Body() createModifierGroupDto: CreateModifierGroupDto) {
+    return this.menusService.createModifierGroup(createModifierGroupDto);
+  }
+
+  @Patch('modifier-groups/:id')
+  updateModifierGroup(@Param('id', ParseIntPipe) id: number, @Body() updateModifierGroupDto: UpdateModifierGroupDto) {
+    return this.menusService.updateModifierGroup(id, updateModifierGroupDto);
+  }
+
+  @Delete('modifier-groups/:id')
+  deleteModifierGroup(@Param('id', ParseIntPipe) id: number) {
+    return this.menusService.deleteModifierGroup(id);
+  }
+
+  // Modifier Options endpoints
+  @Post('modifier-groups/:groupId/options')
+  createModifierOption(@Param('groupId', ParseIntPipe) groupId: number, @Body() createOptionDto: CreateModifierOptionDto) {
+    return this.menusService.createModifierOption(groupId, createOptionDto);
+  }
+
+  @Patch('modifier-options/:id')
+  updateModifierOption(@Param('id', ParseIntPipe) id: number, @Body() updateOptionDto: Partial<CreateModifierOptionDto>) {
+    return this.menusService.updateModifierOption(id, updateOptionDto);
+  }
+
+  @Delete('modifier-options/:id')
+  deleteModifierOption(@Param('id', ParseIntPipe) id: number) {
+    return this.menusService.deleteModifierOption(id);
   }
 }

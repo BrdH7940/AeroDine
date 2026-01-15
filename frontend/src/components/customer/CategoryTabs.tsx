@@ -35,7 +35,7 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
         onClick={() => onCategorySelect(undefined)}
         className={`px-6 py-2 rounded-full font-medium whitespace-nowrap transition-colors duration-200 flex-shrink-0 ${
           activeCategoryId === undefined
-            ? 'bg-blue-600 text-white'
+            ? 'bg-[#eba157] text-white'
             : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
         }`}
       >
@@ -47,7 +47,7 @@ export const CategoryTabs: React.FC<CategoryTabsProps> = ({
           onClick={() => onCategorySelect(category.id)}
           className={`px-6 py-2 rounded-full font-medium whitespace-nowrap transition-colors duration-200 flex-shrink-0 ${
             activeCategoryId === category.id
-              ? 'bg-blue-600 text-white'
+              ? 'bg-[#eba157] text-white'
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
           }`}
         >

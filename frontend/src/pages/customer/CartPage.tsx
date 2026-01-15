@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../../store/cartStore';
 import { CartItem } from '../../components/customer';
 import { apiClient } from '../../services/api';
+import { formatVND } from '../../utils/currency';
 
 export const CartPage: React.FC = () => {
   const navigate = useNavigate();
@@ -76,7 +77,7 @@ export const CartPage: React.FC = () => {
           <h2 className="text-2xl font-bold text-gray-800 mb-4">Your cart is empty</h2>
           <button
             onClick={() => navigate('/customer/menu')}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium"
+            className="px-6 py-3 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors duration-200 font-medium"
           >
             Browse Menu
           </button>
@@ -91,7 +92,7 @@ export const CartPage: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-800">Shopping Cart</h1>
         <button
           onClick={() => navigate('/customer/menu')}
-          className="px-4 py-2 text-blue-600 hover:text-blue-700 font-medium"
+          className="px-4 py-2 text-[#eba157] hover:text-[#d88f3f] font-medium"
         >
           Continue Shopping
         </button>
@@ -123,7 +124,7 @@ export const CartPage: React.FC = () => {
                 type="number"
                 value={tableId || ''}
                 onChange={(e) => setTableId(Number(e.target.value))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#eba157] focus:border-transparent"
                 placeholder="Enter table number"
                 min="1"
                 required
@@ -138,7 +139,7 @@ export const CartPage: React.FC = () => {
                 type="number"
                 value={guestCount}
                 onChange={(e) => setGuestCount(Number(e.target.value))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#eba157] focus:border-transparent"
                 min="1"
               />
             </div>
@@ -150,7 +151,7 @@ export const CartPage: React.FC = () => {
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#eba157] focus:border-transparent"
                 rows={3}
                 placeholder="Any special requests or instructions..."
               />
@@ -159,18 +160,18 @@ export const CartPage: React.FC = () => {
             <div className="border-t border-gray-200 pt-4 mb-4">
               <div className="flex justify-between text-gray-600 mb-2">
                 <span>Items ({getItemCount()})</span>
-                <span>${getTotal().toFixed(2)}</span>
+                <span>{formatVND(getTotal())}</span>
               </div>
               <div className="flex justify-between text-xl font-bold text-gray-800">
                 <span>Total</span>
-                <span>${getTotal().toFixed(2)}</span>
+                <span>{formatVND(getTotal())}</span>
               </div>
             </div>
 
             <button
               onClick={handlePlaceOrder}
               disabled={isPlacingOrder || !tableId}
-              className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="w-full px-6 py-3 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors duration-200 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               {isPlacingOrder ? 'Placing Order...' : 'Place Order'}
             </button>

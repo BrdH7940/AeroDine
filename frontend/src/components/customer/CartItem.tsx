@@ -1,5 +1,6 @@
 import React from 'react';
 import type { CartItem as CartItemType } from '../../store/cartStore';
+import { formatVND } from '../../utils/currency';
 
 interface CartItemProps {
   item: CartItemType;
@@ -44,7 +45,7 @@ export const CartItem: React.FC<CartItemProps> = ({ item, onUpdateQuantity, onRe
                 {mod.modifierGroupName}: {mod.modifierName}
                 {mod.priceAdjustment !== 0 && (
                   <span className="ml-1">
-                    ({mod.priceAdjustment > 0 ? '+' : ''}${mod.priceAdjustment.toFixed(2)})
+                    ({mod.priceAdjustment > 0 ? '+' : ''}{formatVND(mod.priceAdjustment)})
                   </span>
                 )}
               </div>
@@ -71,7 +72,7 @@ export const CartItem: React.FC<CartItemProps> = ({ item, onUpdateQuantity, onRe
             </button>
           </div>
           <div className="flex items-center gap-4">
-            <span className="font-semibold text-lg">${totalPrice.toFixed(2)}</span>
+            <span className="font-semibold text-lg">{formatVND(totalPrice)}</span>
             <button
               onClick={() => onRemove(item.menuItemId, item.modifiers)}
               className="text-red-500 hover:text-red-700 font-medium"

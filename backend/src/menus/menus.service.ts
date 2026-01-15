@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
-import { CreateMenuDto, CreateMenuItemDto, CreateCategoryDto } from './dto/create-menu.dto';
+import { CreateMenuDto, CreateMenuItemDto, CreateCategoryDto, CreateModifierGroupDto, CreateModifierOptionDto, UpdateModifierGroupDto } from './dto/create-menu.dto';
 import { UpdateMenuDto } from './dto/update-menu.dto';
 
 type ItemStatus = 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN';
@@ -224,8 +224,22 @@ export class MenusService {
       throw new BadRequestException(`Category with ID ${createMenuItemDto.categoryId} not found`);
     }
 
-    // Create menu item with images
-    const { images, ...itemData } = createMenuItemDto;
+    // Create menu item with images and modifier groups
+    const { images, modifierGroupIds, ...itemData } = createMenuItemDto;
+
+    // Verify modifier groups exist and belong to the same restaurant
+    if (modifierGroupIds && modifierGroupIds.length > 0) {
+      const modifierGroups = await this.prisma.modifierGroup.findMany({
+        where: {
+          id: { in: modifierGroupIds },
+          restaurantId: createMenuItemDto.restaurantId,
+        },
+      });
+
+      if (modifierGroups.length !== modifierGroupIds.length) {
+        throw new BadRequestException('One or more modifier groups not found or do not belong to this restaurant');
+      }
+    }
 
     const menuItem = await this.prisma.menuItem.create({
       data: {
@@ -239,43 +253,10 @@ export class MenusService {
               })),
             }
           : undefined,
-      },
-      include: {
-        category: true,
-        images: true,
-        restaurant: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    });
-
-    return menuItem;
-  }
-
-  async updateMenuItem(id: number, updateMenuItemDto: UpdateMenuDto) {
-    await this.getMenuItemById(id);
-
-    const { images, ...updateData } = updateMenuItemDto;
-
-    // If images are provided, delete old ones and create new ones
-    if (images) {
-      await this.prisma.menuItemImage.deleteMany({
-        where: { menuItemId: id },
-      });
-    }
-
-    return this.prisma.menuItem.update({
-      where: { id },
-      data: {
-        ...updateData,
-        images: images
+        modifierGroups: modifierGroupIds && modifierGroupIds.length > 0
           ? {
-              create: images.map((img: any) => ({
-                url: img.url,
-                rank: img.rank ?? 0,
+              create: modifierGroupIds.map((groupId) => ({
+                groupId,
               })),
             }
           : undefined,
@@ -291,7 +272,105 @@ export class MenusService {
           include: {
             modifierGroup: {
               include: {
-                options: true,
+                options: {
+                  where: {
+                    isAvailable: true,
+                  },
+                  orderBy: {
+                    id: 'asc',
+                  },
+                },
+              },
+            },
+          },
+        },
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return menuItem;
+  }
+
+  async updateMenuItem(id: number, updateMenuItemDto: UpdateMenuDto) {
+    const existingItem = await this.getMenuItemById(id);
+
+    const { images, modifierGroupIds, ...updateData } = updateMenuItemDto;
+
+    // If images are provided, delete old ones and create new ones
+    if (images) {
+      await this.prisma.menuItemImage.deleteMany({
+        where: { menuItemId: id },
+      });
+    }
+
+    // If modifierGroupIds are provided, update the associations
+    if (modifierGroupIds !== undefined) {
+      const restaurantId = updateData.restaurantId || existingItem.restaurantId;
+
+      // Verify modifier groups exist and belong to the same restaurant
+      if (modifierGroupIds.length > 0) {
+        const modifierGroups = await this.prisma.modifierGroup.findMany({
+          where: {
+            id: { in: modifierGroupIds },
+            restaurantId,
+          },
+        });
+
+        if (modifierGroups.length !== modifierGroupIds.length) {
+          throw new BadRequestException('One or more modifier groups not found or do not belong to this restaurant');
+        }
+      }
+
+      // Delete existing associations
+      await this.prisma.itemModifierGroup.deleteMany({
+        where: { itemId: id },
+      });
+    }
+
+    return this.prisma.menuItem.update({
+      where: { id },
+      data: {
+        ...updateData,
+        images: images
+          ? {
+              create: images.map((img: any) => ({
+                url: img.url,
+                rank: img.rank ?? 0,
+              })),
+            }
+          : undefined,
+        modifierGroups: modifierGroupIds !== undefined
+          ? {
+              create: modifierGroupIds.map((groupId) => ({
+                groupId,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        category: true,
+        images: {
+          orderBy: {
+            rank: 'asc',
+          },
+        },
+        modifierGroups: {
+          include: {
+            modifierGroup: {
+              include: {
+                options: {
+                  where: {
+                    isAvailable: true,
+                  },
+                  orderBy: {
+                    id: 'asc',
+                  },
+                },
               },
             },
           },
@@ -332,5 +411,213 @@ export class MenusService {
 
   remove(id: number) {
     return this.deleteMenuItem(id);
+  }
+
+  // Modifier Groups Management
+  async getModifierGroups(restaurantId?: number) {
+    const where = restaurantId ? { restaurantId } : {};
+    return this.prisma.modifierGroup.findMany({
+      where,
+      include: {
+        options: {
+          orderBy: {
+            id: 'asc',
+          },
+        },
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        id: 'asc',
+      },
+    });
+  }
+
+  async getModifierGroupById(id: number) {
+    const group = await this.prisma.modifierGroup.findUnique({
+      where: { id },
+      include: {
+        options: {
+          orderBy: {
+            id: 'asc',
+          },
+        },
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!group) {
+      throw new NotFoundException(`Modifier group with ID ${id} not found`);
+    }
+
+    return group;
+  }
+
+  async createModifierGroup(createModifierGroupDto: CreateModifierGroupDto) {
+    // Verify restaurant exists and is active
+    const restaurant = await this.prisma.restaurant.findUnique({
+      where: { id: createModifierGroupDto.restaurantId },
+    });
+
+    if (!restaurant || !restaurant.isActive) {
+      throw new BadRequestException(`Restaurant with ID ${createModifierGroupDto.restaurantId} not found or inactive`);
+    }
+
+    const { options, ...groupData } = createModifierGroupDto;
+
+    return this.prisma.modifierGroup.create({
+      data: {
+        ...groupData,
+        minSelection: groupData.minSelection ?? 0,
+        maxSelection: groupData.maxSelection ?? 1,
+        options: options
+          ? {
+              create: options.map((opt) => ({
+                name: opt.name,
+                priceAdjustment: opt.priceAdjustment ?? 0,
+                isAvailable: opt.isAvailable ?? true,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        options: {
+          orderBy: {
+            id: 'asc',
+          },
+        },
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+  }
+
+  async updateModifierGroup(id: number, updateModifierGroupDto: UpdateModifierGroupDto) {
+    await this.getModifierGroupById(id);
+
+    const { options, ...updateData } = updateModifierGroupDto;
+
+    // If options are provided, delete old ones and create new ones
+    if (options) {
+      await this.prisma.modifierOption.deleteMany({
+        where: { groupId: id },
+      });
+    }
+
+    return this.prisma.modifierGroup.update({
+      where: { id },
+      data: {
+        ...updateData,
+        options: options
+          ? {
+              create: options.map((opt) => ({
+                name: opt.name,
+                priceAdjustment: opt.priceAdjustment ?? 0,
+                isAvailable: opt.isAvailable ?? true,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        options: {
+          orderBy: {
+            id: 'asc',
+          },
+        },
+        restaurant: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+  }
+
+  async deleteModifierGroup(id: number) {
+    await this.getModifierGroupById(id);
+    return this.prisma.modifierGroup.delete({
+      where: { id },
+    });
+  }
+
+  // Modifier Options Management
+  async createModifierOption(groupId: number, createOptionDto: CreateModifierOptionDto) {
+    await this.getModifierGroupById(groupId);
+
+    return this.prisma.modifierOption.create({
+      data: {
+        groupId,
+        name: createOptionDto.name,
+        priceAdjustment: createOptionDto.priceAdjustment ?? 0,
+        isAvailable: createOptionDto.isAvailable ?? true,
+      },
+      include: {
+        group: {
+          include: {
+            restaurant: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async updateModifierOption(id: number, updateOptionDto: Partial<CreateModifierOptionDto>) {
+    const option = await this.prisma.modifierOption.findUnique({
+      where: { id },
+    });
+
+    if (!option) {
+      throw new NotFoundException(`Modifier option with ID ${id} not found`);
+    }
+
+    return this.prisma.modifierOption.update({
+      where: { id },
+      data: updateOptionDto,
+      include: {
+        group: {
+          include: {
+            restaurant: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async deleteModifierOption(id: number) {
+    const option = await this.prisma.modifierOption.findUnique({
+      where: { id },
+    });
+
+    if (!option) {
+      throw new NotFoundException(`Modifier option with ID ${id} not found`);
+    }
+
+    return this.prisma.modifierOption.delete({
+      where: { id },
+    });
   }
 }

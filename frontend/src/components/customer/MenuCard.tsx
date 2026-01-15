@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Menu } from '@aerodine/shared-types';
+import { formatVND } from '../../utils/currency';
 
 interface MenuCardProps {
   item: Menu;
@@ -33,13 +34,13 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, onAddToCart }) => {
           <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description}</p>
         )}
         <div className="flex items-center justify-between">
-          <span className="text-xl font-bold text-blue-600">
-            ${typeof item.price === 'number' ? item.price.toFixed(2) : '0.00'}
+          <span className="text-xl font-bold text-[#eba157]">
+            {formatVND(typeof item.price === 'number' ? item.price : 0)}
           </span>
           {item.available !== false && onAddToCart && (
             <button
               onClick={handleAddToCart}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium"
+              className="px-4 py-2 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors duration-200 font-medium"
             >
               Add to Cart
             </button>

@@ -5,8 +5,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql" // Đã chốt PostgreSQL
-  url      = env("DATABASE_URL")
+  provider  = "postgresql" // Đã chốt PostgreSQL
+  url       = env("DATABASE_URL")
+  // Neon connection pooling is handled via connection string parameters
+  // Use ?pgbouncer=true for pooled connections (recommended for production)
+  // Use direct connection (no pgbouncer) for migrations
 }
 
 // --- ENUMS (PostgreSQL hỗ trợ Native Enum rất mạnh) ---

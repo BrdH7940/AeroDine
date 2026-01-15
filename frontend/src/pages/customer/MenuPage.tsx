@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../services/api';
-import { MenuList, CategoryTabs } from '../../components/customer';
+import { MenuList, CategoryTabs, ModifierSelectionDialog } from '../../components/customer';
 import type { Category } from '../../components/customer';
-import { useCartStore } from '../../store/cartStore';
+import { useCartStore, type CartItemModifier } from '../../store/cartStore';
+import type { ModifierGroup } from '@aerodine/shared-types';
 
 // Menu item type matching backend response
 interface MenuItem {
@@ -21,6 +22,9 @@ interface MenuItem {
     url: string;
   }>;
   categoryId?: number;
+  modifierGroups?: Array<{
+    modifierGroup: ModifierGroup;
+  }>;
 }
 
 export const MenuPage: React.FC = () => {
@@ -30,6 +34,8 @@ export const MenuPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState(true);
+  const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  const [isModifierDialogOpen, setIsModifierDialogOpen] = useState(false);
 
   useEffect(() => {
     loadCategories();
@@ -66,14 +72,42 @@ export const MenuPage: React.FC = () => {
   };
 
   const handleAddToCart = (item: any) => {
-    const menuItem = item as MenuItem;
+    const menuItem = menuItems.find((mi) => mi.id.toString() === item.id);
+    if (!menuItem) return;
+
+    // Check if item has modifier groups
+    const modifierGroups = menuItem.modifierGroups?.map((mg) => mg.modifierGroup).filter((mg) => mg && mg.options && mg.options.length > 0) || [];
+
+    if (modifierGroups.length > 0) {
+      // Open modifier selection dialog
+      setSelectedItem(menuItem);
+      setIsModifierDialogOpen(true);
+    } else {
+      // Add directly to cart
+      addItem({
+        menuItemId: menuItem.id,
+        name: menuItem.name,
+        basePrice: Number(menuItem.basePrice),
+        quantity: 1,
+        image: menuItem.images?.[0]?.url,
+      });
+    }
+  };
+
+  const handleModifierConfirm = (modifiers: CartItemModifier[], totalPrice: number) => {
+    if (!selectedItem) return;
+
     addItem({
-      menuItemId: menuItem.id,
-      name: menuItem.name,
-      basePrice: Number(menuItem.basePrice),
+      menuItemId: selectedItem.id,
+      name: selectedItem.name,
+      basePrice: Number(selectedItem.basePrice),
       quantity: 1,
-      image: menuItem.images?.[0]?.url,
+      image: selectedItem.images?.[0]?.url,
+      modifiers,
     });
+
+    setSelectedItem(null);
+    setIsModifierDialogOpen(false);
   };
 
   const handleCategorySelect = (categoryId?: number) => {
@@ -97,7 +131,7 @@ export const MenuPage: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-800">Menu</h1>
         <button
           onClick={() => navigate('/customer/cart')}
-          className="relative px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium"
+          className="relative px-6 py-2 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors duration-200 font-medium"
         >
           Cart ({getItemCount()})
         </button>
@@ -113,15 +147,27 @@ export const MenuPage: React.FC = () => {
       <div className="mt-8">
         <MenuList
           items={menuItems.map(convertToMenuFormat)}
-          onAddToCart={(item) => {
-            const menuItem = menuItems.find((mi) => mi.id.toString() === item.id);
-            if (menuItem) {
-              handleAddToCart(menuItem);
-            }
-          }}
+          onAddToCart={handleAddToCart}
           loading={loading}
         />
       </div>
+
+      {/* Modifier Selection Dialog */}
+      {selectedItem && (
+        <ModifierSelectionDialog
+          isOpen={isModifierDialogOpen}
+          onClose={() => {
+            setIsModifierDialogOpen(false);
+            setSelectedItem(null);
+          }}
+          itemName={selectedItem.name}
+          basePrice={Number(selectedItem.basePrice)}
+          modifierGroups={
+            selectedItem.modifierGroups?.map((mg) => mg.modifierGroup).filter((mg) => mg && mg.options && mg.options.length > 0) || []
+          }
+          onConfirm={handleModifierConfirm}
+        />
+      )}
     </div>
   );
 };

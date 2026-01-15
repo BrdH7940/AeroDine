@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../../services/api';
 import { useSocket } from '../../hooks/useSocket';
+import { formatVND } from '../../utils/currency';
 
 interface OrderItem {
   id: number;
@@ -87,7 +88,7 @@ export const OrderTrackingPage: React.FC = () => {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#eba157]"></div>
           <p className="mt-4 text-gray-600">Loading order details...</p>
         </div>
       </div>
@@ -101,7 +102,7 @@ export const OrderTrackingPage: React.FC = () => {
           <h2 className="text-2xl font-bold text-gray-800 mb-4">Order not found</h2>
           <button
             onClick={() => navigate('/customer/menu')}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium"
+            className="px-6 py-3 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors duration-200 font-medium"
           >
             Back to Menu
           </button>
@@ -116,7 +117,7 @@ export const OrderTrackingPage: React.FC = () => {
         <div className="mb-6">
           <button
             onClick={() => navigate('/customer/menu')}
-            className="text-blue-600 hover:text-blue-700 font-medium mb-4"
+            className="text-[#eba157] hover:text-[#d88f3f] font-medium mb-4"
           >
             ← Back to Menu
           </button>
@@ -149,7 +150,7 @@ export const OrderTrackingPage: React.FC = () => {
               <span className="font-medium">Guests:</span> {order.guestCount}
             </div>
             <div>
-              <span className="font-medium">Total Amount:</span> ${Number(order.totalAmount).toFixed(2)}
+              <span className="font-medium">Total Amount:</span> {formatVND(Number(order.totalAmount))}
             </div>
           </div>
 
@@ -181,7 +182,7 @@ export const OrderTrackingPage: React.FC = () => {
                   )}
                 </div>
                 <span className="font-semibold text-gray-800">
-                  ${(Number(item.pricePerUnit) * item.quantity).toFixed(2)}
+                  {formatVND(Number(item.pricePerUnit) * item.quantity)}
                 </span>
               </div>
             ))}
@@ -190,7 +191,7 @@ export const OrderTrackingPage: React.FC = () => {
           <div className="mt-6 pt-4 border-t border-gray-200">
             <div className="flex justify-between text-xl font-bold text-gray-800">
               <span>Total</span>
-              <span>${Number(order.totalAmount).toFixed(2)}</span>
+              <span>{formatVND(Number(order.totalAmount))}</span>
             </div>
           </div>
         </div>

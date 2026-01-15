@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { MenusModule } from './menus/menus.module';
 import { OrdersModule } from './orders/orders.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { SocketGateway } from './socket/socket.gateway';
 import configuration from './config/configuration';
 
@@ -20,6 +21,7 @@ import configuration from './config/configuration';
     UsersModule,
     MenusModule,
     OrdersModule,
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [AppService, SocketGateway],

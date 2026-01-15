@@ -8,4 +8,5 @@ export class UpdateMenuDto implements Partial<CreateMenuItemDto> {
   basePrice?: number;
   status?: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN';
   images?: CreateMenuItemImageDto[];
+  modifierGroupIds?: number[]; // IDs of modifier groups to assign to this item
 }
