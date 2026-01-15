@@ -54,15 +54,23 @@ export const OrderTrackingPage: React.FC = () => {
     // Subscribe to order updates via WebSocket
     if (socket) {
       const handleOrderUpdate = (updatedOrder: Order) => {
-        setOrders((prev) => {
-          const index = prev.findIndex((o) => o.id === updatedOrder.id);
-          if (index >= 0) {
-            const newOrders = [...prev];
-            newOrders[index] = updatedOrder;
-            return newOrders;
-          }
-          return prev;
-        });
+        // Only update if the order belongs to current table
+        if (tableId && updatedOrder.table?.id === tableId) {
+          setOrders((prev) => {
+            const index = prev.findIndex((o) => o.id === updatedOrder.id);
+            if (index >= 0) {
+              const newOrders = [...prev];
+              newOrders[index] = updatedOrder;
+              return newOrders;
+            } else if (!['CANCELLED'].includes(updatedOrder.status)) {
+              // Add new order if it belongs to current table
+              return [...prev, updatedOrder].sort((a, b) => 
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              );
+            }
+            return prev;
+          });
+        }
       };
 
       // Subscribe to all order updates for this table
@@ -72,13 +80,23 @@ export const OrderTrackingPage: React.FC = () => {
         socket.off('order:update', handleOrderUpdate);
       };
     }
-  }, [socket]);
+  }, [socket, tableId]);
 
   const loadOrders = async () => {
     setLoading(true);
     try {
-      // If we have a specific orderId, load that order and find related orders
-      if (orderId) {
+      // Always prioritize tableId from cart store
+      if (tableId) {
+        // Load all orders for the current table
+        const allOrdersResponse = await apiClient.get('/orders');
+        const tableOrders = allOrdersResponse.data.filter(
+          (o: Order) => o.table?.id === tableId && !['CANCELLED'].includes(o.status)
+        );
+        setOrders(tableOrders.sort((a: Order, b: Order) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        ));
+      } else if (orderId) {
+        // If no tableId, try to get from orderId
         const response = await apiClient.get(`/orders/${orderId}`);
         const order = response.data;
         
@@ -86,15 +104,6 @@ export const OrderTrackingPage: React.FC = () => {
         const allOrdersResponse = await apiClient.get('/orders');
         const tableOrders = allOrdersResponse.data.filter(
           (o: Order) => o.table?.id === order.table?.id && !['CANCELLED'].includes(o.status)
-        );
-        setOrders(tableOrders.sort((a: Order, b: Order) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        ));
-      } else if (tableId) {
-        // Load all orders for the table
-        const allOrdersResponse = await apiClient.get('/orders');
-        const tableOrders = allOrdersResponse.data.filter(
-          (o: Order) => o.table?.id === tableId && !['CANCELLED'].includes(o.status)
         );
         setOrders(tableOrders.sort((a: Order, b: Order) => 
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -167,7 +176,7 @@ export const OrderTrackingPage: React.FC = () => {
     );
   }
 
-  const currentTable = orders[0]?.table;
+  const currentTable = orders[0]?.table || (tableId ? { id: tableId, name: tableId.toString() } : null);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -178,7 +187,7 @@ export const OrderTrackingPage: React.FC = () => {
             <span className="font-semibold text-gray-800">Smart Restaurant</span>
             {currentTable && (
               <span className="px-3 py-1 bg-[#eba157] text-white rounded-full text-sm font-medium">
-                Table {currentTable.name || currentTable.id}
+                {currentTable.name}
               </span>
             )}
           </div>
@@ -197,9 +206,9 @@ export const OrderTrackingPage: React.FC = () => {
             });
 
             return (
-              <div key={order.id} className="bg-white rounded-lg p-4 border border-gray-200">
+              <div key={order.id} className="bg-orange-100 rounded-lg p-4 border border-gray-700">
                 <div className="mb-3">
-                  <h3 className="font-semibold text-gray-800">
+                  <h3 className="font-semibold text-black">
                     Order #{order.id} - {orderTime}
                   </h3>
                 </div>
@@ -213,25 +222,25 @@ export const OrderTrackingPage: React.FC = () => {
 
                     return (
                       <div key={status} className="flex items-center gap-2">
-                        <div className="flex items-center gap-2 min-w-[120px]">
+                        <div className="flex items-center gap-2 min-w-[140px]">
                           {isCompleted ? (
                             <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                             </svg>
                           ) : (
-                            <div className="w-5 h-5 rounded-full border-2 border-gray-300"></div>
+                            <div className="w-5 h-5 rounded-full border-2 border-gray-500"></div>
                           )}
-                          <span className={`text-sm ${isCompleted ? 'text-gray-800' : 'text-gray-400'}`}>
+                          <span className={`text-sm ${isCompleted ? 'text-black' : 'text-black'}`}>
                             {statusLabel}
                           </span>
                           {isCurrent && (
-                            <span className="text-xs text-[#eba157] font-medium">← Current</span>
+                            <span className="text-xs text-black font-medium">← Current</span>
                           )}
                         </div>
                         {isCurrent && status === 'IN_PROGRESS' && (
-                          <div className="flex items-center gap-1 text-sm text-blue-600">
+                          <div className="flex items-center gap-1 text-sm text-blue-400">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
                             <span>{getEstimatedTime(status)}</span>
                           </div>
@@ -242,20 +251,19 @@ export const OrderTrackingPage: React.FC = () => {
                 </div>
 
                 {/* Order Items */}
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Items:</p>
+                <div className="mt-4 pt-4 border-t border-gray-700">
+                  <p className="text-sm font-medium text-black mb-2">Items:</p>
                   <div className="space-y-1">
                     {order.items.map((item) => (
-                      <div key={item.id} className="flex items-center gap-2 text-sm text-gray-600">
+                      <div key={item.id} className="flex items-center gap-2 text-sm text-black">
                         <span>• {item.name} x{item.quantity}</span>
-                        {item.status === 'COMPLETED' && (
+                        {item.status === 'READY' || item.status === 'COMPLETED' ? (
                           <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                           </svg>
-                        )}
-                        {item.status === 'IN_PROGRESS' && (
-                          <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                        ) : (
+                          <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                           </svg>
                         )}
                       </div>
@@ -270,8 +278,8 @@ export const OrderTrackingPage: React.FC = () => {
         {/* Total */}
         <div className="mb-6 border-t border-gray-200 pt-4">
           <div className="flex justify-between items-center">
-            <span className="text-lg font-semibold text-gray-800">Total so far:</span>
-            <span className="text-lg font-bold text-gray-800">{formatVND(getTotalAmount())}</span>
+            <span className="text-lg font-semibold text-black">Total so far:</span>
+            <span className="text-lg font-bold text-black">{formatVND(getTotalAmount())}</span>
           </div>
         </div>
 
