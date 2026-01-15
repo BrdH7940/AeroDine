@@ -7,6 +7,7 @@ import { useCartStore, type CartItemModifier } from '../../store/cartStore';
 import { useUserStore } from '../../store/userStore';
 import { authService } from '../../services/auth.service';
 import type { ModifierGroup } from '@aerodine/shared-types';
+import { formatVND } from '../../utils/currency';
 
 // Menu item type matching backend response
 interface MenuItem {
@@ -324,7 +325,7 @@ export const MenuPage: React.FC = () => {
                       <div className="flex items-start justify-between mb-1">
                         <h3 className="text-lg font-semibold text-gray-800">{item.name}</h3>
                         <span className="text-lg font-bold text-[#eba157]">
-                          ${Number(item.basePrice).toFixed(2)}
+                          {formatVND(Number(item.basePrice))}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mb-2">

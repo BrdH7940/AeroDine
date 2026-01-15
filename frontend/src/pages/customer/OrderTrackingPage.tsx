@@ -55,21 +55,25 @@ export const OrderTrackingPage: React.FC = () => {
     if (socket) {
       const handleOrderUpdate = (updatedOrder: Order) => {
         // Only update if the order belongs to current table
-        if (tableId && updatedOrder.table?.id === tableId) {
-          setOrders((prev) => {
-            const index = prev.findIndex((o) => o.id === updatedOrder.id);
-            if (index >= 0) {
-              const newOrders = [...prev];
-              newOrders[index] = updatedOrder;
-              return newOrders;
-            } else if (!['CANCELLED'].includes(updatedOrder.status)) {
-              // Add new order if it belongs to current table
-              return [...prev, updatedOrder].sort((a, b) => 
-                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-              );
-            }
-            return prev;
-          });
+        if (tableId) {
+          const orderTableId = updatedOrder.table?.id ? Number(updatedOrder.table.id) : null;
+          const currentTableId = Number(tableId);
+          if (orderTableId === currentTableId) {
+            setOrders((prev) => {
+              const index = prev.findIndex((o) => o.id === updatedOrder.id);
+              if (index >= 0) {
+                const newOrders = [...prev];
+                newOrders[index] = updatedOrder;
+                return newOrders;
+              } else if (!['CANCELLED'].includes(updatedOrder.status)) {
+                // Add new order if it belongs to current table
+                return [...prev, updatedOrder].sort((a, b) => 
+                  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                );
+              }
+              return prev;
+            });
+          }
         }
       };
 
@@ -89,8 +93,13 @@ export const OrderTrackingPage: React.FC = () => {
       if (tableId) {
         // Load all orders for the current table
         const allOrdersResponse = await apiClient.get('/orders');
+        // Ensure both values are numbers for comparison
         const tableOrders = allOrdersResponse.data.filter(
-          (o: Order) => o.table?.id === tableId && !['CANCELLED'].includes(o.status)
+          (o: Order) => {
+            const orderTableId = o.table?.id ? Number(o.table.id) : null;
+            const currentTableId = Number(tableId);
+            return orderTableId === currentTableId && !['CANCELLED'].includes(o.status);
+          }
         );
         setOrders(tableOrders.sort((a: Order, b: Order) => 
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -103,7 +112,11 @@ export const OrderTrackingPage: React.FC = () => {
         // Load all orders for the same table
         const allOrdersResponse = await apiClient.get('/orders');
         const tableOrders = allOrdersResponse.data.filter(
-          (o: Order) => o.table?.id === order.table?.id && !['CANCELLED'].includes(o.status)
+          (o: Order) => {
+            const orderTableId = o.table?.id ? Number(o.table.id) : null;
+            const targetTableId = order.table?.id ? Number(order.table.id) : null;
+            return orderTableId === targetTableId && !['CANCELLED'].includes(o.status);
+          }
         );
         setOrders(tableOrders.sort((a: Order, b: Order) => 
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -116,7 +129,11 @@ export const OrderTrackingPage: React.FC = () => {
           const order = response.data;
           const allOrdersResponse = await apiClient.get('/orders');
           const tableOrders = allOrdersResponse.data.filter(
-            (o: Order) => o.table?.id === order.table?.id && !['CANCELLED'].includes(o.status)
+            (o: Order) => {
+              const orderTableId = o.table?.id ? Number(o.table.id) : null;
+              const targetTableId = order.table?.id ? Number(order.table.id) : null;
+              return orderTableId === targetTableId && !['CANCELLED'].includes(o.status);
+            }
           );
           setOrders(tableOrders.sort((a: Order, b: Order) => 
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()

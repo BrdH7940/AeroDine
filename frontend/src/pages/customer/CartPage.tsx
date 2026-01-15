@@ -37,8 +37,16 @@ export const CartPage: React.FC = () => {
 
     setIsPlacingOrder(true);
     try {
+      // Ensure tableId is a number
+      const numericTableId = Number(tableId);
+      if (isNaN(numericTableId) || numericTableId <= 0) {
+        alert('Invalid table number');
+        setIsPlacingOrder(false);
+        return;
+      }
+
       const orderData = {
-        tableId,
+        tableId: numericTableId,
         restaurantId: restaurantId || 4, // Default to 4 if not set
         guestCount,
         note: note || undefined,
@@ -56,8 +64,11 @@ export const CartPage: React.FC = () => {
         })),
       };
 
+      console.log('Creating order with tableId:', numericTableId, 'orderData:', orderData);
+
       // Create order
       const response = await apiClient.post('/orders', orderData);
+      console.log('Order created:', response.data);
       const orderId = response.data.id;
 
       // Store orderId for later use

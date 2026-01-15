@@ -7,7 +7,7 @@ export const formatCurrency = (amount: number | string): string => {
   const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
   
   if (isNaN(numAmount)) {
-    return '0 ₫';
+    return '0 đ';
   }
 
   // Format with thousand separators and no decimal places (VND doesn't use cents)
@@ -20,18 +20,18 @@ export const formatCurrency = (amount: number | string): string => {
 };
 
 /**
- * Format a number as VND with custom formatting (without currency symbol, just number + ₫)
+ * Format a number as VND with custom formatting (without currency symbol, just number + đ)
  * @param amount - The amount to format
- * @returns Formatted string like "100.000 ₫"
+ * @returns Formatted string like "100.000 đ"
  */
 export const formatVND = (amount: number | string): string => {
   const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
   
   if (isNaN(numAmount)) {
-    return '0 ₫';
+    return '0 đ';
   }
 
   // Format with thousand separators (using dots as per Vietnamese convention)
   const formatted = Math.round(numAmount).toLocaleString('vi-VN');
-  return `${formatted} ₫`;
+  return `${formatted} đ`;
 };
