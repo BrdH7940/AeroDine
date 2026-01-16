@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+:root {
+  --primary: #eba157;
+  --primary-dark: #d88f3f;
+}
+
+@theme {
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+}
+
 /* Custom styles for AeroDine */
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
@@ -21,4 +31,22 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-slate-400;
+}
+
+/* Custom scrollbar hide utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Line clamp utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

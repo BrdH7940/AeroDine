@@ -10,7 +10,9 @@ import {
     ParseIntPipe,
     HttpCode,
     HttpStatus,
+    Req,
 } from '@nestjs/common'
+import type { RawBodyRequest } from '@nestjs/common'
 import { OrdersService } from './orders.service'
 import { CreateOrderDto, AddItemsToOrderDto } from './dto/create-order.dto'
 import {
@@ -42,6 +44,37 @@ import {
 @Controller('orders')
 export class OrdersController {
     constructor(private readonly ordersService: OrdersService) {}
+
+    // ========================================================================
+    // STRIPE PAYMENT ENDPOINTS
+    // ========================================================================
+
+    /**
+     * Handle Stripe webhook events
+     * POST /orders/webhook
+     */
+    @Post('webhook')
+    @ApiOperation({ summary: 'Handle Stripe webhook events' })
+    async handleWebhook(@Req() req: RawBodyRequest<Request>) {
+        const signature = req.headers['stripe-signature'] as string
+        if (!signature) {
+            throw new Error('Missing stripe-signature header')
+        }
+        return this.ordersService.handleStripeWebhook(signature, req.rawBody as Buffer)
+    }
+
+    /**
+     * Create Stripe checkout session for an order
+     * POST /orders/:id/checkout
+     */
+    @Post(':id/checkout')
+    @ApiOperation({ summary: 'Create Stripe checkout session for order payment' })
+    async createCheckoutSession(
+        @Param('id') id: string,
+        @Body() body: { successUrl: string; cancelUrl: string },
+    ) {
+        return this.ordersService.createCheckoutSession(+id, body.successUrl, body.cancelUrl)
+    }
 
     // ========================================================================
     // ORDER CRUD

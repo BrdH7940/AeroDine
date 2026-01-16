@@ -6,5 +6,6 @@ import { CloudinaryService } from '../common/cloudinary/cloudinary.service'
 @Module({
     controllers: [MenusController],
     providers: [MenusService, CloudinaryService],
+    exports: [MenusService],
 })
 export class MenusModule {}

@@ -5,6 +5,9 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Neon connection pooling is handled via connection string parameters
+  // Use ?pgbouncer=true for pooled connections (recommended for production)
+  // Use direct connection (no pgbouncer) for migrations
 }
 
 model Restaurant {
@@ -260,4 +263,3 @@ enum PaymentStatus {
   SUCCESS
   FAILED
 }
-

@@ -11,6 +11,7 @@ import { PaymentsModule } from './payments/payments.module'
 import { ReportsModule } from './reports/reports.module'
 import { SocketModule } from './socket/socket.module'
 import { DatabaseModule } from './database/database.module'
+import { CloudinaryModule } from './cloudinary/cloudinary.module'
 import configuration from './config/configuration'
 
 @Module({
@@ -29,6 +30,7 @@ import configuration from './config/configuration'
         TablesModule,
         PaymentsModule,
         ReportsModule,
+        CloudinaryModule,
     ],
     controllers: [AppController],
     providers: [AppService],

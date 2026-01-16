@@ -40,5 +40,6 @@ import { RolesGuard } from './guards/roles.guard'
         GoogleStrategy,
         RolesGuard,
     ],
+    exports: [AuthService],
 })
 export class AuthModule {}
