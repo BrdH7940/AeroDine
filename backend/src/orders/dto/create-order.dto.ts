@@ -1,20 +1,74 @@
+import {
+    IsNumber,
+    IsString,
+    IsNotEmpty,
+    IsOptional,
+    IsArray,
+    ValidateNested,
+} from 'class-validator'
+import { Type } from 'class-transformer'
+
+class CreateOrderItemModifierDto {
+    @IsOptional()
+    @IsNumber()
+    modifierOptionId?: number
+
+    @IsString()
+    @IsNotEmpty()
+    modifierName: string
+
+    @IsNumber()
+    priceAdjustment: number
+}
+
 export class CreateOrderItemDto {
-  menuItemId: number;
-  name: string;
-  quantity: number;
-  pricePerUnit: number;
-  note?: string;
-  modifiers?: {
-    modifierOptionId?: number;
-    modifierName: string;
-    priceAdjustment: number;
-  }[];
+    @IsNumber()
+    @IsNotEmpty()
+    menuItemId: number
+
+    @IsString()
+    @IsNotEmpty()
+    name: string
+
+    @IsNumber()
+    @IsNotEmpty()
+    quantity: number
+
+    @IsNumber()
+    @IsNotEmpty()
+    pricePerUnit: number
+
+    @IsOptional()
+    @IsString()
+    note?: string
+
+    @IsOptional()
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => CreateOrderItemModifierDto)
+    modifiers?: CreateOrderItemModifierDto[]
 }
 
 export class CreateOrderDto {
-  tableId: number;
-  restaurantId: number;
-  guestCount?: number;
-  note?: string;
-  items: CreateOrderItemDto[];
+    @IsNumber()
+    @IsNotEmpty()
+    tableId: number
+
+    @IsNumber()
+    @IsNotEmpty()
+    restaurantId: number
+
+    @IsOptional()
+    @IsNumber()
+    guestCount?: number
+
+    @IsOptional()
+    @IsString()
+    note?: string
+
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => CreateOrderItemDto)
+    @IsNotEmpty()
+    items: CreateOrderItemDto[]
 }
