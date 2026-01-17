@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
     DollarSign,
     ShoppingCart,
@@ -139,6 +140,7 @@ interface RecentOrder {
 }
 
 export default function DashboardPage() {
+    const navigate = useNavigate()
     const [selectedDate, setSelectedDate] = useState(
         new Date().toISOString().split('T')[0]
     )
@@ -209,7 +211,7 @@ export default function DashboardPage() {
                 )
                 .slice(0, 5)
             setRecentOrders(sortedOrders)
-        } catch {
+        } catch (err: any) {
             if (err.response?.status === 401) {
                 setError('Authentication required. Please login.')
             } else if (err.response?.status === 404) {
@@ -275,7 +277,17 @@ export default function DashboardPage() {
             {/* Error Message */}
             {error && (
                 <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
-                    {error}
+                    <div className="flex items-center justify-between">
+                        <span>{error}</span>
+                        {error.includes('Authentication required') && (
+                            <button
+                                onClick={() => navigate('/auth/login?returnUrl=/admin')}
+                                className="ml-4 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-medium"
+                            >
+                                Login
+                            </button>
+                        )}
+                    </div>
                 </div>
             )}
 

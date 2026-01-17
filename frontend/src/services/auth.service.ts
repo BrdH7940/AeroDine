@@ -24,23 +24,41 @@ export interface AuthResponse {
 
 export const authService = {
   async login(credentials: LoginRequest): Promise<AuthResponse> {
-    const response = await apiClient.post<AuthResponse>('/auth/login', credentials);
+    const response = await apiClient.post<any>('/auth/login', credentials);
+    // Backend returns access_token (snake_case), normalize to accessToken
+    const token = response.data.access_token || response.data.accessToken;
+    const user = response.data.user;
+    
     // Lưu token vào localStorage
-    if (response.data.accessToken) {
-      localStorage.setItem('token', response.data.accessToken);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+    if (token && user) {
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
     }
-    return response.data;
+    
+    // Return normalized response
+    return {
+      accessToken: token,
+      user,
+    };
   },
 
   async register(userData: RegisterRequest): Promise<AuthResponse> {
-    const response = await apiClient.post<AuthResponse>('/auth/register', userData);
+    const response = await apiClient.post<any>('/auth/register', userData);
+    // Backend returns access_token (snake_case), normalize to accessToken
+    const token = response.data.access_token || response.data.accessToken;
+    const user = response.data.user;
+    
     // Lưu token vào localStorage
-    if (response.data.accessToken) {
-      localStorage.setItem('token', response.data.accessToken);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+    if (token && user) {
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
     }
-    return response.data;
+    
+    // Return normalized response
+    return {
+      accessToken: token,
+      user,
+    };
   },
 
   logout(): void {

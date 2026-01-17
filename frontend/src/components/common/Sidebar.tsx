@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   UtensilsCrossed,
@@ -14,6 +14,8 @@ import {
   ChefHat,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useUserStore } from '../../store/userStore';
+import { authService } from '../../services/auth.service';
 
 interface SidebarProps {
   isMobileOpen: boolean;
@@ -31,10 +33,27 @@ const navigationItems = [
 
 export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, isAuthenticated, clearUser, initializeAuth } = useUserStore();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [userRole, setUserRole] = useState<'admin' | 'staff'>('admin');
+
+  useEffect(() => {
+    // Initialize auth state on mount
+    initializeAuth();
+  }, [initializeAuth]);
 
   const isActive = (path: string) => location.pathname === path;
+
+  const handleLogout = () => {
+    authService.logout();
+    clearUser();
+    setIsProfileOpen(false);
+    navigate('/auth/login');
+  };
+
+  const handleLogin = () => {
+    navigate(`/auth/login?returnUrl=${location.pathname}`);
+  };
 
   return (
     <>
@@ -96,56 +115,56 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
 
         {/* User Profile Section */}
         <div className="p-4 border-t border-slate-800">
-          <div className="relative">
+          {!isAuthenticated ? (
             <button
-              onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition-colors"
+              onClick={handleLogin}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-amber-500 hover:bg-amber-600 transition-colors text-white font-medium"
             >
-              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                <User size={20} className="text-amber-500" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-medium text-white">Admin User</p>
-                <p className="text-xs text-slate-400 capitalize">{userRole}</p>
-              </div>
-              <ChevronDown
-                size={16}
-                className={`text-slate-400 transition-transform ${
-                  isProfileOpen ? 'rotate-180' : ''
-                }`}
-              />
+              <User size={20} />
+              <span>Login</span>
             </button>
+          ) : (
+            <div className="relative">
+              <button
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                  <User size={20} className="text-amber-500" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-medium text-white">{user?.fullName || 'User'}</p>
+                  <p className="text-xs text-slate-400 capitalize">{user?.role || 'user'}</p>
+                </div>
+                <ChevronDown
+                  size={16}
+                  className={`text-slate-400 transition-transform ${
+                    isProfileOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
 
-            {/* Profile Dropdown */}
-            <AnimatePresence>
-              {isProfileOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="absolute bottom-full left-0 right-0 mb-2 bg-slate-800 rounded-lg shadow-lg overflow-hidden"
-                >
-                  <button
-                    onClick={() => {
-                      setUserRole(userRole === 'admin' ? 'staff' : 'admin');
-                      setIsProfileOpen(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"
+              {/* Profile Dropdown */}
+              <AnimatePresence>
+                {isProfileOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute bottom-full left-0 right-0 mb-2 bg-slate-800 rounded-lg shadow-lg overflow-hidden"
                   >
-                    <Settings size={16} />
-                    Switch to {userRole === 'admin' ? 'Staff' : 'Admin'}
-                  </button>
-                  <button
-                    onClick={() => setIsProfileOpen(false)}
-                    className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"
-                  >
-                    <LogOut size={16} />
-                    Logout
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"
+                    >
+                      <LogOut size={16} />
+                      Logout
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       </aside>
     </>

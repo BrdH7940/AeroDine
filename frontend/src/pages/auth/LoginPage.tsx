@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { authService } from '../../services/auth.service';
 import { useUserStore } from '../../store/userStore';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const setUser = useUserStore((state) => state.setUser);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,7 +20,20 @@ export const LoginPage: React.FC = () => {
     try {
       const response = await authService.login({ email, password });
       setUser(response.user);
-      navigate('/customer/menu');
+      
+      // Check for returnUrl from query params
+      const returnUrl = searchParams.get('returnUrl');
+      
+      // Redirect based on user role or returnUrl
+      if (returnUrl) {
+        navigate(returnUrl);
+      } else if (response.user.role === 'admin') {
+        navigate('/admin');
+      } else if (response.user.role === 'staff' || response.user.role === 'waiter' || response.user.role === 'kitchen') {
+        navigate('/staff');
+      } else {
+        navigate('/customer/menu');
+      }
     } catch (err: any) {
       setError(
         err.response?.data?.message || 'Đăng nhập thất bại. Vui lòng thử lại.',
