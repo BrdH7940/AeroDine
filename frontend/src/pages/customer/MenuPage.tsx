@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiClient } from '../../services/api';
+import { apiClient, tablesApi } from '../../services/api';
 import { MenuList, CategoryTabs, ModifierSelectionDialog, BottomNavigation } from '../../components/customer';
 import type { Category } from '../../components/customer';
 import { useCartStore, type CartItemModifier } from '../../store/cartStore';
@@ -32,7 +32,7 @@ interface MenuItem {
 
 export const MenuPage: React.FC = () => {
   const navigate = useNavigate();
-  const { addItem, getItemCount, tableId } = useCartStore();
+  const { addItem, getItemCount, tableId, restaurantId: cartRestaurantId, setRestaurantId } = useCartStore();
   const { user, isAuthenticated, clearUser } = useUserStore();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -42,42 +42,94 @@ export const MenuPage: React.FC = () => {
   const [isModifierDialogOpen, setIsModifierDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [currentRestaurantId, setCurrentRestaurantId] = useState<number | null>(null);
+
+  // Initialize restaurantId from cartStore or fetch from tables
+  useEffect(() => {
+    const initializeRestaurantId = async () => {
+      if (cartRestaurantId) {
+        setCurrentRestaurantId(cartRestaurantId);
+        return;
+      }
+
+      try {
+        // Try to get restaurantId from tables (similar to admin page)
+        const tables = await tablesApi.getTables();
+        if (tables && Array.isArray(tables) && tables.length > 0 && tables[0].restaurantId) {
+          const firstRestaurantId = tables[0].restaurantId;
+          setCurrentRestaurantId(firstRestaurantId);
+          setRestaurantId(firstRestaurantId);
+        } else {
+          // Fallback: try common restaurantIds (1, 2, 4)
+          console.warn('No tables found, trying fallback restaurantIds');
+          setCurrentRestaurantId(1);
+        }
+      } catch (error) {
+        console.error('Failed to fetch restaurantId from tables:', error);
+        // Fallback to restaurantId 1 (first restaurant from seed)
+        setCurrentRestaurantId(1);
+      }
+    };
+
+    initializeRestaurantId();
+  }, [cartRestaurantId, setRestaurantId]);
 
   useEffect(() => {
-    loadCategories();
-    loadMenuItems();
-  }, []);
+    if (currentRestaurantId) {
+      loadCategories();
+      loadMenuItems();
+    }
+  }, [currentRestaurantId]);
 
   useEffect(() => {
+    if (!currentRestaurantId) return;
     const timeoutId = setTimeout(() => {
       loadMenuItems();
     }, 300);
     return () => clearTimeout(timeoutId);
-  }, [selectedCategoryId, searchQuery]);
+  }, [selectedCategoryId, searchQuery, currentRestaurantId]);
 
   const loadCategories = async () => {
+    if (!currentRestaurantId) return;
     try {
-      const response = await apiClient.get('/menus/categories');
+      console.log('Loading categories with restaurantId:', currentRestaurantId);
+      const response = await apiClient.get('/categories', {
+        params: { restaurantId: currentRestaurantId }
+      });
+      console.log('Categories response:', response.data);
       setCategories(response.data.map((cat: any) => ({ id: cat.id, name: cat.name, image: cat.image })));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load categories:', error);
+      console.error('Error details:', error.response?.data || error.message);
     }
   };
 
   const loadMenuItems = async () => {
+    if (!currentRestaurantId) return;
     setLoading(true);
     try {
-      const params: any = {};
-      if (selectedCategoryId) {
-        params.categoryId = selectedCategoryId;
-      }
+      const params: any = {
+        restaurantId: currentRestaurantId
+      };
       if (searchQuery) {
-        params.search = searchQuery;
+        params.q = searchQuery;
       }
-      const response = await apiClient.get('/menus/items', { params });
-      setMenuItems(response.data);
-    } catch (error) {
+      console.log('Loading menu items with params:', params);
+      const response = await apiClient.get('/menu-items', { params });
+      console.log('Menu items response:', response.data);
+      console.log('Number of items received:', Array.isArray(response.data) ? response.data.length : 'Not an array');
+      
+      const items = Array.isArray(response.data) ? response.data : [];
+      setMenuItems(items);
+    } catch (error: any) {
       console.error('Failed to load menu items:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: error.config
+      });
+      setMenuItems([]);
     } finally {
       setLoading(false);
     }
@@ -146,12 +198,19 @@ export const MenuPage: React.FC = () => {
   });
 
   const filteredItems = menuItems.filter((item) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      item.name.toLowerCase().includes(query) ||
-      item.description?.toLowerCase().includes(query)
-    );
+    // Filter by category if selected
+    if (selectedCategoryId && item.categoryId !== selectedCategoryId) {
+      return false;
+    }
+    // Filter by search query if provided
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      return (
+        item.name.toLowerCase().includes(query) ||
+        item.description?.toLowerCase().includes(query)
+      );
+    }
+    return true;
   });
 
   return (
