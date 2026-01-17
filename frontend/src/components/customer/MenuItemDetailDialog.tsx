@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { ModifierGroup } from '@aerodine/shared-types';
 import type { CartItemModifier } from '../../store/cartStore';
 import { formatVND } from '../../utils/currency';
@@ -40,7 +40,24 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
   const [loadingReviews, setLoadingReviews] = useState(false);
 
-  const modifierGroups = menuItem.modifierGroups?.map((mg) => mg.modifierGroup).filter((mg) => mg && mg.options && mg.options.length > 0) || [];
+  // Calculate modifierGroups using useMemo to ensure it updates when menuItem changes
+  const modifierGroups = useMemo(() => {
+    if (!menuItem.modifierGroups || menuItem.modifierGroups.length === 0) {
+      return [];
+    }
+    
+    const groups = menuItem.modifierGroups
+      .map((mg) => mg.modifierGroup)
+      .filter((mg) => {
+        // Filter out groups without id or without options
+        if (!mg || !mg.id) return false;
+        // Include groups even if they don't have options yet (options might be loaded separately)
+        // But we'll check for options in the render
+        return true;
+      });
+    
+    return groups;
+  }, [menuItem.modifierGroups]);
 
   useEffect(() => {
     if (isOpen) {
@@ -71,7 +88,7 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
       setNote('');
       setReviewData(null);
     }
-  }, [isOpen, menuItem.id]);
+  }, [isOpen, menuItem.id, modifierGroups]);
 
   const loadReviews = async () => {
     setLoadingReviews(true);
@@ -313,6 +330,7 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
                     const minSelection = group.minSelection || 0;
                     const maxSelection = group.maxSelection || 1;
                     const isRequired = minSelection > 0;
+                    const hasOptions = group.options && group.options.length > 0;
 
                     return (
                       <div key={groupId} className="border-b border-gray-200 pb-4 last:border-0">
@@ -327,9 +345,9 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
                               : `Chọn ${minSelection}${maxSelection > minSelection ? `-${maxSelection}` : ''}`}
                           </span>
                         </div>
-                        {group.options && group.options.length > 0 ? (
+                        {hasOptions ? (
                           <div className="space-y-2">
-                            {group.options.map((option) => {
+                            {group.options!.map((option) => {
                               if (!option.id) return null;
                               const optionId = option.id;
                               const isSelected = selected.includes(optionId);

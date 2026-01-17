@@ -184,7 +184,11 @@ export class MenusService {
                     category: true,
                     modifierGroups: {
                         include: {
-                            modifierGroup: true,
+                            modifierGroup: {
+                                include: {
+                                    options: true,
+                                },
+                            },
                         },
                     },
                 },
@@ -217,7 +221,13 @@ export class MenusService {
                 images: true,
                 category: true,
                 modifierGroups: {
-                    include: { modifierGroup: true },
+                    include: {
+                        modifierGroup: {
+                            include: {
+                                options: true,
+                            },
+                        },
+                    },
                 },
             },
             orderBy: {
@@ -306,7 +316,13 @@ export class MenusService {
                     images: true,
                     category: true,
                     modifierGroups: {
-                        include: { modifierGroup: true },
+                        include: {
+                            modifierGroup: {
+                                include: {
+                                    options: true,
+                                },
+                            },
+                        },
                     },
                 },
             })
