@@ -13,10 +13,14 @@ export interface JwtPayload {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
     constructor(configService: ConfigService) {
+        const secretOrKey = configService.get<string>('jwt.secret')
+        if (!secretOrKey) {
+            throw new Error('JWT secret is not configured')
+        }
         super({
             jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
-            secretOrKey: configService.get<string>('jwt.secret'),
+            secretOrKey,
         })
     }
 
