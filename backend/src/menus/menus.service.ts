@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import {
+    Injectable,
+    NotFoundException,
+    InternalServerErrorException,
+    Logger,
+} from '@nestjs/common'
 import { PrismaService } from '../database/prisma.service'
 import { CloudinaryService } from '../common/cloudinary/cloudinary.service'
 import { CreateCategoryDto } from './dto/create-category.dto'
@@ -10,6 +15,8 @@ import { CreateModifierOptionDto } from './dto/create-modifier-option.dto'
 
 @Injectable()
 export class MenusService {
+    private readonly logger = new Logger(MenusService.name)
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly cloudinary: CloudinaryService
@@ -133,45 +140,66 @@ export class MenusService {
 
         let uploadedImageUrl: string | undefined
         if (image) {
-            const result = await this.cloudinary.uploadImage(image)
-            uploadedImageUrl = result.secure_url
+            try {
+                this.logger.log('Uploading image to Cloudinary...')
+                const result = await this.cloudinary.uploadImage(image)
+                uploadedImageUrl = result.secure_url
+                this.logger.log('Image uploaded successfully')
+            } catch (error) {
+                this.logger.error('Failed to upload image to Cloudinary', error)
+                throw new InternalServerErrorException(
+                    `Failed to upload image: ${
+                        error instanceof Error ? error.message : 'Unknown error'
+                    }`
+                )
+            }
         }
 
-        const created = await this.prisma.menuItem.create({
-            data: {
-                ...rest,
-                images: uploadedImageUrl
-                    ? {
-                          create: [
-                              {
-                                  url: uploadedImageUrl,
-                                  rank: 0,
+        try {
+            const created = await this.prisma.menuItem.create({
+                data: {
+                    ...rest,
+                    images: uploadedImageUrl
+                        ? {
+                              create: [
+                                  {
+                                      url: uploadedImageUrl,
+                                      rank: 0,
+                                  },
+                              ],
+                          }
+                        : undefined,
+                    modifierGroups: modifierGroupIds?.length
+                        ? {
+                              createMany: {
+                                  data: modifierGroupIds.map((groupId) => ({
+                                      groupId,
+                                  })),
                               },
-                          ],
-                      }
-                    : undefined,
-                modifierGroups: modifierGroupIds?.length
-                    ? {
-                          createMany: {
-                              data: modifierGroupIds.map((groupId) => ({
-                                  groupId,
-                              })),
-                          },
-                      }
-                    : undefined,
-            },
-            include: {
-                images: true,
-                category: true,
-                modifierGroups: {
-                    include: {
-                        modifierGroup: true,
+                          }
+                        : undefined,
+                },
+                include: {
+                    images: true,
+                    category: true,
+                    modifierGroups: {
+                        include: {
+                            modifierGroup: true,
+                        },
                     },
                 },
-            },
-        })
+            })
 
-        return created
+            this.logger.log(`Menu item created successfully: ${created.id}`)
+            return created
+        } catch (error) {
+            this.logger.error('Failed to create menu item', error)
+            throw new InternalServerErrorException(
+                `Failed to create menu item: ${
+                    error instanceof Error ? error.message : 'Unknown error'
+                }`
+            )
+        }
     }
 
     findAllMenuItems(restaurantId: number, query?: string) {
@@ -198,32 +226,101 @@ export class MenusService {
         })
     }
 
-    updateMenuItem(id: number, dto: UpdateMenuItemDto) {
-        const { modifierGroupIds, ...rest } = dto
+    async updateMenuItem(id: number, dto: UpdateMenuItemDto) {
+        const { modifierGroupIds, categoryId, image, restaurantId, ...rest } =
+            dto
 
-        return this.prisma.menuItem.update({
+        // Validate category exists if categoryId is provided
+        if (categoryId !== undefined) {
+            const category = await this.prisma.category.findUnique({
+                where: { id: categoryId },
+            })
+            if (!category) {
+                throw new NotFoundException(
+                    `Category with ID ${categoryId} not found`
+                )
+            }
+        }
+
+        // Handle image upload if provided
+        let uploadedImageUrl: string | undefined
+        if (image) {
+            try {
+                this.logger.log('Uploading image to Cloudinary for update...')
+                const result = await this.cloudinary.uploadImage(image)
+                uploadedImageUrl = result.secure_url
+                this.logger.log('Image uploaded successfully')
+            } catch (error) {
+                this.logger.error('Failed to upload image to Cloudinary', error)
+                throw new InternalServerErrorException(
+                    `Failed to upload image: ${
+                        error instanceof Error ? error.message : 'Unknown error'
+                    }`
+                )
+            }
+        }
+
+        // Get current menu item to delete old images if needed
+        const currentItem = await this.prisma.menuItem.findUnique({
             where: { id },
-            data: {
-                ...rest,
-                // For simplicity we only add new modifier groups; managing removal can be added later
-                modifierGroups: modifierGroupIds?.length
-                    ? {
-                          createMany: {
-                              data: modifierGroupIds.map((groupId) => ({
-                                  groupId,
-                              })),
-                          },
-                      }
-                    : undefined,
-            },
-            include: {
-                images: true,
-                category: true,
-                modifierGroups: {
-                    include: { modifierGroup: true },
-                },
-            },
+            include: { images: true },
         })
+
+        if (!currentItem) {
+            throw new NotFoundException(`Menu item with ID ${id} not found`)
+        }
+
+        try {
+            const updated = await this.prisma.menuItem.update({
+                where: { id },
+                data: {
+                    ...rest,
+                    // Update category using relation
+                    category: categoryId !== undefined
+                        ? { connect: { id: categoryId } }
+                        : undefined,
+                    // Update images: delete old ones and create new one if image uploaded
+                    images: uploadedImageUrl
+                        ? {
+                              deleteMany: {},
+                              create: [
+                                  {
+                                      url: uploadedImageUrl,
+                                      rank: 0,
+                                  },
+                              ],
+                          }
+                        : undefined,
+                    // For simplicity we only add new modifier groups; managing removal can be added later
+                    modifierGroups: modifierGroupIds?.length
+                        ? {
+                              createMany: {
+                                  data: modifierGroupIds.map((groupId) => ({
+                                      groupId,
+                                  })),
+                              },
+                          }
+                        : undefined,
+                },
+                include: {
+                    images: true,
+                    category: true,
+                    modifierGroups: {
+                        include: { modifierGroup: true },
+                    },
+                },
+            })
+
+            this.logger.log(`Menu item updated successfully: ${id}`)
+            return updated
+        } catch (error) {
+            this.logger.error('Failed to update menu item', error)
+            throw new InternalServerErrorException(
+                `Failed to update menu item: ${
+                    error instanceof Error ? error.message : 'Unknown error'
+                }`
+            )
+        }
     }
 
     async deleteMenuItem(id: number) {

@@ -3,12 +3,17 @@ import { ConfigService } from '@nestjs/config'
 import { ValidationPipe } from '@nestjs/common'
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger'
 import { AppModule } from './app.module'
+import * as express from 'express'
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule, {
         rawBody: true, // Enable raw body for Stripe webhooks
     })
     const configService = app.get(ConfigService)
+
+    // Increase body parser limit for file uploads
+    app.use(express.json({ limit: '10mb' }))
+    app.use(express.urlencoded({ limit: '10mb', extended: true }))
 
     // Enable CORS - allow any origin for development
     app.enableCors({
