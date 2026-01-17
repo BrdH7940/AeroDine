@@ -288,6 +288,14 @@ export const menusApi = {
     });
     return response.data;
   },
+
+  /**
+   * Get reviews and rating for a menu item
+   */
+  getMenuItemReviews: async (menuItemId: number) => {
+    const response = await apiClient.get(`/menu-items/${menuItemId}/reviews`);
+    return response.data;
+  },
 };
 
 // ============================================

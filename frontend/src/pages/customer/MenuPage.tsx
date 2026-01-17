@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient, tablesApi } from '../../services/api';
-import { MenuList, CategoryTabs, ModifierSelectionDialog, BottomNavigation } from '../../components/customer';
+import { ModifierSelectionDialog, MenuItemDetailDialog, BottomNavigation } from '../../components/customer';
 import type { Category } from '../../components/customer';
 import { useCartStore, type CartItemModifier } from '../../store/cartStore';
 import { useUserStore } from '../../store/userStore';
@@ -32,7 +32,7 @@ interface MenuItem {
 
 export const MenuPage: React.FC = () => {
   const navigate = useNavigate();
-  const { addItem, getItemCount, tableId, restaurantId: cartRestaurantId, setRestaurantId } = useCartStore();
+  const { addItem, tableId, restaurantId: cartRestaurantId, setRestaurantId } = useCartStore();
   const { user, isAuthenticated, clearUser } = useUserStore();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -40,6 +40,8 @@ export const MenuPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [isModifierDialogOpen, setIsModifierDialogOpen] = useState(false);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
+  const [selectedDetailItem, setSelectedDetailItem] = useState<MenuItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [currentRestaurantId, setCurrentRestaurantId] = useState<number | null>(null);
@@ -159,7 +161,7 @@ export const MenuPage: React.FC = () => {
     }
   };
 
-  const handleModifierConfirm = (modifiers: CartItemModifier[], totalPrice: number) => {
+  const handleModifierConfirm = (modifiers: CartItemModifier[], _totalPrice: number) => {
     if (!selectedItem) return;
 
     addItem({
@@ -175,8 +177,26 @@ export const MenuPage: React.FC = () => {
     setIsModifierDialogOpen(false);
   };
 
-  const handleCategorySelect = (categoryId?: number) => {
-    setSelectedCategoryId(categoryId);
+  const handleItemClick = (item: MenuItem) => {
+    setSelectedDetailItem(item);
+    setIsDetailDialogOpen(true);
+  };
+
+  const handleDetailDialogAddToCart = (modifiers: CartItemModifier[], _totalPrice: number, note?: string) => {
+    if (!selectedDetailItem) return;
+
+    addItem({
+      menuItemId: selectedDetailItem.id,
+      name: selectedDetailItem.name,
+      basePrice: Number(selectedDetailItem.basePrice),
+      quantity: 1,
+      image: selectedDetailItem.images?.[0]?.url,
+      modifiers,
+      note,
+    });
+
+    setSelectedDetailItem(null);
+    setIsDetailDialogOpen(false);
   };
 
   const handleLogout = () => {
@@ -362,7 +382,11 @@ export const MenuPage: React.FC = () => {
             filteredItems.map((item) => {
               const menuItem = convertToMenuFormat(item);
               return (
-                <div key={item.id} className="bg-white rounded-lg p-4 border border-gray-200">
+                <div 
+                  key={item.id} 
+                  className="bg-white rounded-lg p-4 border border-gray-200 cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => handleItemClick(item)}
+                >
                   <div className="flex gap-4">
                     {item.images?.[0]?.url ? (
                       <img
@@ -413,7 +437,10 @@ export const MenuPage: React.FC = () => {
                         </div>
                         {item.status === 'AVAILABLE' && (
                           <button
-                            onClick={() => handleAddToCart(menuItem)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddToCart(menuItem);
+                            }}
                             className="px-4 py-1.5 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors text-sm font-medium"
                           >
                             [+ Add]
@@ -446,6 +473,19 @@ export const MenuPage: React.FC = () => {
             selectedItem.modifierGroups?.map((mg) => mg.modifierGroup).filter((mg) => mg && mg.options && mg.options.length > 0) || []
           }
           onConfirm={handleModifierConfirm}
+        />
+      )}
+
+      {/* Menu Item Detail Dialog */}
+      {selectedDetailItem && (
+        <MenuItemDetailDialog
+          isOpen={isDetailDialogOpen}
+          onClose={() => {
+            setIsDetailDialogOpen(false);
+            setSelectedDetailItem(null);
+          }}
+          menuItem={selectedDetailItem}
+          onAddToCart={handleDetailDialogAddToCart}
         />
       )}
     </div>

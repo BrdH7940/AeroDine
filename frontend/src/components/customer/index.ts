@@ -3,5 +3,6 @@ export { MenuList } from './MenuList';
 export { CartItem } from './CartItem';
 export { CategoryTabs } from './CategoryTabs';
 export { ModifierSelectionDialog } from './ModifierSelectionDialog';
+export { MenuItemDetailDialog } from './MenuItemDetailDialog';
 export { BottomNavigation } from './BottomNavigation';
 export type { Category } from './CategoryTabs';

@@ -96,7 +96,9 @@ export const cartStore = {
   addItem: (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => {
     const existingIndex = cartState.items.findIndex(
       (existing) =>
-        existing.menuItemId === item.menuItemId && areModifiersEqual(existing.modifiers, item.modifiers)
+        existing.menuItemId === item.menuItemId && 
+        areModifiersEqual(existing.modifiers, item.modifiers) &&
+        existing.note === item.note
     );
 
     if (existingIndex >= 0) {
@@ -106,6 +108,7 @@ export const cartStore = {
         ...item,
         quantity: item.quantity || 1,
         modifiers: item.modifiers || [],
+        note: item.note,
       });
     }
 
