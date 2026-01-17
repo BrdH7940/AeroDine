@@ -52,9 +52,7 @@ export const CartPage: React.FC = () => {
         note: note || undefined,
         items: items.map((item) => ({
           menuItemId: item.menuItemId,
-          name: item.name,
           quantity: item.quantity,
-          pricePerUnit: item.basePrice + (item.modifiers?.reduce((sum, mod) => sum + mod.priceAdjustment, 0) || 0),
           note: item.note,
           modifiers: item.modifiers?.map((mod) => ({
             modifierOptionId: mod.modifierOptionId,
