@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../../services/api';
 import { useSocket } from '../../hooks/useSocket';
@@ -46,13 +46,92 @@ export const OrderTrackingPage: React.FC = () => {
   const { tableId } = useCartStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const socket = useSocket();
+
+  const loadOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      let tableOrders: Order[] = [];
+      
+      // Always prioritize tableId from cart store
+      if (tableId) {
+        // Load all orders for the current table
+        const allOrdersResponse = await apiClient.get('/orders');
+        // Backend returns { orders: [...], total, page, ... }
+        const allOrders = Array.isArray(allOrdersResponse.data) 
+          ? allOrdersResponse.data 
+          : allOrdersResponse.data?.orders || [];
+        // Ensure both values are numbers for comparison
+        tableOrders = allOrders.filter(
+          (o: Order) => {
+            const orderTableId = o.table?.id ? Number(o.table.id) : null;
+            const currentTableId = Number(tableId);
+            return orderTableId === currentTableId && !['CANCELLED'].includes(o.status);
+          }
+        );
+      } else if (orderId) {
+        // If no tableId, try to get from orderId
+        const response = await apiClient.get(`/orders/${orderId}`);
+        const order = response.data;
+        
+        // Load all orders for the same table
+        const allOrdersResponse = await apiClient.get('/orders');
+        const allOrders = Array.isArray(allOrdersResponse.data) 
+          ? allOrdersResponse.data 
+          : allOrdersResponse.data?.orders || [];
+        tableOrders = allOrders.filter(
+          (o: Order) => {
+            const orderTableId = o.table?.id ? Number(o.table.id) : null;
+            const targetTableId = order.table?.id ? Number(order.table.id) : null;
+            return orderTableId === targetTableId && !['CANCELLED'].includes(o.status);
+          }
+        );
+      } else {
+        // Try to get last order from localStorage
+        const lastOrderId = localStorage.getItem('lastOrderId');
+        if (lastOrderId) {
+          const response = await apiClient.get(`/orders/${lastOrderId}`);
+          const order = response.data;
+          const allOrdersResponse = await apiClient.get('/orders');
+          const allOrders = Array.isArray(allOrdersResponse.data) 
+            ? allOrdersResponse.data 
+            : allOrdersResponse.data?.orders || [];
+          tableOrders = allOrders.filter(
+            (o: Order) => {
+              const orderTableId = o.table?.id ? Number(o.table.id) : null;
+              const targetTableId = order.table?.id ? Number(order.table.id) : null;
+              return orderTableId === targetTableId && !['CANCELLED'].includes(o.status);
+            }
+          );
+        }
+      }
+
+      // Sort orders and update state together to avoid glitch
+      const sortedOrders = tableOrders.sort((a: Order, b: Order) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      
+      // Use requestAnimationFrame to ensure smooth transition
+      requestAnimationFrame(() => {
+        setOrders(sortedOrders);
+        setLoading(false);
+        setInitialLoad(false);
+      });
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+      setLoading(false);
+      setInitialLoad(false);
+    }
+  }, [tableId, orderId]);
 
   useEffect(() => {
     loadOrders();
+  }, [loadOrders]);
 
-    // Subscribe to order updates via WebSocket
-    if (socket) {
+  useEffect(() => {
+    // Subscribe to order updates via WebSocket (only after initial load)
+    if (socket && !initialLoad) {
       const handleOrderUpdate = (updatedOrder: Order) => {
         // Only update if the order belongs to current table
         if (tableId) {
@@ -78,74 +157,13 @@ export const OrderTrackingPage: React.FC = () => {
       };
 
       // Subscribe to all order updates for this table
-      socket.on('order:update', handleOrderUpdate);
+      socket.socket?.on('order:update', handleOrderUpdate);
 
       return () => {
-        socket.off('order:update', handleOrderUpdate);
+        socket.socket?.off('order:update', handleOrderUpdate);
       };
     }
-  }, [socket, tableId]);
-
-  const loadOrders = async () => {
-    setLoading(true);
-    try {
-      // Always prioritize tableId from cart store
-      if (tableId) {
-        // Load all orders for the current table
-        const allOrdersResponse = await apiClient.get('/orders');
-        // Ensure both values are numbers for comparison
-        const tableOrders = allOrdersResponse.data.filter(
-          (o: Order) => {
-            const orderTableId = o.table?.id ? Number(o.table.id) : null;
-            const currentTableId = Number(tableId);
-            return orderTableId === currentTableId && !['CANCELLED'].includes(o.status);
-          }
-        );
-        setOrders(tableOrders.sort((a: Order, b: Order) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        ));
-      } else if (orderId) {
-        // If no tableId, try to get from orderId
-        const response = await apiClient.get(`/orders/${orderId}`);
-        const order = response.data;
-        
-        // Load all orders for the same table
-        const allOrdersResponse = await apiClient.get('/orders');
-        const tableOrders = allOrdersResponse.data.filter(
-          (o: Order) => {
-            const orderTableId = o.table?.id ? Number(o.table.id) : null;
-            const targetTableId = order.table?.id ? Number(order.table.id) : null;
-            return orderTableId === targetTableId && !['CANCELLED'].includes(o.status);
-          }
-        );
-        setOrders(tableOrders.sort((a: Order, b: Order) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        ));
-      } else {
-        // Try to get last order from localStorage
-        const lastOrderId = localStorage.getItem('lastOrderId');
-        if (lastOrderId) {
-          const response = await apiClient.get(`/orders/${lastOrderId}`);
-          const order = response.data;
-          const allOrdersResponse = await apiClient.get('/orders');
-          const tableOrders = allOrdersResponse.data.filter(
-            (o: Order) => {
-              const orderTableId = o.table?.id ? Number(o.table.id) : null;
-              const targetTableId = order.table?.id ? Number(order.table.id) : null;
-              return orderTableId === targetTableId && !['CANCELLED'].includes(o.status);
-            }
-          );
-          setOrders(tableOrders.sort((a: Order, b: Order) => 
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          ));
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load orders:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [socket, tableId, initialLoad]);
 
   const getCurrentStatusIndex = (status: string) => {
     return orderStatusFlow.indexOf(status);
@@ -160,7 +178,7 @@ export const OrderTrackingPage: React.FC = () => {
     return orders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
   };
 
-  if (loading) {
+  if (loading && initialLoad) {
     return (
       <div className="min-h-screen bg-gray-50 pb-20">
         <div className="container mx-auto px-4 py-8">
@@ -174,7 +192,7 @@ export const OrderTrackingPage: React.FC = () => {
     );
   }
 
-  if (orders.length === 0) {
+  if (!loading && orders.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 pb-20">
         <div className="container mx-auto px-4 py-8">
