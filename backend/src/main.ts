@@ -22,7 +22,7 @@ async function bootstrap() {
             whitelist: true,
             forbidNonWhitelisted: true,
             transform: true,
-        }),
+        })
     )
 
     // Set global API prefix
@@ -37,32 +37,47 @@ async function bootstrap() {
             transformOptions: {
                 enableImplicitConversion: true,
             },
-        }),
+        })
     )
 
     // Swagger Configuration
-    const config = new DocumentBuilder()
-        .setTitle('AeroDine API')
-        .setDescription('QR Ordering System API Documentation')
-        .setVersion('1.0')
-        .addBearerAuth(
-            {
-                type: 'http',
-                scheme: 'bearer',
-                bearerFormat: 'JWT',
-                name: 'JWT',
-                description: 'Enter JWT token',
-                in: 'header',
+    try {
+        const config = new DocumentBuilder()
+            .setTitle('AeroDine API')
+            .setDescription('QR Ordering System API Documentation')
+            .setVersion('1.0')
+            .addBearerAuth(
+                {
+                    type: 'http',
+                    scheme: 'bearer',
+                    bearerFormat: 'JWT',
+                    name: 'JWT',
+                    description: 'Enter JWT token',
+                    in: 'header',
+                },
+                'JWT-auth' // This name here is important for matching up with @ApiBearerAuth() in your controller!
+            )
+            .build()
+        const document = SwaggerModule.createDocument(app, config)
+        SwaggerModule.setup('docs', app, document, {
+            swaggerOptions: {
+                persistAuthorization: true,
             },
-            'JWT-auth', // This name here is important for matching up with @ApiBearerAuth() in your controller!
+        })
+        console.log(
+            '✅ Swagger UI available at: http://localhost:3000/api/docs'
         )
-        .build()
-    const document = SwaggerModule.createDocument(app, config)
-    SwaggerModule.setup('api/docs', app, document)
+    } catch (error) {
+        console.error('❌ Error setting up Swagger:', error)
+    }
 
     const port = configService.get<number>('port') || 3000
     const nodeEnv = configService.get<string>('nodeEnv') || 'development'
 
     await app.listen(port)
+    console.log(`🚀 Server is running on: http://localhost:${port}`)
+    console.log(
+        `📚 Swagger docs available at: http://localhost:${port}/api/docs`
+    )
 }
 bootstrap()
