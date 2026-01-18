@@ -59,15 +59,23 @@ export class AuthService {
             throw new UnauthorizedException('Invalid credentials')
         }
 
+        // If user is inactive, downgrade role to CUSTOMER
+        const effectiveRole = user.isActive ? user.role : UserRole.CUSTOMER
+
         const { accessToken, refreshToken } = await this.generateTokens(
             user.id,
             user.email,
-            user.role
+            effectiveRole
         )
         // Store refresh token in database
         await this.usersService.updateRefreshToken(user.id, refreshToken)
         const { passwordHash, refreshToken: _, ...userSafe } = user
-        return { access_token: accessToken, refresh_token: refreshToken, user: userSafe }
+        // Return user with effective role (CUSTOMER if inactive)
+        return { 
+            access_token: accessToken, 
+            refresh_token: refreshToken, 
+            user: { ...userSafe, role: effectiveRole } 
+        }
     }
 
     /**
@@ -84,19 +92,23 @@ export class AuthService {
             throw new NotFoundException('User not found after Google authentication')
         }
 
+        // If user is inactive, downgrade role to CUSTOMER
+        const effectiveRole = fullUser.isActive ? fullUser.role : UserRole.CUSTOMER
+
         const { accessToken, refreshToken } = await this.generateTokens(
             fullUser.id,
             fullUser.email,
-            fullUser.role
+            effectiveRole
         )
         // Store refresh token in database
         await this.usersService.updateRefreshToken(fullUser.id, refreshToken)
 
         const { passwordHash, refreshToken: _, ...userSafe } = fullUser
+        // Return user with effective role (CUSTOMER if inactive)
         return {
             access_token: accessToken,
             refresh_token: refreshToken,
-            user: userSafe,
+            user: { ...userSafe, role: effectiveRole },
         }
     }
 
@@ -289,13 +301,17 @@ export class AuthService {
             throw new UnauthorizedException('Token does not match user')
         }
 
-        // Generate new access token
-        const accessToken = await this.signAccessToken(user.id, user.email, user.role)
+        // If user is inactive, downgrade role to CUSTOMER
+        const effectiveRole = user.isActive ? user.role : UserRole.CUSTOMER
+
+        // Generate new access token with effective role
+        const accessToken = await this.signAccessToken(user.id, user.email, effectiveRole)
 
         const { passwordHash, refreshToken: _, ...userSafe } = user
+        // Return user with effective role (CUSTOMER if inactive)
         return {
             access_token: accessToken,
-            user: userSafe,
+            user: { ...userSafe, role: effectiveRole },
         }
     }
 
