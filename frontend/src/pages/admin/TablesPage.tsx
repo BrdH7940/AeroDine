@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
     Plus,
     Edit,
@@ -15,6 +15,7 @@ import {
     Printer,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import Fuse from 'fuse.js'
 import { tablesApi } from '../../services/api'
 import { authApi } from '../../services/auth'
 import { TableStatus } from '@aerodine/shared-types'
@@ -254,17 +255,34 @@ export default function TablesPage() {
         }
     }
 
-    const filteredTables = tables.filter((table) => {
-        const matchesSearch =
-            table.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            table.restaurant?.name
-                .toLowerCase()
-                .includes(searchQuery.toLowerCase())
-        const matchesStatus =
-            statusFilter === 'all' ||
-            String(table.status) === String(statusFilter)
-        return matchesSearch && matchesStatus
-    })
+    const filteredTables = useMemo(() => {
+        // First filter by status
+        let result = tables.filter((table) => {
+            const matchesStatus =
+                statusFilter === 'all' ||
+                String(table.status) === String(statusFilter)
+            return matchesStatus
+        })
+
+        // Apply fuzzy search if there's a search query
+        if (searchQuery.trim() !== '') {
+            const fuse = new Fuse(result, {
+                keys: [
+                    { name: 'name', weight: 0.7 },
+                    { name: 'restaurant.name', weight: 0.3 },
+                ],
+                threshold: 0.4, // 0.0 = exact match, 1.0 = match anything
+                ignoreLocation: true,
+                includeScore: true,
+                minMatchCharLength: 1,
+            })
+
+            const searchResults = fuse.search(searchQuery)
+            result = searchResults.map((result) => result.item)
+        }
+
+        return result
+    }, [tables, searchQuery, statusFilter])
 
     // Pagination calculations
     const totalPages = Math.ceil(filteredTables.length / itemsPerPage)

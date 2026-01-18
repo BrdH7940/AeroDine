@@ -9,6 +9,7 @@ import {
     X,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import Fuse from 'fuse.js'
 import { menusApi, tablesApi } from '../../services/api'
 import { authApi } from '../../services/auth'
 import { useModal } from '../../contexts/ModalContext'
@@ -181,13 +182,8 @@ export default function MenuPage() {
     }
 
     const filteredAndSortedItems = useMemo(() => {
+        // First filter by category and status
         let result = items.filter((item) => {
-            const matchesSearch =
-                item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (item.description
-                    ?.toLowerCase()
-                    .includes(searchQuery.toLowerCase()) ??
-                    false)
             const matchesCategory =
                 selectedCategory === 'all' ||
                 item.categoryId === Number(selectedCategory)
@@ -196,8 +192,25 @@ export default function MenuPage() {
                 (statusFilter === 'available' && item.status === 'AVAILABLE') ||
                 (statusFilter === 'unavailable' && item.status !== 'AVAILABLE')
 
-            return matchesSearch && matchesCategory && matchesStatus
+            return matchesCategory && matchesStatus
         })
+
+        // Apply fuzzy search if there's a search query
+        if (searchQuery.trim() !== '') {
+            const fuse = new Fuse(result, {
+                keys: [
+                    { name: 'name', weight: 0.7 },
+                    { name: 'description', weight: 0.3 },
+                ],
+                threshold: 0.4, // 0.0 = exact match, 1.0 = match anything
+                ignoreLocation: true,
+                includeScore: true,
+                minMatchCharLength: 1,
+            })
+
+            const searchResults = fuse.search(searchQuery)
+            result = searchResults.map((result) => result.item)
+        }
 
         if (sortBy !== 'none') {
             result = [...result].sort((a, b) => {
