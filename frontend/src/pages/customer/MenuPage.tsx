@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient, tablesApi } from '../../services/api';
 import { ModifierSelectionDialog, MenuItemDetailDialog, BottomNavigation } from '../../components/customer';
@@ -45,6 +45,8 @@ export const MenuPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [currentRestaurantId, setCurrentRestaurantId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // Initialize restaurantId from cartStore or fetch from tables
   useEffect(() => {
@@ -217,21 +219,34 @@ export const MenuPage: React.FC = () => {
     available: item.status === 'AVAILABLE',
   });
 
-  const filteredItems = menuItems.filter((item) => {
-    // Filter by category if selected
-    if (selectedCategoryId && item.categoryId !== selectedCategoryId) {
-      return false;
-    }
-    // Filter by search query if provided
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        item.name.toLowerCase().includes(query) ||
-        item.description?.toLowerCase().includes(query)
-      );
-    }
-    return true;
-  });
+  const filteredItems = useMemo(() => {
+    return menuItems.filter((item) => {
+      // Filter by category if selected
+      if (selectedCategoryId && item.categoryId !== selectedCategoryId) {
+        return false;
+      }
+      // Filter by search query if provided
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return (
+          item.name.toLowerCase().includes(query) ||
+          item.description?.toLowerCase().includes(query)
+        );
+      }
+      return true;
+    });
+  }, [menuItems, selectedCategoryId, searchQuery]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedItems = filteredItems.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategoryId, searchQuery]);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -330,31 +345,33 @@ export const MenuPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Category Filters */}
-        <div className="mb-4 flex gap-2 overflow-x-auto scrollbar-hide pb-2">
-          <button
-            onClick={() => setSelectedCategoryId(undefined)}
-            className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-              selectedCategoryId === undefined
-                ? 'bg-[#eba157] text-white'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            [All]
-          </button>
-          {categories.map((category) => (
+        {/* Category Filters - Sticky */}
+        <div className="sticky top-[73px] z-30 bg-gray-50 -mx-4 px-4 pt-4 pb-2 mb-4">
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
             <button
-              key={category.id}
-              onClick={() => setSelectedCategoryId(category.id)}
+              onClick={() => setSelectedCategoryId(undefined)}
               className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-                selectedCategoryId === category.id
+                selectedCategoryId === undefined
                   ? 'bg-[#eba157] text-white'
                   : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
               }`}
             >
-              [{category.name}]
+              [All]
             </button>
-          ))}
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => setSelectedCategoryId(category.id)}
+                className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
+                  selectedCategoryId === category.id
+                    ? 'bg-[#eba157] text-white'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                [{category.name}]
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Menu Items List */}
@@ -379,7 +396,7 @@ export const MenuPage: React.FC = () => {
               <p className="text-gray-500 text-lg">No menu items found</p>
             </div>
           ) : (
-            filteredItems.map((item) => {
+            paginatedItems.map((item) => {
               const menuItem = convertToMenuFormat(item);
               return (
                 <div 
@@ -454,6 +471,52 @@ export const MenuPage: React.FC = () => {
             })
           )}
         </div>
+
+        {/* Pagination */}
+        {filteredItems.length > 0 && totalPages > 1 && (
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-sm text-gray-600">
+              Hiển thị {startIndex + 1} - {Math.min(endIndex, filteredItems.length)} trong tổng số {filteredItems.length} món
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                aria-label="Previous page"
+              >
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                      currentPage === page
+                        ? 'bg-[#eba157] text-white'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                aria-label="Next page"
+              >
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom Navigation */}
