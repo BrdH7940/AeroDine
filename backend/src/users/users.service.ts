@@ -69,9 +69,37 @@ export class UsersService {
         })
     }
 
+    /**
+     * Update refresh token for user
+     */
+    async updateRefreshToken(id: number, refreshToken: string | null): Promise<void> {
+        await this.prisma.user.update({
+            where: { id },
+            data: { refreshToken },
+        })
+    }
+
+    /**
+     * Find user by refresh token
+     */
+    async findByRefreshToken(refreshToken: string) {
+        return this.prisma.user.findFirst({
+            where: { refreshToken },
+        })
+    }
+
     async remove(id: number) {
         return this.prisma.user.delete({
             where: { id },
+            select: this.publicSelect(),
+        })
+    }
+
+    async toggleActive(id: number) {
+        const user = await this.findById(id)
+        return this.prisma.user.update({
+            where: { id },
+            data: { isActive: !user.isActive },
             select: this.publicSelect(),
         })
     }
@@ -82,6 +110,7 @@ export class UsersService {
             email: true,
             fullName: true,
             role: true,
+            isActive: true,
             createdAt: true,
             updatedAt: true,
         }

@@ -20,6 +20,7 @@ export interface AuthResponse {
     createdAt?: string;
   };
   accessToken: string;
+  refreshToken?: string;
 }
 
 export const authService = {
@@ -27,17 +28,22 @@ export const authService = {
     const response = await apiClient.post<any>('/auth/login', credentials);
     // Backend returns access_token (snake_case), normalize to accessToken
     const token = response.data.access_token || response.data.accessToken;
+    const refreshToken = response.data.refresh_token || response.data.refreshToken;
     const user = response.data.user;
     
-    // Lưu token vào localStorage
+    // Lưu tokens vào localStorage
     if (token && user) {
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
+      if (refreshToken) {
+        localStorage.setItem('refreshToken', refreshToken);
+      }
     }
     
     // Return normalized response
     return {
       accessToken: token,
+      refreshToken,
       user,
     };
   },
@@ -46,24 +52,39 @@ export const authService = {
     const response = await apiClient.post<any>('/auth/register', userData);
     // Backend returns access_token (snake_case), normalize to accessToken
     const token = response.data.access_token || response.data.accessToken;
+    const refreshToken = response.data.refresh_token || response.data.refreshToken;
     const user = response.data.user;
     
-    // Lưu token vào localStorage
+    // Lưu tokens vào localStorage
     if (token && user) {
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
+      if (refreshToken) {
+        localStorage.setItem('refreshToken', refreshToken);
+      }
     }
     
     // Return normalized response
     return {
       accessToken: token,
+      refreshToken,
       user,
     };
   },
 
-  logout(): void {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  async logout(): Promise<void> {
+    try {
+      // Call logout endpoint to invalidate refresh token on server
+      await apiClient.post('/auth/logout');
+    } catch (error) {
+      // Continue with local logout even if server call fails
+      console.error('Logout error:', error);
+    } finally {
+      // Always clear local storage
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+    }
   },
 
   getCurrentUser() {
@@ -80,6 +101,41 @@ export const authService = {
 
   getToken(): string | null {
     return localStorage.getItem('token');
+  },
+
+  getRefreshToken(): string | null {
+    return localStorage.getItem('refreshToken');
+  },
+
+  /**
+   * Refresh access token using refresh token
+   */
+  async refreshAccessToken(): Promise<string | null> {
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) {
+      return null;
+    }
+
+    try {
+      const response = await apiClient.post<any>('/auth/refresh', {
+        refresh_token: refreshToken,
+      });
+      const newAccessToken = response.data.access_token || response.data.accessToken;
+      
+      if (newAccessToken) {
+        localStorage.setItem('token', newAccessToken);
+        // Update user data if provided
+        if (response.data.user) {
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+        }
+        return newAccessToken;
+      }
+      return null;
+    } catch (error) {
+      // Refresh failed - clear tokens and user data
+      this.logout();
+      return null;
+    }
   },
 
   isAuthenticated(): boolean {

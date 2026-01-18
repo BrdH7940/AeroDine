@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Layout from '../components/common/Layout';
+import { AdminLayout } from '../components/common/ProtectedRoute';
 import StaffRoutes from './StaffRoutes';
 import DashboardPage from '../pages/admin/DashboardPage';
 import AdminMenuPage from '../pages/admin/MenuPage';
@@ -31,7 +31,7 @@ export default function AppRoutes() {
         <Route path="/customer" element={<Navigate to="/customer/menu" replace />} />
 
         {/* Admin Routes */}
-        <Route path="/admin" element={<Layout />}>
+        <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="menu" element={<AdminMenuPage />} />

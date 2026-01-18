@@ -5,7 +5,27 @@
 
 */
 -- DropForeignKey
-ALTER TABLE "users" DROP CONSTRAINT "users_restaurant_id_fkey";
+-- Drop constraint only if it exists
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_schema = 'public' 
+        AND constraint_name = 'users_restaurant_id_fkey'
+        AND table_name = 'users'
+    ) THEN
+        ALTER TABLE "users" DROP CONSTRAINT "users_restaurant_id_fkey";
+    END IF;
+END $$;
 
 -- AlterTable
-ALTER TABLE "users" DROP COLUMN "restaurant_id";
+-- Drop column only if it exists
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'users' 
+        AND column_name = 'restaurant_id'
+    ) THEN
+        ALTER TABLE "users" DROP COLUMN "restaurant_id";
+    END IF;
+END $$;

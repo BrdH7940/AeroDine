@@ -35,8 +35,14 @@ export class AuthService {
         }
 
         const user = await this.usersService.create(registerDto)
-        const token = await this.signToken(user.id, user.email, user.role)
-        return { access_token: token, user }
+        const { accessToken, refreshToken } = await this.generateTokens(
+            user.id,
+            user.email,
+            user.role
+        )
+        // Store refresh token in database
+        await this.usersService.updateRefreshToken(user.id, refreshToken)
+        return { access_token: accessToken, refresh_token: refreshToken, user }
     }
 
     async login(loginDto: LoginDto) {
@@ -53,9 +59,23 @@ export class AuthService {
             throw new UnauthorizedException('Invalid credentials')
         }
 
-        const token = await this.signToken(user.id, user.email, user.role)
-        const { passwordHash, refreshToken, ...userSafe } = user
-        return { access_token: token, user: userSafe }
+        // If user is inactive, downgrade role to CUSTOMER
+        const effectiveRole = user.isActive ? user.role : UserRole.CUSTOMER
+
+        const { accessToken, refreshToken } = await this.generateTokens(
+            user.id,
+            user.email,
+            effectiveRole
+        )
+        // Store refresh token in database
+        await this.usersService.updateRefreshToken(user.id, refreshToken)
+        const { passwordHash, refreshToken: _, ...userSafe } = user
+        // Return user with effective role (CUSTOMER if inactive)
+        return { 
+            access_token: accessToken, 
+            refresh_token: refreshToken, 
+            user: { ...userSafe, role: effectiveRole } 
+        }
     }
 
     /**
@@ -72,31 +92,77 @@ export class AuthService {
             throw new NotFoundException('User not found after Google authentication')
         }
 
-        const token = await this.signToken(
+        // If user is inactive, downgrade role to CUSTOMER
+        const effectiveRole = fullUser.isActive ? fullUser.role : UserRole.CUSTOMER
+
+        const { accessToken, refreshToken } = await this.generateTokens(
             fullUser.id,
             fullUser.email,
-            fullUser.role
+            effectiveRole
         )
+        // Store refresh token in database
+        await this.usersService.updateRefreshToken(fullUser.id, refreshToken)
 
-        const { passwordHash, refreshToken, ...userSafe } = fullUser
+        const { passwordHash, refreshToken: _, ...userSafe } = fullUser
+        // Return user with effective role (CUSTOMER if inactive)
         return {
-            access_token: token,
-            user: userSafe,
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            user: { ...userSafe, role: effectiveRole },
         }
     }
 
-    private async signToken(userId: number, email: string, role: UserRole) {
-        const payload = { sub: userId, email, role }
+    /**
+     * Generate both access token and refresh token
+     */
+    private async generateTokens(userId: number, email: string, role: UserRole) {
+        const accessToken = await this.signAccessToken(userId, email, role)
+        const refreshToken = await this.signRefreshToken(userId, email, role)
+        return { accessToken, refreshToken }
+    }
+
+    /**
+     * Sign short-lived access token (15 minutes default)
+     */
+    private async signAccessToken(userId: number, email: string, role: UserRole) {
+        const payload = { sub: userId, email, role, type: 'access' }
         const secret = this.configService.get<string>('jwt.secret')
         if (!secret) {
             throw new Error('JWT secret not configured')
         }
         const expiresIn =
-            this.configService.get<string | number>('jwt.expiresIn') ?? '7d'
+            this.configService.get<string | number>('jwt.accessTokenExpiresIn') ??
+            this.configService.get<string | number>('jwt.expiresIn') ??
+            '15m'
         return this.jwtService.signAsync(payload, {
             secret,
             expiresIn: expiresIn as any,
         })
+    }
+
+    /**
+     * Sign long-lived refresh token (7 days default)
+     */
+    private async signRefreshToken(userId: number, email: string, role: UserRole) {
+        const payload = { sub: userId, email, role, type: 'refresh' }
+        const secret = this.configService.get<string>('jwt.secret')
+        if (!secret) {
+            throw new Error('JWT secret not configured')
+        }
+        const expiresIn =
+            this.configService.get<string | number>('jwt.refreshTokenExpiresIn') ?? '7d'
+        return this.jwtService.signAsync(payload, {
+            secret,
+            expiresIn: expiresIn as any,
+        })
+    }
+
+    /**
+     * Legacy method for backward compatibility
+     * @deprecated Use generateTokens instead
+     */
+    private async signToken(userId: number, email: string, role: UserRole) {
+        return this.signAccessToken(userId, email, role)
     }
 
     /**
@@ -200,5 +266,60 @@ export class AuthService {
         return {
             message: 'Password has been reset successfully',
         }
+    }
+
+    /**
+     * Refresh access token using refresh token
+     */
+    async refreshToken(refreshToken: string) {
+        const secret = this.configService.get<string>('jwt.secret')
+        if (!secret) {
+            throw new Error('JWT secret not configured')
+        }
+
+        // Verify refresh token
+        let decoded: any
+        try {
+            decoded = await this.jwtService.verifyAsync(refreshToken, { secret })
+        } catch (error) {
+            throw new UnauthorizedException('Invalid or expired refresh token')
+        }
+
+        // Verify token type
+        if (decoded.type !== 'refresh') {
+            throw new UnauthorizedException('Invalid token type')
+        }
+
+        // Verify refresh token exists in database
+        const user = await this.usersService.findByRefreshToken(refreshToken)
+        if (!user) {
+            throw new UnauthorizedException('Refresh token not found')
+        }
+
+        // Verify user ID matches
+        if (user.id !== decoded.sub) {
+            throw new UnauthorizedException('Token does not match user')
+        }
+
+        // If user is inactive, downgrade role to CUSTOMER
+        const effectiveRole = user.isActive ? user.role : UserRole.CUSTOMER
+
+        // Generate new access token with effective role
+        const accessToken = await this.signAccessToken(user.id, user.email, effectiveRole)
+
+        const { passwordHash, refreshToken: _, ...userSafe } = user
+        // Return user with effective role (CUSTOMER if inactive)
+        return {
+            access_token: accessToken,
+            user: { ...userSafe, role: effectiveRole },
+        }
+    }
+
+    /**
+     * Logout - invalidate refresh token
+     */
+    async logout(userId: number): Promise<void> {
+        // Clear refresh token from database
+        await this.usersService.updateRefreshToken(userId, null)
     }
 }

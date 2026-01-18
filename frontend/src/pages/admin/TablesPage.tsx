@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
     Plus,
     Edit,
@@ -11,12 +11,16 @@ import {
     XCircle,
     X,
     Download,
+    RefreshCw,
+    Printer,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { apiClient, tablesApi } from '../../services/api'
+import Fuse from 'fuse.js'
+import { tablesApi } from '../../services/api'
 import { authApi } from '../../services/auth'
 import { TableStatus } from '@aerodine/shared-types'
 import type { Table } from '@aerodine/shared-types'
+import { useModal } from '../../contexts/ModalContext'
 
 // Table status types
 type TableStatusType = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'UNAVAILABLE'
@@ -78,11 +82,15 @@ function TableCard({
     onEdit,
     onDelete,
     onDownloadQR,
+    onPrintQR,
+    onRegenerateQR,
 }: {
     table: TableWithRestaurant
     onEdit: (table: TableWithRestaurant) => void
     onDelete: (table: TableWithRestaurant) => void
     onDownloadQR: (table: TableWithRestaurant) => void
+    onPrintQR: (table: TableWithRestaurant) => void
+    onRegenerateQR: (table: TableWithRestaurant) => void
 }) {
     const statusKey = String(table.status)
     const config = statusConfig[statusKey] || statusConfig['AVAILABLE']
@@ -124,31 +132,58 @@ function TableCard({
             </div>
 
             {/* Actions */}
-            <div className="flex gap-2 pt-4 border-t border-slate-100">
-                <button
-                    onClick={() => onEdit(table)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-600 rounded-lg transition-colors text-sm font-medium"
-                >
-                    <Edit size={16} />
-                    Edit
-                </button>
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        onDownloadQR(table)
-                    }}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 rounded-lg transition-colors text-sm font-medium"
-                >
-                    <Download size={16} />
-                    QR
-                </button>
-                <button
-                    onClick={() => onDelete(table)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-600 rounded-lg transition-colors text-sm font-medium"
-                >
-                    <Trash2 size={16} />
-                    Delete
-                </button>
+            <div className="flex flex-col gap-2 pt-4 border-t border-slate-100">
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => onEdit(table)}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-600 rounded-lg transition-colors text-sm font-medium"
+                    >
+                        <Edit size={16} />
+                        Edit
+                    </button>
+                    <button
+                        onClick={() => onDelete(table)}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-600 rounded-lg transition-colors text-sm font-medium"
+                    >
+                        <Trash2 size={16} />
+                        Delete
+                    </button>
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onDownloadQR(table)
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 rounded-lg transition-colors text-sm font-medium"
+                        title="Download QR Code"
+                    >
+                        <Download size={16} />
+                        Download
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onPrintQR(table)
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-purple-100 text-slate-600 hover:text-purple-600 rounded-lg transition-colors text-sm font-medium"
+                        title="Print QR Code"
+                    >
+                        <Printer size={16} />
+                        Print
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onRegenerateQR(table)
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-green-100 text-slate-600 hover:text-green-600 rounded-lg transition-colors text-sm font-medium"
+                        title="Regenerate QR Code"
+                    >
+                        <RefreshCw size={16} />
+                        Regenerate
+                    </button>
+                </div>
             </div>
         </motion.div>
     )
@@ -168,6 +203,7 @@ export default function TablesPage() {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [selectedTable, setSelectedTable] = useState<TableWithRestaurant | null>(null)
     const [restaurantId, setRestaurantId] = useState<number | null>(null)
+    const { confirm, alert } = useModal()
 
     useEffect(() => {
         initializeAndFetchTables()
@@ -219,17 +255,34 @@ export default function TablesPage() {
         }
     }
 
-    const filteredTables = tables.filter((table) => {
-        const matchesSearch =
-            table.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            table.restaurant?.name
-                .toLowerCase()
-                .includes(searchQuery.toLowerCase())
-        const matchesStatus =
-            statusFilter === 'all' ||
-            String(table.status) === String(statusFilter)
-        return matchesSearch && matchesStatus
-    })
+    const filteredTables = useMemo(() => {
+        // First filter by status
+        let result = tables.filter((table) => {
+            const matchesStatus =
+                statusFilter === 'all' ||
+                String(table.status) === String(statusFilter)
+            return matchesStatus
+        })
+
+        // Apply fuzzy search if there's a search query
+        if (searchQuery.trim() !== '') {
+            const fuse = new Fuse(result, {
+                keys: [
+                    { name: 'name', weight: 0.7 },
+                    { name: 'restaurant.name', weight: 0.3 },
+                ],
+                threshold: 0.4, // 0.0 = exact match, 1.0 = match anything
+                ignoreLocation: true,
+                includeScore: true,
+                minMatchCharLength: 1,
+            })
+
+            const searchResults = fuse.search(searchQuery)
+            result = searchResults.map((result) => result.item)
+        }
+
+        return result
+    }, [tables, searchQuery, statusFilter])
 
     // Pagination calculations
     const totalPages = Math.ceil(filteredTables.length / itemsPerPage)
@@ -242,9 +295,13 @@ export default function TablesPage() {
         setCurrentPage(1)
     }, [searchQuery, statusFilter])
 
-    const handleAddTable = () => {
+    const handleAddTable = async () => {
         if (!restaurantId) {
-            alert('Restaurant ID not found. Please check database configuration.')
+            await alert({
+                title: 'Error',
+                message: 'Restaurant ID not found. Please check database configuration.',
+                type: 'error',
+            })
             return
         }
         setSelectedTable(null)
@@ -257,20 +314,36 @@ export default function TablesPage() {
     }
 
     const handleDelete = async (table: TableWithRestaurant) => {
-        if (
-            !confirm(
-                `Are you sure you want to delete ${table.name}? This action cannot be undone.`
-            )
-        ) {
+        const confirmed = await confirm({
+            title: 'Delete Table',
+            message: `Are you sure you want to delete ${table.name}? This action cannot be undone.`,
+            type: 'warning',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+        })
+        if (!confirmed) {
             return
         }
 
         try {
             await tablesApi.deleteTable(table.id)
             setTables(tables.filter((t) => t.id !== table.id))
+            await alert({
+                title: 'Success',
+                message: `Table ${table.name} has been deleted successfully.`,
+                type: 'success',
+            })
         } catch (err: any) {
-            alert(`Unable to delete table: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            await alert({
+                title: 'Error',
+                message: `Unable to delete table: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
         }
+    }
+
+    const getQRCodeImageUrl = (qrUrl: string, size: number = 300) => {
+        return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(qrUrl)}`
     }
 
     const handleDownloadQR = async (table: TableWithRestaurant) => {
@@ -280,9 +353,7 @@ export default function TablesPage() {
             const qrUrl = qrData.qrUrl
 
             // Create QR code image using a simple approach
-            // We'll use a QR code API service or generate it client-side
-            // For simplicity, we'll use qr-server.com API
-            const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}`
+            const qrCodeImageUrl = getQRCodeImageUrl(qrUrl, 300)
 
             // Create a temporary anchor element to download
             const link = document.createElement('a')
@@ -292,7 +363,145 @@ export default function TablesPage() {
             link.click()
             document.body.removeChild(link)
         } catch (err: any) {
-            alert(`Unable to download QR code: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            await alert({
+                title: 'Error',
+                message: `Unable to download QR code: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
+        }
+    }
+
+    const handlePrintQR = async (table: TableWithRestaurant) => {
+        try {
+            // Get QR URL from backend
+            const qrData = await tablesApi.getTableQrUrl(table.id)
+            const qrUrl = qrData.qrUrl
+
+            // Create QR code image with larger size for printing
+            const qrCodeImageUrl = getQRCodeImageUrl(qrUrl, 500)
+
+            // Create a new window for printing
+            const printWindow = window.open('', '_blank')
+            if (!printWindow) {
+                await alert({
+                    title: 'Popup Blocked',
+                    message: 'Please allow popups to print QR code',
+                    type: 'warning',
+                })
+                return
+            }
+
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>QR Code - ${table.name}</title>
+                    <style>
+                        body {
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            min-height: 100vh;
+                            margin: 0;
+                            font-family: Arial, sans-serif;
+                        }
+                        h2 {
+                            margin-bottom: 20px;
+                            color: #333;
+                        }
+                        img {
+                            max-width: 100%;
+                            height: auto;
+                        }
+                        @media print {
+                            body {
+                                margin: 0;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <h2>Table: ${table.name}</h2>
+                    <img src="${qrCodeImageUrl}" alt="QR Code for ${table.name}" />
+                    <p style="margin-top: 20px; color: #666;">Scan this QR code to access the menu</p>
+                </body>
+                </html>
+            `)
+            printWindow.document.close()
+
+            // Wait for image to load, then print
+            printWindow.onload = () => {
+                setTimeout(() => {
+                    printWindow.print()
+                }, 250)
+            }
+        } catch (err: any) {
+            await alert({
+                title: 'Error',
+                message: `Unable to print QR code: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
+        }
+    }
+
+    const handleRegenerateQR = async (table: TableWithRestaurant) => {
+        const confirmed = await confirm({
+            title: 'Regenerate QR Code',
+            message: `Are you sure you want to regenerate the QR code for ${table.name}? The old QR code will no longer work.`,
+            type: 'warning',
+            confirmText: 'Regenerate',
+            cancelText: 'Cancel',
+        })
+        if (!confirmed) {
+            return
+        }
+
+        try {
+            await tablesApi.refreshTableToken(table.id)
+            await alert({
+                title: 'Success',
+                message: `QR code for ${table.name} has been regenerated successfully.`,
+                type: 'success',
+            })
+            // Refresh tables to get updated data
+            await fetchTables()
+        } catch (err: any) {
+            await alert({
+                title: 'Error',
+                message: `Unable to regenerate QR code: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
+        }
+    }
+
+    const handleRegenerateAllQR = async () => {
+        const confirmed = await confirm({
+            title: 'Regenerate All QR Codes',
+            message: `Are you sure you want to regenerate QR codes for ALL tables? All old QR codes will no longer work. This action cannot be undone.`,
+            type: 'warning',
+            confirmText: 'Regenerate All',
+            cancelText: 'Cancel',
+        })
+        if (!confirmed) {
+            return
+        }
+
+        try {
+            await tablesApi.refreshAllTableTokens(restaurantId || undefined)
+            await alert({
+                title: 'Success',
+                message: `All QR codes have been regenerated successfully.`,
+                type: 'success',
+            })
+            // Refresh tables to get updated data
+            await fetchTables()
+        } catch (err: any) {
+            await alert({
+                title: 'Error',
+                message: `Unable to regenerate QR codes: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
         }
     }
 
@@ -306,10 +515,15 @@ export default function TablesPage() {
         name: string
         capacity: number
         status: TableStatus
+        isActive?: boolean
     }) => {
         try {
             if (!restaurantId) {
-                alert('Restaurant ID not found')
+                await alert({
+                    title: 'Error',
+                    message: 'Restaurant ID not found',
+                    type: 'error',
+                })
                 return
             }
 
@@ -319,6 +533,7 @@ export default function TablesPage() {
                     name: formData.name,
                     capacity: formData.capacity,
                     status: formData.status,
+                    isActive: formData.isActive,
                 })
             } else {
                 // Create new table
@@ -334,7 +549,11 @@ export default function TablesPage() {
             await fetchTables()
             handleCloseModals()
         } catch (err: any) {
-            alert(`Unable to save table: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            await alert({
+                title: 'Error',
+                message: `Unable to save table: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
         }
     }
 
@@ -493,6 +712,8 @@ export default function TablesPage() {
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
                                 onDownloadQR={handleDownloadQR}
+                                onPrintQR={handlePrintQR}
+                                onRegenerateQR={handleRegenerateQR}
                             />
                         ))}
                     </div>
@@ -576,6 +797,19 @@ export default function TablesPage() {
                     table={selectedTable}
                 />
             )}
+
+            {/* Regenerate All QR Button - Fixed position at bottom right */}
+            {tables.length > 0 && !loading && (
+                <button
+                    onClick={handleRegenerateAllQR}
+                    className="fixed bottom-6 right-6 flex items-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors shadow-lg hover:shadow-xl z-40"
+                    title="Regenerate QR codes for all tables"
+                >
+                    <RefreshCw size={20} />
+                    <span className="hidden sm:inline">Regenerate All QR</span>
+                    <span className="sm:hidden">Regen All</span>
+                </button>
+            )}
         </div>
     )
 }
@@ -593,37 +827,47 @@ function TableModal({
         name: string
         capacity: number
         status: TableStatus
+        isActive?: boolean
     }) => void
     table: TableWithRestaurant | null
 }) {
+    const { alert } = useModal()
     const [name, setName] = useState(table?.name || '')
     const [capacity, setCapacity] = useState(table?.capacity?.toString() || '4')
     const [status, setStatus] = useState<TableStatus>(
         (table?.status as TableStatus) || TableStatus.AVAILABLE
     )
+    const [isActive, setIsActive] = useState(table?.isActive !== false)
 
     useEffect(() => {
         if (table) {
             setName(table.name)
             setCapacity(table.capacity?.toString() || '4')
             setStatus((table.status as TableStatus) || TableStatus.AVAILABLE)
+            setIsActive(table.isActive !== false)
         } else {
             setName('')
             setCapacity('4')
             setStatus(TableStatus.AVAILABLE)
+            setIsActive(true)
         }
     }, [table])
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!name || !capacity) {
-            alert('Please fill in all required fields')
+            await alert({
+                title: 'Validation Error',
+                message: 'Please fill in all required fields',
+                type: 'warning',
+            })
             return
         }
         onSave({
             name,
             capacity: parseInt(capacity),
             status,
+            isActive,
         })
     }
 
@@ -692,6 +936,24 @@ function TableModal({
                             <option value="RESERVED">Reserved</option>
                         </select>
                     </div>
+
+                    {table && (
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="isActive"
+                                checked={isActive}
+                                onChange={(e) => setIsActive(e.target.checked)}
+                                className="w-4 h-4 text-amber-500 border-slate-300 rounded focus:ring-2 focus:ring-amber-500"
+                            />
+                            <label
+                                htmlFor="isActive"
+                                className="text-sm font-medium text-slate-700 cursor-pointer"
+                            >
+                                Active (Uncheck to deactivate this table)
+                            </label>
+                        </div>
+                    )}
 
                     <div className="flex gap-3 pt-4">
                         <button

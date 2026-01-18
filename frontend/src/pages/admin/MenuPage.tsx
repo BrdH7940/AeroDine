@@ -9,8 +9,10 @@ import {
     X,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import Fuse from 'fuse.js'
 import { menusApi, tablesApi } from '../../services/api'
 import { authApi } from '../../services/auth'
+import { useModal } from '../../contexts/ModalContext'
 
 interface MenuItem {
     id: number
@@ -54,6 +56,7 @@ type SortBy = 'price-high' | 'price-low' | 'name' | 'none'
 type StatusFilter = 'all' | 'available' | 'unavailable'
 
 export default function MenuPage() {
+    const { confirm, alert } = useModal()
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedCategory, setSelectedCategory] = useState<number | 'all'>(
         'all'
@@ -179,13 +182,8 @@ export default function MenuPage() {
     }
 
     const filteredAndSortedItems = useMemo(() => {
+        // First filter by category and status
         let result = items.filter((item) => {
-            const matchesSearch =
-                item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (item.description
-                    ?.toLowerCase()
-                    .includes(searchQuery.toLowerCase()) ??
-                    false)
             const matchesCategory =
                 selectedCategory === 'all' ||
                 item.categoryId === Number(selectedCategory)
@@ -194,8 +192,25 @@ export default function MenuPage() {
                 (statusFilter === 'available' && item.status === 'AVAILABLE') ||
                 (statusFilter === 'unavailable' && item.status !== 'AVAILABLE')
 
-            return matchesSearch && matchesCategory && matchesStatus
+            return matchesCategory && matchesStatus
         })
+
+        // Apply fuzzy search if there's a search query
+        if (searchQuery.trim() !== '') {
+            const fuse = new Fuse(result, {
+                keys: [
+                    { name: 'name', weight: 0.7 },
+                    { name: 'description', weight: 0.3 },
+                ],
+                threshold: 0.4, // 0.0 = exact match, 1.0 = match anything
+                ignoreLocation: true,
+                includeScore: true,
+                minMatchCharLength: 1,
+            })
+
+            const searchResults = fuse.search(searchQuery)
+            result = searchResults.map((result) => result.item)
+        }
 
         if (sortBy !== 'none') {
             result = [...result].sort((a, b) => {
@@ -246,7 +261,14 @@ export default function MenuPage() {
     }
 
     const handleDelete = async (item: MenuItem) => {
-        if (!confirm(`Are you sure you want to permanently delete ${item.name}? This action cannot be undone.`)) {
+        const confirmed = await confirm({
+            title: 'Delete Menu Item',
+            message: `Are you sure you want to permanently delete ${item.name}? This action cannot be undone.`,
+            type: 'warning',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+        })
+        if (!confirmed) {
             return
         }
         try {
@@ -255,14 +277,21 @@ export default function MenuPage() {
             if (restaurantId) {
                 await fetchData(restaurantId)
             }
+            await alert({
+                title: 'Success',
+                message: `Menu item "${item.name}" has been deleted successfully.`,
+                type: 'success',
+            })
         } catch (err: any) {
-            alert(
-                `Unable to delete menu item: ${
+            await alert({
+                title: 'Error',
+                message: `Unable to delete menu item: ${
                     err.response?.data?.message ||
                     err.message ||
                     'Unknown error'
-                }`
-            )
+                }`,
+                type: 'error',
+            })
         }
     }
 
@@ -288,7 +317,11 @@ export default function MenuPage() {
     }) => {
         try {
             if (!restaurantId) {
-                alert('Restaurant ID not found')
+                await alert({
+                    title: 'Error',
+                    message: 'Restaurant ID not found',
+                    type: 'error',
+                })
                 return
             }
 
@@ -320,14 +353,21 @@ export default function MenuPage() {
             // Refresh data
             await fetchData(restaurantId)
             handleCloseModals()
+            await alert({
+                title: 'Success',
+                message: `Menu item "${formData.name}" has been ${selectedItem ? 'updated' : 'created'} successfully.`,
+                type: 'success',
+            })
         } catch (err: any) {
-            alert(
-                `Unable to save menu item: ${
+            await alert({
+                title: 'Error',
+                message: `Unable to save menu item: ${
                     err.response?.data?.message ||
                     err.message ||
                     'Unknown error'
-                }`
-            )
+                }`,
+                type: 'error',
+            })
         }
     }
 
@@ -647,6 +687,7 @@ function MenuItemModal({
     categories: Category[]
     modifierGroups: Array<{ id: number; name: string }>
 }) {
+    const { alert } = useModal()
     const [name, setName] = useState(item?.name || '')
     const [description, setDescription] = useState(item?.description || '')
     const [basePrice, setBasePrice] = useState(
@@ -725,7 +766,11 @@ function MenuItemModal({
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!name || !basePrice || !categoryId) {
-            alert('Please fill in all required fields')
+            await alert({
+                title: 'Validation Error',
+                message: 'Please fill in all required fields',
+                type: 'warning',
+            })
             return
         }
 
@@ -734,7 +779,11 @@ function MenuItemModal({
             try {
                 imageBase64 = await convertImageToBase64(selectedImage)
             } catch (error) {
-                alert('Failed to process image. Please try again.')
+                await alert({
+                    title: 'Error',
+                    message: 'Failed to process image. Please try again.',
+                    type: 'error',
+                })
                 return
             }
         }

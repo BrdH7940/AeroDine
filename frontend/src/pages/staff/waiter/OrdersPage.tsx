@@ -70,19 +70,18 @@ export default function WaiterOrdersPage() {
     const fetchOrders = useCallback(async () => {
         try {
             setLoading(true)
-            const [pendingRes, activeRes] = await Promise.all([
-                orderService.getOrders({
-                    restaurantId,
-                    status: 'PENDING' as any,
-                }),
+            // Use getPendingOrders() which includes both PENDING_REVIEW and PENDING orders
+            const [pendingOrdersData, activeRes] = await Promise.all([
+                orderService.getPendingOrders(restaurantId),
                 orderService.getOrders({
                     restaurantId,
                     status: 'IN_PROGRESS' as any,
                 }),
             ])
 
+            // Map pending orders (includes PENDING_REVIEW and PENDING)
             setPendingOrders(
-                pendingRes.orders.map((o: any) => ({
+                pendingOrdersData.map((o: any) => ({
                     id: o.id,
                     tableId: o.tableId,
                     tableName: o.table?.name || `Table ${o.tableId}`,

@@ -16,6 +16,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUserStore } from '../../store/userStore';
 import { authService } from '../../services/auth.service';
+import ProfileModal from '../admin/ProfileModal';
 
 interface SidebarProps {
   isMobileOpen: boolean;
@@ -35,7 +36,8 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, clearUser, initializeAuth } = useUserStore();
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   useEffect(() => {
     // Initialize auth state on mount
@@ -44,11 +46,16 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const handleLogout = () => {
-    authService.logout();
+  const handleLogout = async () => {
+    await authService.logout();
     clearUser();
-    setIsProfileOpen(false);
+    setIsProfileDropdownOpen(false);
     navigate('/auth/login');
+  };
+
+  const handleProfileClick = () => {
+    setIsProfileDropdownOpen(false);
+    setIsProfileModalOpen(true);
   };
 
   const handleLogin = () => {
@@ -126,7 +133,7 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
           ) : (
             <div className="relative">
               <button
-                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition-colors"
               >
                 <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
@@ -139,20 +146,27 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
                 <ChevronDown
                   size={16}
                   className={`text-slate-400 transition-transform ${
-                    isProfileOpen ? 'rotate-180' : ''
+                    isProfileDropdownOpen ? 'rotate-180' : ''
                   }`}
                 />
               </button>
 
               {/* Profile Dropdown */}
               <AnimatePresence>
-                {isProfileOpen && (
+                {isProfileDropdownOpen && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     className="absolute bottom-full left-0 right-0 mb-2 bg-slate-800 rounded-lg shadow-lg overflow-hidden"
                   >
+                    <button
+                      onClick={handleProfileClick}
+                      className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"
+                    >
+                      <Settings size={16} />
+                      Profile
+                    </button>
                     <button
                       onClick={handleLogout}
                       className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"
@@ -167,6 +181,12 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
           )}
         </div>
       </aside>
+
+      {/* Profile Modal */}
+      <ProfileModal 
+        isOpen={isProfileModalOpen} 
+        onClose={() => setIsProfileModalOpen(false)} 
+      />
     </>
   );
 }

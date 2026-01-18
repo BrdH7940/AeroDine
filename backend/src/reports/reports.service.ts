@@ -61,24 +61,51 @@ export class ReportsService {
     }
 
     /**
-     * Get revenue chart data for Chart.js
-     * @param range - 'week' or 'month'
+     * Helper method to calculate date range based on range string
      */
-    async getRevenueChart(range: 'week' | 'month') {
+    private getDateRange(range: string): { startDate: Date; endDate: Date } {
         const endDate = new Date()
         endDate.setHours(23, 59, 59, 999) // End of today
 
-        let startDate: Date
-        if (range === 'week') {
-            startDate = new Date(endDate)
-            startDate.setDate(startDate.getDate() - 6) // 7 days including today
-            startDate.setHours(0, 0, 0, 0)
-        } else {
-            // month (last 30 days including today)
-            startDate = new Date(endDate)
-            startDate.setDate(startDate.getDate() - 29) // 30 days including today
-            startDate.setHours(0, 0, 0, 0)
+        const startDate = new Date(endDate)
+
+        switch (range) {
+            case 'week':
+                startDate.setDate(startDate.getDate() - 6) // 7 days including today
+                break
+            case '30':
+            case 'month':
+                startDate.setDate(startDate.getDate() - 29) // 30 days including today
+                break
+            case 'lastMonth': {
+                // First day of last month
+                startDate.setMonth(startDate.getMonth() - 1)
+                startDate.setDate(1)
+                // Last day of last month
+                const lastDayOfLastMonth = new Date(endDate)
+                lastDayOfLastMonth.setDate(0) // Last day of previous month
+                lastDayOfLastMonth.setHours(23, 59, 59, 999)
+                return { startDate, endDate: lastDayOfLastMonth }
+            }
+            case '3months':
+                startDate.setMonth(startDate.getMonth() - 2) // 3 months including current month
+                startDate.setDate(1) // First day of the month
+                break
+            default:
+                // Default to 30 days
+                startDate.setDate(startDate.getDate() - 29)
         }
+
+        startDate.setHours(0, 0, 0, 0)
+        return { startDate, endDate }
+    }
+
+    /**
+     * Get revenue chart data for Chart.js
+     * @param range - 'week', '30', 'month', 'lastMonth', or '3months'
+     */
+    async getRevenueChart(range: string = 'week') {
+        const { startDate, endDate } = this.getDateRange(range)
 
         // Get all completed orders in the date range
         const orders = await this.prisma.order.findMany({
@@ -101,10 +128,10 @@ export class ReportsService {
         // Initialize all dates in range with 0
         const dateArray: Date[] = []
         const currentDate = new Date(startDate)
-        const todayDateOnly = new Date(endDate)
-        todayDateOnly.setHours(0, 0, 0, 0)
+        const endDateOnly = new Date(endDate)
+        endDateOnly.setHours(0, 0, 0, 0)
         
-        while (currentDate <= todayDateOnly) {
+        while (currentDate <= endDateOnly) {
             dateArray.push(new Date(currentDate))
             const dateKey = currentDate.toISOString().split('T')[0]
             revenueByDate.set(dateKey, 0)

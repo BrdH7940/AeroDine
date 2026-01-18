@@ -133,7 +133,7 @@ function TicketCard({ order, onStatusChange }: TicketCardProps) {
                                 {item.status === OrderItemStatus.QUEUED && (
                                     <button
                                         onClick={() => handleItemStatusChange(item.id, OrderItemStatus.PREPARING)}
-                                        className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                                        className="text-sm px-2 py-1 bg-orange-100 text-orange-700 rounded hover:bg-orange-200"
                                     >
                                         Start
                                     </button>
@@ -141,13 +141,13 @@ function TicketCard({ order, onStatusChange }: TicketCardProps) {
                                 {item.status === OrderItemStatus.PREPARING && (
                                     <button
                                         onClick={() => handleItemStatusChange(item.id, OrderItemStatus.READY)}
-                                        className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200"
+                                        className="text-sm px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
                                     >
                                         Ready
                                     </button>
                                 )}
                                 {(item.status === OrderItemStatus.READY || item.status === OrderItemStatus.SERVED) && (
-                                    <span className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded">
+                                    <span className="text-sm px-2 py-1 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded">
                                         {item.status === OrderItemStatus.READY ? 'Ready' : 'Served'}
                                     </span>
                                 )}

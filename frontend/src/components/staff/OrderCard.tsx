@@ -74,6 +74,8 @@ export default function OrderCard({
 
     const getStatusColor = (status: string) => {
         switch (status) {
+            case 'PENDING_REVIEW':
+                return 'bg-orange-100 text-orange-800' // Highlight PENDING_REVIEW orders
             case 'PENDING':
                 return 'bg-yellow-100 text-yellow-800'
             case 'IN_PROGRESS':
@@ -279,7 +281,11 @@ export default function OrderCard({
         <>
             <div
                 className={`bg-white rounded-lg shadow-md overflow-hidden ${
-                    type === 'pending' ? 'border-l-4 border-yellow-500' : ''
+                    type === 'pending' 
+                        ? order.status === 'PENDING_REVIEW'
+                            ? 'border-l-4 border-orange-500' // Orange border for PENDING_REVIEW
+                            : 'border-l-4 border-yellow-500' // Yellow border for PENDING
+                        : ''
                 } ${hasReadyItems ? 'ring-2 ring-green-500' : ''}`}
             >
                 {/* Header */}

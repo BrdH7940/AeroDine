@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Plus, Mail, Phone, User as UserIcon, Edit, Trash2, X } from 'lucide-react'
+import { Plus, Mail, Phone, User as UserIcon, Edit, Trash2, X, Lock, Unlock } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { apiClient, usersApi } from '../../services/api'
+import { useModal } from '../../contexts/ModalContext'
 
 // User role types
 type UserRoleType = 'ADMIN' | 'WAITER' | 'KITCHEN' | 'CUSTOMER'
@@ -11,6 +12,7 @@ interface StaffMember {
     email: string
     fullName: string
     role: UserRoleType | string
+    isActive: boolean
     createdAt: string
     updatedAt: string
     phone?: string
@@ -35,11 +37,13 @@ function getInitials(name: string): string {
 function StaffCard({ 
     staff, 
     onEdit, 
-    onDelete 
+    onDelete,
+    onToggleActive
 }: { 
     staff: StaffMember
     onEdit: (staff: StaffMember) => void
     onDelete: (staff: StaffMember) => void
+    onToggleActive: (staff: StaffMember) => void
 }) {
     const initials = getInitials(staff.fullName)
     const roleName = roleMap[staff.role] || staff.role
@@ -59,14 +63,25 @@ function StaffCard({
                         </span>
                     </div>
                     {/* Status indicator */}
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+                    <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
+                        staff.isActive ? 'bg-green-500' : 'bg-red-500'
+                    }`}></div>
                 </div>
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold text-slate-900 mb-1">
-                        {staff.fullName}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-lg font-semibold text-slate-900">
+                            {staff.fullName}
+                        </h3>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                            staff.isActive 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-red-100 text-red-700'
+                        }`}>
+                            {staff.isActive ? 'Active' : 'Deactivated'}
+                        </span>
+                    </div>
                     <p className="text-sm font-medium text-amber-600 mb-3">
                         {roleName}
                     </p>
@@ -86,17 +101,39 @@ function StaffCard({
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex gap-2 pt-4 mt-4 border-t border-slate-100">
-                        <button
-                            onClick={() => onEdit(staff)}
-                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-600 rounded-lg transition-colors text-sm font-medium"
-                        >
-                            <Edit size={16} />
-                            Edit
-                        </button>
+                    <div className="flex flex-col gap-2 pt-4 mt-4 border-t border-slate-100">
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => onEdit(staff)}
+                                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-600 rounded-lg transition-colors text-sm font-medium"
+                            >
+                                <Edit size={16} />
+                                Edit
+                            </button>
+                            <button
+                                onClick={() => onToggleActive(staff)}
+                                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${
+                                    staff.isActive
+                                        ? 'bg-orange-100 hover:bg-orange-200 text-orange-700 hover:text-orange-800'
+                                        : 'bg-green-100 hover:bg-green-200 text-green-700 hover:text-green-800'
+                                }`}
+                            >
+                                {staff.isActive ? (
+                                    <>
+                                        <Lock size={16} />
+                                        Deactivate
+                                    </>
+                                ) : (
+                                    <>
+                                        <Unlock size={16} />
+                                        Activate
+                                    </>
+                                )}
+                            </button>
+                        </div>
                         <button
                             onClick={() => onDelete(staff)}
-                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-600 rounded-lg transition-colors text-sm font-medium"
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-600 rounded-lg transition-colors text-sm font-medium"
                         >
                             <Trash2 size={16} />
                             Delete
@@ -109,6 +146,7 @@ function StaffCard({
 }
 
 export default function StaffPage() {
+    const { confirm, alert } = useModal()
     const [staff, setStaff] = useState<StaffMember[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -157,20 +195,62 @@ export default function StaffPage() {
         setIsEditModalOpen(true)
     }
 
+    const handleToggleActive = async (staffMember: StaffMember) => {
+        const action = staffMember.isActive ? 'deactivate' : 'activate'
+        const confirmed = await confirm({
+            title: `${action === 'deactivate' ? 'Deactivate' : 'Activate'} Staff Member`,
+            message: `Are you sure you want to ${action} ${staffMember.fullName}?`,
+            type: 'warning',
+            confirmText: action === 'deactivate' ? 'Deactivate' : 'Activate',
+            cancelText: 'Cancel',
+        })
+        if (!confirmed) {
+            return
+        }
+
+        try {
+            const updated = await usersApi.toggleUserActive(staffMember.id)
+            setStaff(staff.map((s) => (s.id === staffMember.id ? { ...s, isActive: updated.isActive } : s)))
+            await alert({
+                title: 'Success',
+                message: `Staff member "${staffMember.fullName}" has been ${action}d successfully.`,
+                type: 'success',
+            })
+        } catch (err: any) {
+            await alert({
+                title: 'Error',
+                message: `Unable to ${action} staff: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
+        }
+    }
+
     const handleDelete = async (staffMember: StaffMember) => {
-        if (
-            !confirm(
-                `Are you sure you want to delete ${staffMember.fullName}? This action cannot be undone.`
-            )
-        ) {
+        const confirmed = await confirm({
+            title: 'Delete Staff Member',
+            message: `Are you sure you want to delete ${staffMember.fullName}? This action cannot be undone.`,
+            type: 'warning',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+        })
+        if (!confirmed) {
             return
         }
 
         try {
             await usersApi.deleteUser(staffMember.id)
             setStaff(staff.filter((s) => s.id !== staffMember.id))
+            await alert({
+                title: 'Success',
+                message: `Staff member "${staffMember.fullName}" has been deleted successfully.`,
+                type: 'success',
+            })
         } catch (err: any) {
-            alert(`Unable to delete staff: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            await alert({
+                title: 'Error',
+                message: `Unable to delete staff: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
         }
     }
 
@@ -197,7 +277,11 @@ export default function StaffPage() {
             } else {
                 // Create new staff
                 if (!formData.password) {
-                    alert('Password is required for new staff members')
+                    await alert({
+                        title: 'Validation Error',
+                        message: 'Password is required for new staff members',
+                        type: 'warning',
+                    })
                     return
                 }
                 await usersApi.createUser({
@@ -211,8 +295,17 @@ export default function StaffPage() {
             // Refresh data
             await fetchStaff()
             handleCloseModals()
+            await alert({
+                title: 'Success',
+                message: `Staff member "${formData.name}" has been ${selectedStaff ? 'updated' : 'created'} successfully.`,
+                type: 'success',
+            })
         } catch (err: any) {
-            alert(`Unable to save staff: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            await alert({
+                title: 'Error',
+                message: `Unable to save staff: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
         }
     }
 
@@ -281,6 +374,7 @@ export default function StaffPage() {
                             staff={member}
                             onEdit={handleEdit}
                             onDelete={handleDelete}
+                            onToggleActive={handleToggleActive}
                         />
                     ))}
                 </div>
@@ -316,6 +410,7 @@ function StaffModal({
     }) => void
     staff: StaffMember | null
 }) {
+    const { alert } = useModal()
     const [email, setEmail] = useState(staff?.email || '')
     const [password, setPassword] = useState('')
     const [name, setName] = useState(staff?.fullName || '')
@@ -335,14 +430,22 @@ function StaffModal({
         }
     }, [staff])
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!email || !name || !role) {
-            alert('Please fill in all required fields')
+            await alert({
+                title: 'Validation Error',
+                message: 'Please fill in all required fields',
+                type: 'warning',
+            })
             return
         }
         if (!staff && !password) {
-            alert('Password is required for new staff members')
+            await alert({
+                title: 'Validation Error',
+                message: 'Password is required for new staff members',
+                type: 'warning',
+            })
             return
         }
         onSave({

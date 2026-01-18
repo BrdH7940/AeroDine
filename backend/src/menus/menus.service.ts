@@ -12,6 +12,7 @@ import { CreateMenuItemDto } from './dto/create-menu-item.dto'
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto'
 import { CreateModifierGroupDto } from './dto/create-modifier-group.dto'
 import { CreateModifierOptionDto } from './dto/create-modifier-option.dto'
+import * as levenshtein from 'fast-levenshtein'
 
 @Injectable()
 export class MenusService {
@@ -202,16 +203,11 @@ export class MenusService {
         }
     }
 
-    findAllMenuItems(restaurantId: number, query?: string) {
-        return this.prisma.menuItem.findMany({
+    async findAllMenuItems(restaurantId: number, query?: string) {
+        // Get all menu items for the restaurant
+        const allItems = await this.prisma.menuItem.findMany({
             where: {
                 restaurantId,
-                name: query
-                    ? {
-                          contains: query,
-                          mode: 'insensitive',
-                      }
-                    : undefined,
             },
             include: {
                 images: true,
@@ -220,10 +216,102 @@ export class MenusService {
                     include: { modifierGroup: true },
                 },
             },
-            orderBy: {
-                name: 'asc',
-            },
         })
+
+        // If no query, return all items sorted by name
+        if (!query || query.trim() === '') {
+            return allItems.sort((a, b) => a.name.localeCompare(b.name))
+        }
+
+        const queryLower = query.toLowerCase().trim()
+        const queryLength = queryLower.length
+
+        // Calculate fuzzy match score for each item
+        const itemsWithScore = allItems.map((item) => {
+            const nameLower = item.name.toLowerCase()
+            const descriptionLower = item.description?.toLowerCase() || ''
+
+            // Calculate Levenshtein distance for name
+            const nameDistance = levenshtein.get(queryLower, nameLower)
+            const nameMaxLength = Math.max(queryLength, nameLower.length)
+            const nameSimilarity = 1 - nameDistance / nameMaxLength
+
+            // Calculate Levenshtein distance for description (if exists)
+            let descriptionSimilarity = 0
+            if (descriptionLower) {
+                // Check if query appears in description (substring match)
+                if (descriptionLower.includes(queryLower)) {
+                    descriptionSimilarity = 0.5 // Bonus for substring match
+                } else {
+                    // Calculate minimum distance for any substring of description
+                    let minDescriptionDistance = Infinity
+                    for (let i = 0; i <= descriptionLower.length - queryLength; i++) {
+                        const substring = descriptionLower.substring(
+                            i,
+                            i + queryLength
+                        )
+                        const distance = levenshtein.get(queryLower, substring)
+                        minDescriptionDistance = Math.min(
+                            minDescriptionDistance,
+                            distance
+                        )
+                    }
+                    if (minDescriptionDistance < Infinity) {
+                        const maxDescLength = Math.max(
+                            queryLength,
+                            queryLength
+                        )
+                        descriptionSimilarity =
+                            (1 - minDescriptionDistance / maxDescLength) * 0.3 // Lower weight for description
+                    }
+                }
+            }
+
+            // Combined score: name is more important (70%) than description (30%)
+            const combinedScore = nameSimilarity * 0.7 + descriptionSimilarity * 0.3
+
+            // Calculate maximum allowed distance based on query length
+            // Allow up to 30% of query length as typos, or minimum 1-2 characters
+            const maxAllowedDistance = Math.max(
+                1,
+                Math.ceil(queryLength * 0.3)
+            )
+
+            // Check if item matches (either exact/substring match or within typo tolerance)
+            const exactMatch = nameLower.includes(queryLower)
+            const withinTolerance = nameDistance <= maxAllowedDistance
+
+            return {
+                item,
+                score: combinedScore,
+                nameDistance,
+                exactMatch,
+                withinTolerance,
+            }
+        })
+
+        // Filter items that match (exact match or within typo tolerance)
+        const matchedItems = itemsWithScore.filter(
+            ({ exactMatch, withinTolerance }) => exactMatch || withinTolerance
+        )
+
+        // Sort by: exact matches first, then by similarity score (highest first)
+        matchedItems.sort((a, b) => {
+            // Exact matches come first
+            if (a.exactMatch && !b.exactMatch) return -1
+            if (!a.exactMatch && b.exactMatch) return 1
+
+            // Then sort by score (higher is better)
+            if (Math.abs(a.score - b.score) > 0.001) {
+                return b.score - a.score
+            }
+
+            // Finally, sort by name alphabetically
+            return a.item.name.localeCompare(b.item.name)
+        })
+
+        // Return only the items (without score metadata)
+        return matchedItems.map(({ item }) => item)
     }
 
     async updateMenuItem(id: number, dto: UpdateMenuItemDto) {

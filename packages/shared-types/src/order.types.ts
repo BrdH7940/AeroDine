@@ -10,6 +10,7 @@
 // ============================================================================
 
 export enum OrderStatus {
+    PENDING_REVIEW = 'PENDING_REVIEW',
     PENDING = 'PENDING',
     IN_PROGRESS = 'IN_PROGRESS',
     COMPLETED = 'COMPLETED',
@@ -271,6 +272,7 @@ export interface ModifierDisplay {
 // ============================================================================
 
 export const OrderStatusTransitions: Record<OrderStatus, OrderStatus[]> = {
+    [OrderStatus.PENDING_REVIEW]: [OrderStatus.PENDING, OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
     [OrderStatus.PENDING]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
     [OrderStatus.IN_PROGRESS]: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
     [OrderStatus.COMPLETED]: [], // Terminal state

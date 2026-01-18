@@ -31,19 +31,33 @@ export const authApi = {
         const response = await apiClient.post('/auth/login', credentials)
         const data = response.data
 
-        // Store token in localStorage
+        // Store tokens in localStorage
         if (data.access_token) {
             localStorage.setItem('token', data.access_token)
+        }
+        if (data.refresh_token) {
+            localStorage.setItem('refreshToken', data.refresh_token)
         }
 
         return data
     },
 
     /**
-     * Logout (clear token)
+     * Logout (clear tokens and invalidate refresh token on server)
      */
-    logout: () => {
-        localStorage.removeItem('token')
+    logout: async () => {
+        try {
+            // Call logout endpoint to invalidate refresh token on server
+            await apiClient.post('/auth/logout')
+        } catch (error) {
+            // Continue with local logout even if server call fails
+            console.error('Logout error:', error)
+        } finally {
+            // Always clear local storage
+            localStorage.removeItem('token')
+            localStorage.removeItem('refreshToken')
+            localStorage.removeItem('user')
+        }
     },
 
     /**

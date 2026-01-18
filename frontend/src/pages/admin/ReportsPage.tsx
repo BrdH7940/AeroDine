@@ -1256,20 +1256,47 @@ export default function ReportsPage() {
             setLoading(true)
             setError(null)
 
-            // Auto-login in development mode if not authenticated
-            if (import.meta.env.DEV && !authApi.isAuthenticated()) {
-                try {
-                    await authApi.autoLoginDev()
-                } catch {
-                    // Auto-login failed, continuing without auth
+            // Check authentication and ensure token is available
+            if (!authApi.isAuthenticated()) {
+                // Auto-login in development mode if not authenticated
+                if (import.meta.env.DEV) {
+                    try {
+                        const success = await authApi.autoLoginDev()
+                        if (!success) {
+                            setError('Please login to view reports.')
+                            setLoading(false)
+                            return
+                        }
+                    } catch {
+                        setError('Please login to view reports.')
+                        setLoading(false)
+                        return
+                    }
+                } else {
+                    setError('Please login to view reports.')
+                    setLoading(false)
+                    return
                 }
             }
 
+            // Verify token exists before making API calls
+            const token = authApi.getToken()
+            if (!token) {
+                setError('Authentication token not found. Please login again.')
+                setLoading(false)
+                return
+            }
+
             await fetchReportsData()
-        } catch {
-            setError(
-                'Unable to load reports data. Please check if backend is running.'
-            )
+        } catch (err: any) {
+            // Handle specific error cases
+            if (err.response?.status === 401) {
+                setError('Session expired. Please login again.')
+            } else {
+                setError(
+                    'Unable to load reports data. Please check if backend is running.'
+                )
+            }
         } finally {
             setLoading(false)
         }
@@ -1292,9 +1319,7 @@ export default function ReportsPage() {
                 prepTimeTrends,
             ] = await Promise.all([
                 reportsApi.getDashboardStats(),
-                reportsApi.getRevenueChart(
-                    dateRange === '30' ? 'month' : 'week'
-                ),
+                reportsApi.getRevenueChart(dateRange),
                 reportsApi.getTopSellingItems(),
                 reportsApi.getPaymentMethodsBreakdown(),
                 reportsApi.getCategorySales(),
@@ -1346,8 +1371,14 @@ export default function ReportsPage() {
             setRatingVolumeData(ratingVolume || [])
             setPrepTimeData(prepTimeTrends || [])
         } catch (err: any) {
+            // Don't set error here if it's a 401 - let the interceptor handle it
+            // The interceptor will try to refresh the token or redirect to login
             if (err.response?.status === 401) {
-                setError('Authentication required. Please login.')
+                // Token might be expired - interceptor should handle refresh
+                // If we get here, refresh likely failed
+                setError('Session expired. Please refresh the page or login again.')
+            } else if (err.response?.status === 403) {
+                setError('You do not have permission to view reports. Admin access required.')
             } else if (err.response?.status === 404) {
                 setError(
                     'Backend endpoint not found. Please check if backend is running.'

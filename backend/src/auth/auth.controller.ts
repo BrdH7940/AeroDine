@@ -14,6 +14,7 @@ import { RegisterDto } from './dto/create-auth.dto'
 import { LoginDto } from './dto/update-auth.dto'
 import { ForgotPasswordDto } from './dto/forgot-password.dto'
 import { ResetPasswordDto } from './dto/reset-password.dto'
+import { RefreshTokenDto } from './dto/refresh-token.dto'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { GoogleAuthGuard } from './guards/google-auth.guard'
 import { CurrentUser } from './decorators/current-user.decorator'
@@ -43,9 +44,68 @@ export class AuthController {
     }
 
     @Post('login')
-    @ApiOperation({ summary: 'Login and receive JWT access token' })
+    @ApiOperation({ summary: 'Login and receive JWT access token and refresh token' })
+    @ApiResponse({
+        status: 200,
+        description: 'Login successful',
+        schema: {
+            example: {
+                access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                refresh_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                user: {
+                    id: 1,
+                    email: 'user@example.com',
+                    fullName: 'John Doe',
+                    role: 'CUSTOMER',
+                },
+            },
+        },
+    })
     login(@Body() loginDto: LoginDto) {
         return this.authService.login(loginDto)
+    }
+
+    @Post('refresh')
+    @ApiOperation({ summary: 'Refresh access token using refresh token' })
+    @ApiResponse({
+        status: 200,
+        description: 'Token refreshed successfully',
+        schema: {
+            example: {
+                access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                user: {
+                    id: 1,
+                    email: 'user@example.com',
+                    fullName: 'John Doe',
+                    role: 'CUSTOMER',
+                },
+            },
+        },
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Invalid or expired refresh token',
+    })
+    async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
+        return this.authService.refreshToken(refreshTokenDto.refresh_token)
+    }
+
+    @ApiBearerAuth('JWT-auth')
+    @UseGuards(JwtAuthGuard)
+    @Post('logout')
+    @ApiOperation({ summary: 'Logout - invalidate refresh token (requires JWT)' })
+    @ApiResponse({
+        status: 200,
+        description: 'Logout successful',
+        schema: {
+            example: {
+                message: 'Logged out successfully',
+            },
+        },
+    })
+    async logout(@CurrentUser() user: any) {
+        await this.authService.logout(user.id)
+        return { message: 'Logged out successfully' }
     }
 
     @ApiBearerAuth('JWT-auth')

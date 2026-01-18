@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient, tablesApi } from '../../services/api';
 import { MenuList, CategoryTabs, ModifierSelectionDialog, BottomNavigation, AiOrderModal } from '../../components/customer';
 import type { Category } from '../../components/customer';
@@ -32,7 +32,8 @@ interface MenuItem {
 
 export const MenuPage: React.FC = () => {
   const navigate = useNavigate();
-  const { addItem, getItemCount, tableId, restaurantId: cartRestaurantId, setRestaurantId } = useCartStore();
+  const [searchParams] = useSearchParams();
+  const { addItem, getItemCount, tableId, restaurantId: cartRestaurantId, setRestaurantId, setTableId } = useCartStore();
   const { user, isAuthenticated, clearUser } = useUserStore();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -45,9 +46,54 @@ export const MenuPage: React.FC = () => {
   const [currentRestaurantId, setCurrentRestaurantId] = useState<number | null>(null);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
+  // Validate token from URL and bind cart to table session
+  useEffect(() => {
+    const validateTokenAndBindCart = async () => {
+      const token = searchParams.get('token');
+      
+      // If no token in URL, skip validation
+      if (!token) {
+        return;
+      }
+
+      // Use a ref or state to track if token has been processed to avoid re-validation
+      // For now, we'll always validate if token exists (allows changing tables by scanning new QR)
+      try {
+        console.log('Validating table token from URL...');
+        const result = await tablesApi.validateTableToken(token);
+        
+        if (result.valid && result.tableId && result.restaurantId) {
+          console.log('Token validated successfully:', result);
+          
+          // Bind cart to table session (this will update cart even if tableId already exists)
+          setTableId(result.tableId);
+          setRestaurantId(result.restaurantId);
+          
+          // Update current restaurant ID
+          setCurrentRestaurantId(result.restaurantId);
+          
+          // Remove token from URL to clean it up (prevents re-validation on re-render)
+          const newSearchParams = new URLSearchParams(searchParams);
+          newSearchParams.delete('token');
+          const newSearch = newSearchParams.toString();
+          const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
+          window.history.replaceState({}, '', newUrl);
+        }
+      } catch (error: any) {
+        console.error('Failed to validate table token:', error);
+        // Don't show error to user, just log it
+        // Token might be invalid or expired, user can still browse menu
+      }
+    };
+
+    validateTokenAndBindCart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.get('token')]); // Only re-run when token changes
+
   // Initialize restaurantId from cartStore or fetch from tables
   useEffect(() => {
     const initializeRestaurantId = async () => {
+      // If restaurantId is already set from token validation, use it
       if (cartRestaurantId) {
         setCurrentRestaurantId(cartRestaurantId);
         return;
@@ -180,8 +226,8 @@ export const MenuPage: React.FC = () => {
     setSelectedCategoryId(categoryId);
   };
 
-  const handleLogout = () => {
-    authService.logout();
+  const handleLogout = async () => {
+    await authService.logout();
     clearUser();
     setIsMenuOpen(false);
     navigate('/auth/login');

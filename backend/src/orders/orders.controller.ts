@@ -11,8 +11,10 @@ import {
     HttpCode,
     HttpStatus,
     Req,
+    UseGuards,
 } from '@nestjs/common'
 import type { RawBodyRequest } from '@nestjs/common'
+import { Throttle, SkipThrottle } from '@nestjs/throttler'
 import { OrdersService } from './orders.service'
 import { CreateOrderDto, AddItemsToOrderDto } from './dto/create-order.dto'
 import {
@@ -83,8 +85,25 @@ export class OrdersController {
     /**
      * Create a new order
      * POST /orders
+     * Case 3: Rate limiting to prevent spam orders
+     * - Limit: 5 requests per minute per IP
+     * - This prevents DDoS attacks and spam order creation
      */
+    @Throttle({ short: { ttl: 60000, limit: 5 } }) // 5 orders per minute
     @Post()
+    @ApiOperation({
+        summary: 'Create a new order',
+        description:
+            'Creates a new order. Rate limited to 5 requests per minute per IP to prevent spam attacks.',
+    })
+    @ApiResponse({
+        status: 201,
+        description: 'Order created successfully (status: PENDING_REVIEW)',
+    })
+    @ApiResponse({
+        status: 429,
+        description: 'Too many requests. Please try again later.',
+    })
     create(@Body() createOrderDto: CreateOrderDto) {
         return this.ordersService.create(createOrderDto)
     }
@@ -234,8 +253,21 @@ export class OrdersController {
     /**
      * Process cash payment for order
      * POST /orders/:id/pay-cash
+     * Case 2: Trust Your Device - Only authenticated staff can confirm cash payment
      */
+    @ApiBearerAuth('JWT-auth')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.WAITER, UserRole.ADMIN)
     @Post(':id/pay-cash')
+    @ApiOperation({
+        summary: 'Process cash payment for order (WAITER/ADMIN only)',
+        description:
+            'Waiter confirms cash payment from their device. This prevents fake payment screens from customers.',
+    })
+    @ApiParam({ name: 'id', type: Number, description: 'Order ID' })
+    @ApiResponse({ status: 200, description: 'Payment processed successfully' })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Staff authentication required' })
+    @ApiResponse({ status: 403, description: 'Forbidden - Waiter/Admin role required' })
     payCash(@Param('id', ParseIntPipe) id: number) {
         return this.ordersService.processCashPayment(id)
     }
