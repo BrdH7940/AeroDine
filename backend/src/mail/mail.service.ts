@@ -159,4 +159,62 @@ export class MailService {
             throw error
         }
     }
+
+    /**
+     * Send password reset OTP code via email
+     */
+    async sendPasswordResetOTP(user: User, otpCode: string): Promise<void> {
+        if (!this.transporter) {
+            this.logger.warn(
+                'Mail transporter not configured. Skipping email send.'
+            )
+            return
+        }
+
+        const from = this.configService.get<string>('mail.from') || 'noreply@aerodine.com'
+
+        const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Reset Verification Code - AeroDine</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background-color: #f8f9fa; padding: 30px; border-radius: 10px;">
+        <h1 style="color: #dc2626; margin-top: 0;">Password Reset Verification Code</h1>
+        <p>Hi ${user.fullName},</p>
+        <p>We received a request to reset your password for your AeroDine account. Use the verification code below to reset your password:</p>
+        <div style="text-align: center; margin: 30px 0;">
+            <div style="display: inline-block; padding: 20px 40px; background-color: #dc2626; color: white; border-radius: 10px; font-size: 32px; font-weight: bold; letter-spacing: 5px;">
+                ${otpCode}
+            </div>
+        </div>
+        <p style="color: #dc2626; font-size: 14px; margin-top: 30px; font-weight: bold;">This code will expire in 10 minutes.</p>
+        <p style="color: #666; font-size: 14px;">If you didn't request a password reset, please ignore this email. Your password will remain unchanged.</p>
+        <p style="color: #666; font-size: 14px;">For security reasons, never share this code with anyone.</p>
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+        <p style="color: #999; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} AeroDine. All rights reserved.</p>
+    </div>
+</body>
+</html>
+        `
+
+        try {
+            await this.transporter.sendMail({
+                from: `"AeroDine" <${from}>`,
+                to: user.email,
+                subject: 'Password Reset Verification Code - AeroDine',
+                html: html,
+            })
+            this.logger.log(`Password reset OTP sent to ${user.email}`)
+        } catch (error) {
+            this.logger.error(
+                `Failed to send password reset OTP to ${user.email}:`,
+                error
+            )
+            throw error
+        }
+    }
 }

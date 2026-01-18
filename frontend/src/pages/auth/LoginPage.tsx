@@ -116,6 +116,15 @@ export const LoginPage: React.FC = () => {
               {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </button>
           </div>
+
+          <div className="text-center">
+            <Link
+              to="/auth/forgot-password"
+              className="text-sm text-primary hover:text-primary-dark"
+            >
+              Quên mật khẩu?
+            </Link>
+          </div>
         </form>
 
         {/* Google Login Divider */}

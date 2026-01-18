@@ -101,4 +101,38 @@ export const authService = {
     
     return user;
   },
+
+  /**
+   * Request password reset - sends OTP code to email
+   */
+  async forgotPassword(data: { email: string }): Promise<{ message: string }> {
+    const response = await apiClient.post<any>('/auth/forgot-password', data);
+    return response.data;
+  },
+
+  /**
+   * Verify OTP code for password reset
+   */
+  async verifyOtp(data: {
+    email: string;
+    otpCode: string;
+  }): Promise<{ message: string; verified: boolean }> {
+    const response = await apiClient.post<any>('/auth/verify-otp', data);
+    return response.data;
+  },
+
+  /**
+   * Reset password using OTP code
+   */
+  async resetPasswordWithOtp(data: {
+    email: string;
+    otpCode: string;
+    newPassword: string;
+  }): Promise<{ message: string }> {
+    const response = await apiClient.post<any>(
+      '/auth/reset-password-with-otp',
+      data
+    );
+    return response.data;
+  },
 };
