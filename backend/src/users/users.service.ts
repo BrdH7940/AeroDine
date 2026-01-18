@@ -95,12 +95,22 @@ export class UsersService {
         })
     }
 
+    async toggleActive(id: number) {
+        const user = await this.findById(id)
+        return this.prisma.user.update({
+            where: { id },
+            data: { isActive: !user.isActive },
+            select: this.publicSelect(),
+        })
+    }
+
     private publicSelect() {
         return {
             id: true,
             email: true,
             fullName: true,
             role: true,
+            isActive: true,
             createdAt: true,
             updatedAt: true,
         }

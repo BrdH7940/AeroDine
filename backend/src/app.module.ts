@@ -9,6 +9,7 @@ import { UsersModule } from './users/users.module'
 import { MenusModule } from './menus/menus.module'
 import { OrdersModule } from './orders/orders.module'
 import { TablesModule } from './tables/tables.module'
+import { RestaurantsModule } from './restaurants/restaurants.module'
 import { PaymentsModule } from './payments/payments.module'
 import { ReportsModule } from './reports/reports.module'
 import { SocketModule } from './socket/socket.module'
@@ -44,6 +45,7 @@ import configuration from './config/configuration'
         MenusModule,
         OrdersModule,
         TablesModule,
+        RestaurantsModule,
         PaymentsModule,
         ReportsModule,
         CloudinaryModule,

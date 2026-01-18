@@ -526,10 +526,59 @@ export const usersApi = {
   },
 
   /**
+   * Toggle user active status (activate/deactivate)
+   */
+  toggleUserActive: async (id: number) => {
+    const response = await apiClient.patch(`/users/${id}/toggle-active`);
+    return response.data;
+  },
+
+  /**
    * Delete user
    */
   deleteUser: async (id: number) => {
     const response = await apiClient.delete(`/users/${id}`);
+    return response.data;
+  },
+};
+
+export interface Restaurant {
+  id: number;
+  name: string;
+  address?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpdateRestaurantDto {
+  name?: string;
+  address?: string;
+  isActive?: boolean;
+}
+
+export const restaurantsApi = {
+  /**
+   * Get all restaurants
+   */
+  getRestaurants: async (): Promise<Restaurant[]> => {
+    const response = await apiClient.get('/restaurants');
+    return response.data;
+  },
+
+  /**
+   * Get restaurant by ID
+   */
+  getRestaurantById: async (id: number): Promise<Restaurant> => {
+    const response = await apiClient.get(`/restaurants/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Update restaurant
+   */
+  updateRestaurant: async (id: number, data: UpdateRestaurantDto): Promise<Restaurant> => {
+    const response = await apiClient.patch(`/restaurants/${id}`, data);
     return response.data;
   },
 };

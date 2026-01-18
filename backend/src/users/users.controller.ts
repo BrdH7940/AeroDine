@@ -40,6 +40,18 @@ export class UsersController {
     return this.usersService.update(+id, updateUserDto)
   }
 
+  @ApiBearerAuth('JWT-auth')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Patch(':id/toggle-active')
+  @ApiOperation({
+    summary: 'Toggle user active status (ADMIN only)',
+    description: 'Activate or deactivate a user account',
+  })
+  toggleActive(@Param('id') id: string) {
+    return this.usersService.toggleActive(+id)
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.usersService.remove(+id)

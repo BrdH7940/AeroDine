@@ -16,6 +16,7 @@ export interface UserPublic {
   email: string
   fullName: string
   role: UserRole
+  isActive: boolean
   createdAt: Date
   updatedAt: Date
 }
