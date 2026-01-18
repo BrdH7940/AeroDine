@@ -27,53 +27,51 @@ async function bootstrap() {
             whitelist: true,
             forbidNonWhitelisted: true,
             transform: true,
-        })
-    )
-
-    // Set global API prefix
-    app.setGlobalPrefix('api')
-
-    // Global Validation Pipe with whitelist
-    app.useGlobalPipes(
-        new ValidationPipe({
-            whitelist: true,
-            forbidNonWhitelisted: true,
-            transform: true,
             transformOptions: {
                 enableImplicitConversion: true,
             },
         })
     )
 
-    // Swagger Configuration
+    // Swagger Configuration - create config first
+    const swaggerConfig = new DocumentBuilder()
+        .setTitle('AeroDine API')
+        .setDescription('QR Ordering System API Documentation')
+        .setVersion('1.0')
+        .addServer('http://localhost:3000/api', 'Local development server')
+        .addBearerAuth(
+            {
+                type: 'http',
+                scheme: 'bearer',
+                bearerFormat: 'JWT',
+                name: 'JWT',
+                description: 'Enter JWT token',
+                in: 'header',
+            },
+            'JWT-auth' // This name here is important for matching up with @ApiBearerAuth() in your controller!
+        )
+        .build()
+
+    // Set global API prefix - exclude Swagger paths to set them up manually
+    app.setGlobalPrefix('api', {
+        exclude: ['docs', 'docs-json', 'docs-yaml'],
+    })
+
+    // Setup Swagger with full path (excluded from global prefix)
     try {
-        const config = new DocumentBuilder()
-            .setTitle('AeroDine API')
-            .setDescription('QR Ordering System API Documentation')
-            .setVersion('1.0')
-            .addBearerAuth(
-                {
-                    type: 'http',
-                    scheme: 'bearer',
-                    bearerFormat: 'JWT',
-                    name: 'JWT',
-                    description: 'Enter JWT token',
-                    in: 'header',
-                },
-                'JWT-auth' // This name here is important for matching up with @ApiBearerAuth() in your controller!
-            )
-            .build()
-        const document = SwaggerModule.createDocument(app, config)
-        SwaggerModule.setup('docs', app, document, {
+        const document = SwaggerModule.createDocument(app, swaggerConfig)
+        SwaggerModule.setup('api/docs', app, document, {
             swaggerOptions: {
                 persistAuthorization: true,
             },
         })
+        const port = configService.get<number>('port') || 3000
         console.log(
-            '✅ Swagger UI available at: http://localhost:3000/api/docs'
+            `✅ Swagger UI will be available at: http://localhost:${port}/api/docs`
         )
     } catch (error) {
         console.error('❌ Error setting up Swagger:', error)
+        console.error('Error details:', error)
     }
 
     const port = configService.get<number>('port') || 3000
@@ -84,5 +82,6 @@ async function bootstrap() {
     console.log(
         `📚 Swagger docs available at: http://localhost:${port}/api/docs`
     )
+    console.log(`📋 API base URL: http://localhost:${port}/api`)
 }
 bootstrap()
