@@ -1,4 +1,4 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 import { apiConfig } from '../config/api.config';
 import { authService } from './auth.service';
 import type { OrderStatus, OrderItemStatus, TableStatus } from '@aerodine/shared-types';
@@ -50,7 +50,7 @@ const processQueue = (error: any, token: string | null = null) => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
     // Handle 401 Unauthorized - try to refresh token
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
