@@ -14,6 +14,7 @@ import {
     UseGuards,
 } from '@nestjs/common'
 import type { RawBodyRequest } from '@nestjs/common'
+import { Throttle, SkipThrottle } from '@nestjs/throttler'
 import { OrdersService } from './orders.service'
 import { CreateOrderDto, AddItemsToOrderDto } from './dto/create-order.dto'
 import {
@@ -84,8 +85,25 @@ export class OrdersController {
     /**
      * Create a new order
      * POST /orders
+     * Case 3: Rate limiting to prevent spam orders
+     * - Limit: 5 requests per minute per IP
+     * - This prevents DDoS attacks and spam order creation
      */
+    @Throttle({ short: { ttl: 60000, limit: 5 } }) // 5 orders per minute
     @Post()
+    @ApiOperation({
+        summary: 'Create a new order',
+        description:
+            'Creates a new order. Rate limited to 5 requests per minute per IP to prevent spam attacks.',
+    })
+    @ApiResponse({
+        status: 201,
+        description: 'Order created successfully (status: PENDING_REVIEW)',
+    })
+    @ApiResponse({
+        status: 429,
+        description: 'Too many requests. Please try again later.',
+    })
     create(@Body() createOrderDto: CreateOrderDto) {
         return this.ordersService.create(createOrderDto)
     }
