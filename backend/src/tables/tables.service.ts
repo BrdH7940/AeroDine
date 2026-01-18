@@ -181,6 +181,39 @@ export class TablesService {
     }
 
     /**
+     * Regenerate QR tokens for all tables
+     */
+    async refreshAllTokens(restaurantId?: number) {
+        const where = restaurantId ? { restaurantId } : {}
+        const tables = await this.prisma.table.findMany({
+            where,
+        })
+
+        const updates = await Promise.all(
+            tables.map(async (table) => {
+                const token = await this.generateTableToken(
+                    table.id,
+                    table.restaurantId
+                )
+                return this.prisma.table.update({
+                    where: { id: table.id },
+                    data: { token },
+                    include: {
+                        restaurant: {
+                            select: {
+                                id: true,
+                                name: true,
+                            },
+                        },
+                    },
+                })
+            })
+        )
+
+        return updates
+    }
+
+    /**
      * Get the full QR URL for a table
      */
     getQrUrl(token: string): string {

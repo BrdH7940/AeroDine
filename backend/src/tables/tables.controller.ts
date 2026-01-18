@@ -143,6 +143,30 @@ export class TablesController {
     @ApiBearerAuth('JWT-auth')
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(UserRole.ADMIN)
+    @Patch('refresh-tokens/all')
+    @ApiOperation({
+        summary: 'Regenerate QR tokens for all tables (ADMIN only)',
+        description:
+            'Generates new QR tokens for all tables. Optionally filter by restaurantId. Old tokens will no longer work.',
+    })
+    @ApiQuery({
+        name: 'restaurantId',
+        required: false,
+        type: Number,
+        description: 'Filter tables by restaurant ID',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'All tokens refreshed successfully',
+    })
+    refreshAllTokens(@Query('restaurantId') restaurantId?: string) {
+        const restaurantIdNum = restaurantId ? Number(restaurantId) : undefined
+        return this.tablesService.refreshAllTokens(restaurantIdNum)
+    }
+
+    @ApiBearerAuth('JWT-auth')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
     @Delete(':id')
     @ApiOperation({
         summary: 'Delete a table (ADMIN only)',
