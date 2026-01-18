@@ -24,8 +24,11 @@ import { RolesGuard } from './guards/roles.guard'
                 if (!secret) {
                     throw new Error('JWT secret not configured')
                 }
+                // Default to access token expiration for backward compatibility
                 const expiresIn =
-                    configService.get<string | number>('jwt.expiresIn') ?? '7d'
+                    configService.get<string | number>('jwt.accessTokenExpiresIn') ??
+                    configService.get<string | number>('jwt.expiresIn') ??
+                    '15m'
                 return {
                     secret,
                     signOptions: { expiresIn: expiresIn as any },

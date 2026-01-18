@@ -69,6 +69,25 @@ export class UsersService {
         })
     }
 
+    /**
+     * Update refresh token for user
+     */
+    async updateRefreshToken(id: number, refreshToken: string | null): Promise<void> {
+        await this.prisma.user.update({
+            where: { id },
+            data: { refreshToken },
+        })
+    }
+
+    /**
+     * Find user by refresh token
+     */
+    async findByRefreshToken(refreshToken: string) {
+        return this.prisma.user.findFirst({
+            where: { refreshToken },
+        })
+    }
+
     async remove(id: number) {
         return this.prisma.user.delete({
             where: { id },

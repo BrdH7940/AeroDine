@@ -44,8 +44,8 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const handleLogout = () => {
-    authService.logout();
+  const handleLogout = async () => {
+    await authService.logout();
     clearUser();
     setIsProfileOpen(false);
     navigate('/auth/login');

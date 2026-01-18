@@ -179,8 +179,8 @@ export const MenuPage: React.FC = () => {
     setSelectedCategoryId(categoryId);
   };
 
-  const handleLogout = () => {
-    authService.logout();
+  const handleLogout = async () => {
+    await authService.logout();
     clearUser();
     setIsMenuOpen(false);
     navigate('/auth/login');
