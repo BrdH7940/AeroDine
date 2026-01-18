@@ -56,7 +56,7 @@ export class ReportsController {
     @ApiQuery({
         name: 'range',
         required: false,
-        enum: ['week', 'month'],
+        enum: ['week', '30', 'month', 'lastMonth', '3months'],
         description: 'Time range for revenue chart',
         example: 'week',
     })
@@ -71,13 +71,7 @@ export class ReportsController {
         },
     })
     async getRevenueChart(
-        @Query(
-            'range',
-            new ParseEnumPipe(['week', 'month'], {
-                optional: true,
-            })
-        )
-        range?: 'week' | 'month'
+        @Query('range') range?: string
     ) {
         return this.reportsService.getRevenueChart(range || 'week')
     }

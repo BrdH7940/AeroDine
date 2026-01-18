@@ -21,6 +21,9 @@ apiClient.interceptors.request.use(
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      // Remove Authorization header if no token to avoid sending stale/invalid tokens
+      delete config.headers.Authorization;
     }
     return config;
   },
@@ -140,9 +143,9 @@ export const reportsApi = {
 
   /**
    * Get revenue chart data
-   * @param range - 'week' or 'month'
+   * @param range - 'week', '30', 'month', 'lastMonth', or '3months'
    */
-  getRevenueChart: async (range: 'week' | 'month' = 'week') => {
+  getRevenueChart: async (range: string = 'week') => {
     const response = await apiClient.get('/reports/revenue', {
       params: { range },
     });
