@@ -435,6 +435,17 @@ export const tablesApi = {
   },
 
   /**
+   * Validate table token from QR code
+   * Returns tableId and restaurantId if token is valid
+   */
+  validateTableToken: async (token: string) => {
+    const response = await apiClient.get('/tables/validate-token', {
+      params: { token },
+    });
+    return response.data;
+  },
+
+  /**
    * Get QR code URL for table
    */
   getTableQrUrl: async (id: number) => {

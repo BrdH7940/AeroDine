@@ -2,6 +2,7 @@ import {
     Injectable,
     NotFoundException,
     BadRequestException,
+    UnauthorizedException,
 } from '@nestjs/common'
 import { PrismaService } from '../database/prisma.service'
 import { JwtService } from '@nestjs/jwt'
@@ -223,6 +224,60 @@ export class TablesService {
         // Ensure no trailing slash
         const baseUrl = frontendUrl.replace(/\/$/, '')
         return `${baseUrl}/menu?token=${token}`
+    }
+
+    /**
+     * Verify table token and return tableId and restaurantId
+     * Public method for validating QR code tokens
+     */
+    async verifyTableToken(token: string): Promise<{ tableId: number; restaurantId: number }> {
+        const secret = this.configService.get<string>('jwt.secret')
+        if (!secret) {
+            throw new Error('JWT secret not configured')
+        }
+
+        try {
+            interface TableTokenPayload {
+                tableId: number
+                restaurantId: number
+            }
+
+            const payload = await this.jwtService.verifyAsync<TableTokenPayload>(token, {
+                secret,
+            })
+
+            if (!payload.tableId || !payload.restaurantId) {
+                throw new UnauthorizedException('Invalid table token payload')
+            }
+
+            // Verify that the table exists and is active
+            const table = await this.prisma.table.findUnique({
+                where: { id: payload.tableId },
+            })
+
+            if (!table) {
+                throw new UnauthorizedException('Table not found')
+            }
+
+            if (!table.isActive) {
+                throw new UnauthorizedException('Table is not active')
+            }
+
+            // Verify that the token matches the table's token (optional check for extra security)
+            if (table.token !== token) {
+                throw new UnauthorizedException('Token does not match table')
+            }
+
+            return {
+                tableId: payload.tableId,
+                restaurantId: payload.restaurantId,
+            }
+        } catch (error) {
+            if (error instanceof UnauthorizedException) {
+                throw error
+            }
+            throw new UnauthorizedException('Invalid or expired table token')
+        }
     }
 }
 

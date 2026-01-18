@@ -9,6 +9,7 @@ import {
     Query,
     UseGuards,
     BadRequestException,
+    UnauthorizedException,
 } from '@nestjs/common'
 import { TablesService } from './tables.service'
 import { CreateTableDto } from './dto/create-table.dto'
@@ -75,6 +76,50 @@ export class TablesController {
     @ApiResponse({ status: 404, description: 'Table not found' })
     findOne(@Param('id') id: string) {
         return this.tablesService.findOne(+id)
+    }
+
+    @Get('validate-token')
+    @ApiOperation({
+        summary: 'Validate table token (Public)',
+        description:
+            'Validates a table QR token and returns tableId and restaurantId. This is a public endpoint used when customers scan QR codes.',
+    })
+    @ApiQuery({
+        name: 'token',
+        required: true,
+        type: String,
+        description: 'Table token from QR code',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Token is valid',
+        schema: {
+            example: {
+                tableId: 1,
+                restaurantId: 1,
+                valid: true,
+            },
+        },
+    })
+    @ApiResponse({ status: 401, description: 'Invalid or expired token' })
+    async validateToken(@Query('token') token: string) {
+        if (!token) {
+            throw new BadRequestException('Token is required')
+        }
+
+        try {
+            const { tableId, restaurantId } = await this.tablesService.verifyTableToken(token)
+            return {
+                tableId,
+                restaurantId,
+                valid: true,
+            }
+        } catch (error) {
+            if (error instanceof UnauthorizedException) {
+                throw error
+            }
+            throw new UnauthorizedException('Invalid or expired table token')
+        }
     }
 
     @Get(':id/qr')
