@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { formatVND } from '../../utils/currency'
 
 /**
  * Order Card Component for Waiter Dashboard
@@ -35,6 +36,7 @@ interface OrderCardProps {
     onReject?: (reason?: string) => void
     onServe?: () => void
     onCashPayment?: () => void
+    restaurantName?: string
 }
 
 export default function OrderCard({
@@ -44,10 +46,13 @@ export default function OrderCard({
     onReject,
     onServe,
     onCashPayment,
+    restaurantName = 'Smart Restaurant',
 }: OrderCardProps) {
     const [showRejectModal, setShowRejectModal] = useState(false)
+    const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [rejectReason, setRejectReason] = useState('')
     const [isProcessing, setIsProcessing] = useState(false)
+    const billRef = useRef<HTMLDivElement>(null)
 
     const formatTime = (dateString: string) => {
         const date = new Date(dateString)
@@ -116,14 +121,152 @@ export default function OrderCard({
     }
 
     const handleCashPayment = async () => {
-        if (!window.confirm(`Confirm cash payment of $${order.totalAmount.toFixed(2)} for ${order.tableName}?`)) {
+        if (!window.confirm(`Xác nhận thanh toán tiền mặt ${formatVND(order.totalAmount)} cho ${order.tableName}?`)) {
             return
         }
         setIsProcessing(true)
         try {
             await onCashPayment?.()
+            setShowPaymentModal(false)
         } finally {
             setIsProcessing(false)
+        }
+    }
+
+    const formatDateTime = (dateString: string) => {
+        const date = new Date(dateString)
+        return date.toLocaleString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        })
+    }
+
+    const getCurrentTime = () => {
+        return new Date().toLocaleString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        })
+    }
+
+    // Calculate subtotal (before VAT)
+    const subtotal = order.totalAmount
+    const vatRate = 0.1 // 10% VAT
+    const vatAmount = subtotal * vatRate
+    const grandTotal = subtotal + vatAmount
+
+    // Download bill as PDF
+    const handleDownloadBill = async () => {
+        try {
+            const { default: jsPDF } = await import('jspdf')
+            
+            // Create PDF document
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a5', // Smaller format for receipt
+            })
+            
+            const pageWidth = doc.internal.pageSize.getWidth()
+            let y = 15
+            
+            // Restaurant name
+            doc.setFontSize(18)
+            doc.setFont('helvetica', 'bold')
+            doc.text(restaurantName, pageWidth / 2, y, { align: 'center' })
+            y += 8
+            
+            // Table name
+            doc.setFontSize(14)
+            doc.setTextColor(59, 130, 246) // Blue color
+            doc.text(order.tableName, pageWidth / 2, y, { align: 'center' })
+            y += 10
+            
+            // Line separator
+            doc.setDrawColor(200, 200, 200)
+            doc.line(10, y, pageWidth - 10, y)
+            y += 8
+            
+            // Bill title
+            doc.setTextColor(0, 0, 0)
+            doc.setFontSize(14)
+            doc.setFont('helvetica', 'bold')
+            doc.text('HOA DON THANH TOAN', pageWidth / 2, y, { align: 'center' })
+            y += 5
+            doc.setFontSize(10)
+            doc.setFont('helvetica', 'normal')
+            doc.text('BILL', pageWidth / 2, y, { align: 'center' })
+            y += 10
+            
+            // Order info
+            doc.setFontSize(10)
+            doc.text(`Ma don hang: #${order.id}`, 15, y)
+            doc.text(`So khach: ${order.guestCount}`, pageWidth / 2 + 10, y)
+            y += 6
+            doc.text(`Gio dat: ${formatDateTime(order.createdAt)}`, 15, y)
+            y += 6
+            doc.text(`Gio thanh toan: ${getCurrentTime()}`, 15, y)
+            y += 10
+            
+            // Table header
+            doc.setFillColor(245, 245, 245)
+            doc.rect(10, y - 4, pageWidth - 20, 8, 'F')
+            doc.setFont('helvetica', 'bold')
+            doc.text('Ten mon', 15, y)
+            doc.text('Don gia', pageWidth / 2 - 5, y, { align: 'center' })
+            doc.text('SL', pageWidth / 2 + 20, y, { align: 'center' })
+            doc.text('Thanh tien', pageWidth - 15, y, { align: 'right' })
+            y += 8
+            
+            // Table rows
+            doc.setFont('helvetica', 'normal')
+            order.items.forEach((item) => {
+                const itemName = item.name.length > 18 ? item.name.substring(0, 18) + '...' : item.name
+                doc.text(itemName, 15, y)
+                doc.text(formatVND(item.pricePerUnit), pageWidth / 2 - 5, y, { align: 'center' })
+                doc.text(String(item.quantity), pageWidth / 2 + 20, y, { align: 'center' })
+                doc.text(formatVND(item.pricePerUnit * item.quantity), pageWidth - 15, y, { align: 'right' })
+                y += 6
+            })
+            
+            y += 5
+            doc.line(10, y, pageWidth - 10, y)
+            y += 8
+            
+            // Totals
+            doc.text('Tong tien hang:', 15, y)
+            doc.text(formatVND(subtotal), pageWidth - 15, y, { align: 'right' })
+            y += 6
+            
+            doc.text(`VAT (${vatRate * 100}%):`, 15, y)
+            doc.text(formatVND(vatAmount), pageWidth - 15, y, { align: 'right' })
+            y += 8
+            
+            // Grand total
+            doc.line(10, y - 2, pageWidth - 10, y - 2)
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(12)
+            doc.text('TONG CONG:', 15, y + 4)
+            doc.setTextColor(59, 130, 246)
+            doc.text(formatVND(grandTotal), pageWidth - 15, y + 4, { align: 'right' })
+            y += 15
+            
+            // Thank you message
+            doc.setTextColor(100, 100, 100)
+            doc.setFontSize(10)
+            doc.setFont('helvetica', 'italic')
+            doc.text('Cam on quy khach!', pageWidth / 2, y, { align: 'center' })
+            
+            // Save PDF
+            doc.save(`bill-${order.tableName}-${order.id}-${Date.now()}.pdf`)
+        } catch (error) {
+            console.error('Failed to download bill as PDF:', error)
+            alert('Không thể tải hóa đơn. Vui lòng thử lại.')
         }
     }
 
@@ -216,7 +359,7 @@ export default function OrderCard({
                                     )}
                                 </div>
                                 <span className="text-sm text-gray-600 ml-2">
-                                    ${item.pricePerUnit.toFixed(2)}
+                                    {formatVND(item.pricePerUnit)}
                                 </span>
                             </li>
                         ))}
@@ -235,7 +378,7 @@ export default function OrderCard({
                     <div className="flex items-center justify-between mb-3">
                         <span className="text-gray-600">Total</span>
                         <span className="text-xl font-bold text-gray-900">
-                            ${order.totalAmount.toFixed(2)}
+                            {formatVND(order.totalAmount)}
                         </span>
                     </div>
 
@@ -275,15 +418,175 @@ export default function OrderCard({
 
                     {type === 'active' && onCashPayment && (
                         <button
-                            onClick={handleCashPayment}
+                            onClick={() => setShowPaymentModal(true)}
                             disabled={isProcessing}
                             className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                            💵 {isProcessing ? 'Processing...' : 'Cash Payment'}
+                            💳 Pay
                         </button>
                     )}
                 </div>
             </div>
+
+            {/* Payment Modal */}
+            {showPaymentModal && (
+                <div className="fixed top-0 right-0 h-full z-50 flex shadow-2xl">
+                    <div className="bg-white h-full w-[900px] max-w-[90vw] overflow-hidden flex">
+                        {/* Left Side - Bill */}
+                        <div className="flex-1 bg-gray-50 p-6 overflow-y-auto border-r">
+                            {/* Action buttons */}
+                            <div className="flex justify-end gap-2 mb-4">
+                                <button
+                                    onClick={() => alert('Đang phát triển tính năng in...')}
+                                    className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                    title="In hóa đơn"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
+                                </button>
+                                <button
+                                    onClick={handleDownloadBill}
+                                    className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                    title="Tải hóa đơn"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <div ref={billRef} className="bg-white rounded-lg shadow-md p-6">
+                                {/* Restaurant Header */}
+                                <div className="text-center border-b pb-4 mb-4">
+                                    <h2 className="text-2xl font-bold text-gray-800">{restaurantName}</h2>
+                                    <p className="text-lg text-blue-600 font-semibold mt-2">{order.tableName}</p>
+                                </div>
+
+                                {/* Bill Title */}
+                                <div className="text-center mb-4">
+                                    <h3 className="text-xl font-bold text-gray-700">HÓA ĐƠN THANH TOÁN</h3>
+                                    <p className="text-sm text-gray-500">BILL</p>
+                                </div>
+
+                                {/* Order Info */}
+                                <div className="grid grid-cols-2 gap-2 text-sm mb-4 bg-gray-50 p-3 rounded-lg">
+                                    <div>
+                                        <span className="text-gray-500">Mã đơn hàng:</span>
+                                        <span className="ml-2 font-medium">#{order.id}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-gray-500">Số khách:</span>
+                                        <span className="ml-2 font-medium">{order.guestCount}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-gray-500">Giờ đặt:</span>
+                                        <span className="ml-2 font-medium">{formatDateTime(order.createdAt)}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-gray-500">Giờ thanh toán:</span>
+                                        <span className="ml-2 font-medium">{getCurrentTime()}</span>
+                                    </div>
+                                </div>
+
+                                {/* Items Table */}
+                                <div className="border rounded-lg overflow-hidden mb-4">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-gray-100">
+                                            <tr>
+                                                <th className="text-left py-2 px-3 font-medium text-gray-700">Tên món</th>
+                                                <th className="text-right py-2 px-3 font-medium text-gray-700">Đơn giá</th>
+                                                <th className="text-center py-2 px-3 font-medium text-gray-700">SL</th>
+                                                <th className="text-right py-2 px-3 font-medium text-gray-700">Thành tiền</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y">
+                                            {order.items.map((item) => (
+                                                <tr key={item.id} className="hover:bg-gray-50">
+                                                    <td className="py-2 px-3 text-gray-800">{item.name}</td>
+                                                    <td className="py-2 px-3 text-right text-gray-600">{formatVND(item.pricePerUnit)}</td>
+                                                    <td className="py-2 px-3 text-center text-gray-600">{item.quantity}</td>
+                                                    <td className="py-2 px-3 text-right font-medium text-gray-800">{formatVND(item.pricePerUnit * item.quantity)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Totals */}
+                                <div className="space-y-2 border-t pt-4">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">Tổng tiền hàng:</span>
+                                        <span className="font-medium">{formatVND(subtotal)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">VAT ({vatRate * 100}%):</span>
+                                        <span className="font-medium">{formatVND(vatAmount)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-lg font-bold border-t pt-2 mt-2">
+                                        <span className="text-gray-800">TỔNG CỘNG:</span>
+                                        <span className="text-blue-600">{formatVND(grandTotal)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right Side - Payment Methods */}
+                        <div className="w-80 p-6 flex flex-col">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-lg font-bold text-gray-800">Phương thức thanh toán</h3>
+                                <button
+                                    onClick={() => setShowPaymentModal(false)}
+                                    className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                                >
+                                    ×
+                                </button>
+                            </div>
+
+                            <div className="flex-1 space-y-4">
+                                {/* Cash Payment */}
+                                <button
+                                    onClick={handleCashPayment}
+                                    disabled={isProcessing}
+                                    className="w-full py-4 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg transition-colors"
+                                >
+                                    💵 {isProcessing ? 'Đang xử lý...' : 'Cash Payment'}
+                                </button>
+
+                                {/* Other Payment Methods - Coming Soon */}
+                                <div className="border-t pt-4 mt-4">
+                                    <p className="text-sm text-gray-500 mb-3">Phương thức khác:</p>
+                                    <button
+                                        disabled
+                                        className="w-full py-3 bg-gray-100 text-gray-400 font-medium rounded-lg cursor-not-allowed flex items-center justify-center gap-2 mb-2"
+                                    >
+                                        💳 Card Payment (Coming soon)
+                                    </button>
+                                    <button
+                                        disabled
+                                        className="w-full py-3 bg-gray-100 text-gray-400 font-medium rounded-lg cursor-not-allowed flex items-center justify-center gap-2 mb-2"
+                                    >
+                                        📱 Momo (Coming soon)
+                                    </button>
+                                    <button
+                                        disabled
+                                        className="w-full py-3 bg-gray-100 text-gray-400 font-medium rounded-lg cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        🏦 Bank Transfer (Coming soon)
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Cancel Button */}
+                            <button
+                                onClick={() => setShowPaymentModal(false)}
+                                className="w-full py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 mt-4 transition-colors"
+                            >
+                                Hủy
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Reject Modal */}
             {showRejectModal && (
