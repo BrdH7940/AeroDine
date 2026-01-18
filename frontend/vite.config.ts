@@ -13,7 +13,7 @@ export default defineConfig({
                     'http://localhost:3000',
                 changeOrigin: true,
                 secure: false,
-                timeout: 10000,
+                timeout: 120000, // 2 minute timeout for AI requests
                 configure: (proxy, _options) => {
                     proxy.on('error', (err, _req, _res) => {
                         // Silently handle proxy errors to avoid console spam

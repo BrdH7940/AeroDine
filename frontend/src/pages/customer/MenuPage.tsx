@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient, tablesApi } from '../../services/api';
-import { MenuList, CategoryTabs, ModifierSelectionDialog, BottomNavigation } from '../../components/customer';
+import { MenuList, CategoryTabs, ModifierSelectionDialog, BottomNavigation, AiOrderModal } from '../../components/customer';
 import type { Category } from '../../components/customer';
 import { useCartStore, type CartItemModifier } from '../../store/cartStore';
 import { useUserStore } from '../../store/userStore';
@@ -43,6 +43,7 @@ export const MenuPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [currentRestaurantId, setCurrentRestaurantId] = useState<number | null>(null);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   // Initialize restaurantId from cartStore or fetch from tables
   useEffect(() => {
@@ -186,6 +187,21 @@ export const MenuPage: React.FC = () => {
     navigate('/auth/login');
   };
 
+  // Handle AI suggestion items - add all to cart
+  const handleAiAddToCart = (items: { id: number; name: string; price: number; quantity: number }[]) => {
+    items.forEach((item) => {
+      // Find the menu item to get image
+      const menuItem = menuItems.find((m) => m.id === item.id);
+      addItem({
+        menuItemId: item.id,
+        name: item.name,
+        basePrice: item.price,
+        quantity: item.quantity,
+        image: menuItem?.images?.[0]?.url,
+      });
+    });
+  };
+
   // Convert MenuItem to Menu format for MenuCard
   const convertToMenuFormat = (item: MenuItem) => ({
     id: item.id.toString(),
@@ -292,6 +308,19 @@ export const MenuPage: React.FC = () => {
       )}
 
       <div className="container mx-auto px-4 py-4">
+        {/* AI Order Button */}
+        <div className="mb-4">
+          <button
+            onClick={() => setIsAiModalOpen(true)}
+            className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            ✨ Order with AI - Gợi ý combo thông minh
+          </button>
+        </div>
+
         {/* Search Bar */}
         <div className="mb-4">
           <div className="relative">
@@ -446,6 +475,16 @@ export const MenuPage: React.FC = () => {
             selectedItem.modifierGroups?.map((mg) => mg.modifierGroup).filter((mg) => mg && mg.options && mg.options.length > 0) || []
           }
           onConfirm={handleModifierConfirm}
+        />
+      )}
+
+      {/* AI Order Modal */}
+      {currentRestaurantId && (
+        <AiOrderModal
+          isOpen={isAiModalOpen}
+          onClose={() => setIsAiModalOpen(false)}
+          restaurantId={currentRestaurantId}
+          onAddToCart={handleAiAddToCart}
         />
       )}
     </div>

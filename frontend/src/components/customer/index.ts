@@ -4,4 +4,5 @@ export { CartItem } from './CartItem';
 export { CategoryTabs } from './CategoryTabs';
 export { ModifierSelectionDialog } from './ModifierSelectionDialog';
 export { BottomNavigation } from './BottomNavigation';
+export { AiOrderModal } from './AiOrderModal';
 export type { Category } from './CategoryTabs';
