@@ -249,72 +249,89 @@ export const MenuPage: React.FC = () => {
   }, [selectedCategoryId, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-[#0f0f0f] pb-20">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="relative">
-              <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-              
-              {/* Dropdown Menu */}
-              {isMenuOpen && (
-                <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                  <div className="py-1">
-                    {isAuthenticated && user ? (
-                      <>
-                        <div className="px-4 py-2 border-b border-gray-200">
-                          <p className="text-sm font-medium text-gray-800">{user.fullName}</p>
-                          <p className="text-xs text-gray-500">{user.email}</p>
-                        </div>
-                        <button
-                          onClick={handleLogout}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                            </svg>
-                            Logout
-                          </div>
-                        </button>
-                      </>
-                    ) : (
+      <div className="bg-[#1a1a1a] p-5 sticky top-0 z-10 border-b border-gray-800/50 backdrop-blur-xl">
+        <div className="flex items-center justify-between mb-4">
+          <div className="relative">
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="text-white hover:bg-gray-800/50 p-2 rounded-xl transition-all duration-200"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            
+            {/* Dropdown Menu */}
+            {isMenuOpen && (
+              <div className="absolute left-0 mt-2 w-48 bg-[#1a1a1a] rounded-xl shadow-lg border border-gray-800/50 z-50 backdrop-blur-xl">
+                <div className="py-1">
+                  {isAuthenticated && user ? (
+                    <>
+                      <div className="px-4 py-2 border-b border-gray-700/50">
+                        <p className="text-sm font-medium text-white">{user.fullName}</p>
+                        <p className="text-xs text-gray-400">{user.email}</p>
+                      </div>
                       <button
-                        onClick={() => {
-                          setIsMenuOpen(false);
-                          navigate('/auth/login');
-                        }}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        onClick={handleLogout}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800/50 transition-colors"
                       >
                         <div className="flex items-center gap-2">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                           </svg>
-                          Login
+                          Logout
                         </div>
                       </button>
-                    )}
-                  </div>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        navigate('/auth/login');
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                        </svg>
+                        Login
+                      </div>
+                    </button>
+                  )}
                 </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-800">Smart Restaurant</span>
-              {tableId && (
-                <span className="px-3 py-1 bg-[#eba157] text-white rounded-full text-sm font-medium">
-                  Table {tableId}
-                </span>
-              )}
-            </div>
+              </div>
+            )}
           </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              </svg>
+              <span className="text-white text-sm font-semibold">Smart Restaurant</span>
+            </div>
+            {tableId && (
+              <span className="bg-amber-700 text-white px-4 py-1.5 rounded-full text-sm font-bold">
+                Table {tableId}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="relative group">
+          <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-amber-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search menu items..."
+            className="w-full bg-[#252525] text-white pl-12 pr-4 py-3.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-700/30 transition-all duration-200 border border-gray-700/30 focus:border-amber-700/50 placeholder:text-gray-500"
+          />
         </div>
       </div>
       
@@ -326,66 +343,47 @@ export const MenuPage: React.FC = () => {
         />
       )}
 
-      <div className="container mx-auto px-4 py-4">
-        {/* Search Bar */}
-        <div className="mb-4">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              placeholder="Search menu items..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#eba157] focus:border-transparent"
-            />
-          </div>
-        </div>
-
-        {/* Category Filters - Sticky */}
-        <div className="sticky top-[73px] z-30 bg-gray-50 -mx-4 px-4 pt-4 pb-2 mb-4">
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+      {/* Categories */}
+      <div className="bg-[#1a1a1a] px-4 py-4 border-b border-gray-800/50 overflow-x-auto backdrop-blur-xl sticky top-[140px] z-30">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSelectedCategoryId(undefined)}
+            className={`px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 ${
+              selectedCategoryId === undefined
+                ? 'bg-amber-700 text-white'
+                : 'bg-[#252525] text-gray-300 hover:bg-[#2a2a2a] border border-gray-700/30'
+            }`}
+          >
+            [All]
+          </button>
+          {categories.map((category) => (
             <button
-              onClick={() => setSelectedCategoryId(undefined)}
-              className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-                selectedCategoryId === undefined
-                  ? 'bg-[#eba157] text-white'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              key={category.id}
+              onClick={() => setSelectedCategoryId(category.id)}
+              className={`px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 ${
+                selectedCategoryId === category.id
+                  ? 'bg-amber-700 text-white'
+                  : 'bg-[#252525] text-gray-300 hover:bg-[#2a2a2a] border border-gray-700/30'
               }`}
             >
-              [All]
+              [{category.name}]
             </button>
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategoryId(category.id)}
-                className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
-                  selectedCategoryId === category.id
-                    ? 'bg-[#eba157] text-white'
-                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                [{category.name}]
-              </button>
-            ))}
-          </div>
+          ))}
         </div>
+      </div>
 
-        {/* Menu Items List */}
-        <div className="space-y-4">
+      {/* Menu Items */}
+      <div className="p-5 space-y-3">
           {loading ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {[...Array(5)].map((_, index) => (
-                <div key={index} className="bg-white rounded-lg p-4 animate-pulse">
+                <div key={index} className="bg-[#1a1a1a] rounded-xl p-4 animate-pulse border border-gray-800/50">
                   <div className="flex gap-4">
-                    <div className="w-20 h-20 bg-gray-200 rounded"></div>
+                    <div className="w-20 h-20 bg-gray-800 rounded-xl"></div>
                     <div className="flex-1">
-                      <div className="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
-                      <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
-                      <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                      <div className="h-5 bg-gray-800 rounded w-3/4 mb-2"></div>
+                      <div className="h-4 bg-gray-800 rounded w-1/2 mb-2"></div>
+                      <div className="h-4 bg-gray-800 rounded w-1/4"></div>
                     </div>
                   </div>
                 </div>
@@ -393,7 +391,8 @@ export const MenuPage: React.FC = () => {
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">No menu items found</p>
+              <p className="text-gray-400 text-lg font-medium">No items found</p>
+              <p className="text-gray-500 text-sm mt-2">Try a different search</p>
             </div>
           ) : (
             paginatedItems.map((item) => {
@@ -401,7 +400,7 @@ export const MenuPage: React.FC = () => {
               return (
                 <div 
                   key={item.id} 
-                  className="bg-white rounded-lg p-4 border border-gray-200 cursor-pointer hover:shadow-md transition-shadow"
+                  className="bg-[#1a1a1a] rounded-xl p-4 border border-gray-800/50 cursor-pointer hover:border-amber-700/50 transition-all duration-200"
                   onClick={() => handleItemClick(item)}
                 >
                   <div className="flex gap-4">
@@ -409,22 +408,22 @@ export const MenuPage: React.FC = () => {
                       <img
                         src={item.images[0].url}
                         alt={item.name}
-                        className="w-20 h-20 object-cover rounded"
+                        className="w-20 h-20 object-cover rounded-xl"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = 'https://via.placeholder.com/80x80?text=No+Image';
                         }}
                       />
                     ) : (
-                      <div className="w-20 h-20 bg-gray-200 rounded flex items-center justify-center">
-                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-20 h-20 bg-gray-800 rounded-xl flex items-center justify-center">
+                        <svg className="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                       </div>
                     )}
                     <div className="flex-1">
                       <div className="flex items-start justify-between mb-1">
-                        <h3 className="text-lg font-semibold text-gray-800">{item.name}</h3>
-                        <span className="text-lg font-bold text-[#eba157]">
+                        <h3 className="text-lg font-semibold text-white">{item.name}</h3>
+                        <span className="text-lg font-bold text-amber-600">
                           {formatVND(Number(item.basePrice))}
                         </span>
                       </div>
@@ -436,19 +435,19 @@ export const MenuPage: React.FC = () => {
                             </svg>
                           ))}
                         </div>
-                        <span className="text-sm text-gray-500">(24 reviews)</span>
+                        <span className="text-sm text-gray-400">(24 reviews)</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           {item.status === 'AVAILABLE' ? (
                             <>
                               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                              <span className="text-sm text-gray-600">Available</span>
+                              <span className="text-sm text-gray-300">Available</span>
                             </>
                           ) : (
                             <>
                               <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                              <span className="text-sm text-gray-600">Sold Out</span>
+                              <span className="text-sm text-gray-300">Sold Out</span>
                             </>
                           )}
                         </div>
@@ -458,7 +457,7 @@ export const MenuPage: React.FC = () => {
                               e.stopPropagation();
                               handleAddToCart(menuItem);
                             }}
-                            className="px-4 py-1.5 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors text-sm font-medium"
+                            className="px-4 py-1.5 bg-amber-700 text-white rounded-xl hover:bg-amber-600 transition-all duration-200 text-sm font-medium"
                           >
                             [+ Add]
                           </button>
@@ -470,54 +469,53 @@ export const MenuPage: React.FC = () => {
               );
             })
           )}
-        </div>
-
-        {/* Pagination */}
-        {filteredItems.length > 0 && totalPages > 1 && (
-          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-sm text-gray-600">
-              Hiển thị {startIndex + 1} - {Math.min(endIndex, filteredItems.length)} trong tổng số {filteredItems.length} món
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                aria-label="Previous page"
-              >
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      currentPage === page
-                        ? 'bg-[#eba157] text-white'
-                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                aria-label="Next page"
-              >
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Pagination */}
+      {filteredItems.length > 0 && totalPages > 1 && (
+        <div className="px-5 pb-5 mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-sm text-gray-400">
+            Hiển thị {startIndex + 1} - {Math.min(endIndex, filteredItems.length)} trong tổng số {filteredItems.length} món
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="p-2 bg-[#252525] border border-gray-700/30 rounded-xl hover:bg-[#2a2a2a] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              aria-label="Previous page"
+            >
+              <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-3 py-1 rounded-xl text-sm font-medium transition-all duration-200 ${
+                    currentPage === page
+                      ? 'bg-amber-700 text-white'
+                      : 'bg-[#252525] border border-gray-700/30 text-gray-300 hover:bg-[#2a2a2a]'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="p-2 bg-[#252525] border border-gray-700/30 rounded-xl hover:bg-[#2a2a2a] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              aria-label="Next page"
+            >
+              <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Navigation */}
       <BottomNavigation />
@@ -530,10 +528,10 @@ export const MenuPage: React.FC = () => {
             setIsModifierDialogOpen(false);
             setSelectedItem(null);
           }}
-          itemName={selectedItem.name}
-          basePrice={Number(selectedItem.basePrice)}
+          itemName={selectedItem?.name || ''}
+          basePrice={Number(selectedItem?.basePrice || 0)}
           modifierGroups={
-            selectedItem.modifierGroups?.map((mg) => mg.modifierGroup).filter((mg) => mg && mg.options && mg.options.length > 0) || []
+            selectedItem?.modifierGroups?.map((mg) => mg.modifierGroup).filter((mg) => mg && mg.options && mg.options.length > 0) || []
           }
           onConfirm={handleModifierConfirm}
         />
@@ -547,7 +545,7 @@ export const MenuPage: React.FC = () => {
             setIsDetailDialogOpen(false);
             setSelectedDetailItem(null);
           }}
-          menuItem={selectedDetailItem}
+          menuItem={selectedDetailItem!}
           onAddToCart={handleDetailDialogAddToCart}
         />
       )}
