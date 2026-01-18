@@ -623,15 +623,196 @@ export class OrdersService {
     }
 
     /**
-     * Accept order (by waiter)
+     * Check if table has existing active order
      */
-    async acceptOrder(orderId: number, waiterId: number) {
-        const order = await this.findOne(orderId)
+    async checkTableActiveOrder(tableId: number, restaurantId: number) {
+        const activeOrder = await this.prisma.order.findFirst({
+            where: {
+                tableId,
+                restaurantId,
+                status: OrderStatus.IN_PROGRESS,
+            },
+            include: {
+                table: true,
+                items: {
+                    include: {
+                        modifiers: true,
+                    },
+                },
+            },
+        })
+
+        this.logger.log(
+            `Checking table ${tableId} in restaurant ${restaurantId}: ${activeOrder ? `Found order #${activeOrder.id}` : 'No active order'}`
+        )
+
+        return activeOrder
+    }
+
+    /**
+     * Accept order (by waiter)
+     * If mergeWithOrderId is provided, merge items into existing order
+     */
+    async acceptOrder(orderId: number, waiterId: number, mergeWithOrderId?: number) {
+        // Get full order details with items
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            include: {
+                table: true,
+                items: {
+                    include: {
+                        modifiers: true,
+                    },
+                },
+            },
+        })
+
+        if (!order) {
+            throw new NotFoundException('Order not found')
+        }
 
         if (order.status !== OrderStatus.PENDING) {
             throw new BadRequestException('Order is not pending')
         }
 
+        // Check if table has existing active order
+        const existingOrder = await this.checkTableActiveOrder(order.tableId, order.restaurantId)
+
+        // If table has active order and no merge confirmation, return info for confirmation
+        if (existingOrder && !mergeWithOrderId) {
+            this.logger.log(
+                `Order ${orderId} needs confirmation - Table ${order.tableId} (restaurant ${order.restaurantId}) has active order #${existingOrder.id}`
+            )
+            return {
+                needsConfirmation: true,
+                existingOrder: {
+                    id: existingOrder.id,
+                    tableName: existingOrder.table.name,
+                    totalAmount: Number(existingOrder.totalAmount),
+                    itemCount: existingOrder.items.length,
+                },
+                newOrder: {
+                    id: order.id,
+                    itemCount: order.items.length,
+                },
+            }
+        }
+
+        // If merging, add items to existing order and cancel new order
+        if (mergeWithOrderId) {
+            const targetOrder = await this.prisma.order.findUnique({
+                where: { id: mergeWithOrderId },
+                include: { items: true },
+            })
+
+            if (!targetOrder) {
+                throw new NotFoundException('Target order not found')
+            }
+
+            // Get items from pending order
+            const pendingOrderItems = await this.prisma.orderItem.findMany({
+                where: { orderId },
+                include: { modifiers: true },
+            })
+
+            // Add items to existing order with QUEUED status
+            for (const item of pendingOrderItems) {
+                await this.prisma.orderItem.create({
+                    data: {
+                        orderId: mergeWithOrderId,
+                        menuItemId: item.menuItemId,
+                        name: item.name,
+                        quantity: item.quantity,
+                        pricePerUnit: item.pricePerUnit,
+                        status: OrderItemStatus.QUEUED,
+                        note: item.note,
+                        modifiers: {
+                            create: item.modifiers.map((mod) => ({
+                                modifierOptionId: mod.modifierOptionId,
+                                modifierName: mod.modifierName,
+                                priceAdjustment: mod.priceAdjustment,
+                            })),
+                        },
+                    },
+                })
+            }
+
+            // Update total amount of existing order
+            const updatedOrder = await this.prisma.order.update({
+                where: { id: mergeWithOrderId },
+                data: {
+                    totalAmount: {
+                        increment: order.totalAmount,
+                    },
+                },
+                include: {
+                    table: true,
+                    items: {
+                        include: {
+                            modifiers: true,
+                        },
+                    },
+                },
+            })
+
+            // Cancel the pending order
+            await this.prisma.order.update({
+                where: { id: orderId },
+                data: {
+                    status: OrderStatus.CANCELLED,
+                    note: `Merged into order #${mergeWithOrderId}`,
+                },
+            })
+
+            // Send only NEW items to kitchen (not the merged order)
+            for (const item of pendingOrderItems) {
+                const newItem = updatedOrder.items.find(
+                    (i) => i.name === item.name && i.status === OrderItemStatus.QUEUED
+                )
+                if (newItem) {
+                    // Emit item status change for kitchen
+                    const itemStatusEvent: OrderItemStatusChangedEvent = {
+                        orderId: mergeWithOrderId,
+                        orderItemId: newItem.id,
+                        itemName: newItem.name,
+                        previousStatus: OrderItemStatus.QUEUED,
+                        newStatus: OrderItemStatus.QUEUED,
+                        updatedAt: new Date().toISOString(),
+                    }
+                    this.socketService.emitOrderItemStatusChanged(
+                        order.restaurantId,
+                        order.tableId,
+                        itemStatusEvent
+                    )
+                }
+            }
+
+            // Send to kitchen - only the new items
+            const kitchenView = this.mapToKitchenOrderView(updatedOrder)
+            // Filter to only show new QUEUED items
+            kitchenView.items = kitchenView.items.filter(
+                (item) => item.status === SharedOrderItemStatus.QUEUED
+            )
+            const kitchenEvent: KitchenOrderEvent = {
+                order: kitchenView,
+                priority: 'normal',
+            }
+            this.socketService.emitKitchenOrderReceived(
+                order.restaurantId,
+                kitchenEvent
+            )
+
+            this.logger.log(
+                `Order ${orderId} merged into order ${mergeWithOrderId} by waiter ${waiterId}`
+            )
+
+            return {
+                merged: true,
+                targetOrder: updatedOrder,
+            }
+        }
+
+        // Normal accept flow (no existing order on table)
         const updatedOrder = await this.prisma.order.update({
             where: { id: orderId },
             data: {

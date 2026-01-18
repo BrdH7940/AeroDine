@@ -107,8 +107,11 @@ export const orderService = {
     /**
      * Accept order
      */
-    async acceptOrder(orderId: number, waiterId: number): Promise<Order> {
-        const response = await api.post(`/orders/${orderId}/accept`, { waiterId })
+    async acceptOrder(orderId: number, waiterId: number, mergeWithOrderId?: number): Promise<any> {
+        const response = await api.post(`/orders/${orderId}/accept`, { 
+            waiterId,
+            mergeWithOrderId 
+        })
         return response.data
     },
 

@@ -205,9 +205,9 @@ export class OrdersController {
     @Post(':id/accept')
     acceptOrder(
         @Param('id', ParseIntPipe) id: number,
-        @Body() body: { waiterId: number }
+        @Body() body: { waiterId: number; mergeWithOrderId?: number }
     ) {
-        return this.ordersService.acceptOrder(id, body.waiterId)
+        return this.ordersService.acceptOrder(id, body.waiterId, body.mergeWithOrderId)
     }
 
     /**

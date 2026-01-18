@@ -262,8 +262,68 @@ export default function WaiterOrdersPage() {
     // Accept order
     const handleAcceptOrder = async (orderId: number) => {
         try {
-            await orderService.acceptOrder(orderId, userId)
-            // Move from pending to active
+            console.log('🔄 Accepting order:', orderId)
+            const result = await orderService.acceptOrder(orderId, userId)
+            console.log('📦 Accept order result:', result)
+            
+            // Check if needs confirmation (table has existing active order)
+            if (result.needsConfirmation) {
+                console.log('⚠️ Table has existing order, showing confirmation dialog')
+                const confirmed = window.confirm(
+                    `Bàn ${result.existingOrder.tableName} đã có đơn hàng #${result.existingOrder.id} đang hoạt động.\n` +
+                    `Đơn hiện tại: ${result.existingOrder.itemCount} món - ${Number(result.existingOrder.totalAmount).toLocaleString()}đ\n` +
+                    `Đơn mới: ${result.newOrder.itemCount} món\n\n` +
+                    `Bạn có muốn gộp đơn mới vào đơn cũ không?\n` +
+                    `(Các món mới sẽ được thêm vào đơn hàng hiện tại)`
+                )
+                
+                if (confirmed) {
+                    console.log('✅ User confirmed merge, calling API again...')
+                    // Merge orders
+                    const mergeResult = await orderService.acceptOrder(
+                        orderId, 
+                        userId, 
+                        result.existingOrder.id
+                    )
+                    console.log('🔗 Merge result:', mergeResult)
+                    
+                    if (mergeResult.merged) {
+                        // Remove from pending
+                        setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
+                        
+                        // Update existing order in active orders
+                        setActiveOrders((prev) => 
+                            prev.map((o) => 
+                                o.id === result.existingOrder.id 
+                                    ? {
+                                        ...o,
+                                        totalAmount: Number(mergeResult.targetOrder.totalAmount),
+                                        items: mergeResult.targetOrder.items.map((item: any) => ({
+                                            id: item.id,
+                                            name: item.name,
+                                            quantity: item.quantity,
+                                            status: item.status,
+                                            pricePerUnit: Number(item.pricePerUnit),
+                                            note: item.note,
+                                            modifiers: item.modifiers || [],
+                                        })),
+                                    }
+                                    : o
+                            )
+                        )
+                        
+                        alert('Đã gộp đơn hàng thành công!')
+                    }
+                } else {
+                    console.log('❌ User declined merge')
+                    // User declined merge, reject the order
+                    await handleRejectOrder(orderId, 'Khách không muốn đặt thêm')
+                }
+                return
+            }
+            
+            // Normal flow: no existing order on table
+            console.log('✅ No existing order on table, proceeding normally')
             const order = pendingOrders.find((o) => o.id === orderId)
             if (order) {
                 setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
@@ -272,8 +332,9 @@ export default function WaiterOrdersPage() {
                     ...prev,
                 ])
             }
-        } catch {
-            alert('Failed to accept order')
+        } catch (error: any) {
+            console.error('❌ Accept order error:', error)
+            alert(error?.response?.data?.message || 'Failed to accept order')
         }
     }
 
