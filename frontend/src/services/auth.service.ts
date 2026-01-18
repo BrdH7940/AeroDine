@@ -85,4 +85,20 @@ export const authService = {
   isAuthenticated(): boolean {
     return !!this.getToken();
   },
+
+  /**
+   * Get current user profile from API
+   * Requires valid token in localStorage
+   */
+  async getProfile(): Promise<AuthResponse['user']> {
+    const response = await apiClient.get<any>('/auth/profile');
+    const user = response.data;
+    
+    // Update localStorage with fresh user data
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+    
+    return user;
+  },
 };

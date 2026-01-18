@@ -8,7 +8,7 @@ import StaffPage from '../pages/admin/StaffPage';
 import ReportsPage from '../pages/admin/ReportsPage';
 import KDSPage from '../pages/staff/kitchen/KDSPage';
 import { MenuPage, CartPage, OrderTrackingPage, PaymentSuccessPage, PaymentCancelPage } from '../pages/customer';
-import { LoginPage, RegisterPage } from '../pages/auth';
+import { LoginPage, RegisterPage, AuthSuccessPage, AuthErrorPage } from '../pages/auth';
 
 /**
  * Main Application Routes
@@ -21,6 +21,8 @@ export default function AppRoutes() {
         {/* Auth Routes */}
         <Route path="/auth/login" element={<LoginPage />} />
         <Route path="/auth/register" element={<RegisterPage />} />
+        <Route path="/auth/success" element={<AuthSuccessPage />} />
+        <Route path="/auth/error" element={<AuthErrorPage />} />
         
         {/* Customer Routes */}
         <Route path="/customer/menu" element={<MenuPage />} />

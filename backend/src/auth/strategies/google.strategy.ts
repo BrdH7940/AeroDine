@@ -12,11 +12,27 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         private readonly configService: ConfigService,
         private readonly usersService: UsersService
     ) {
+        const clientId = configService.get<string>('google.clientId')
+        const clientSecret = configService.get<string>('google.clientSecret')
+        const callbackUrl = configService.get<string>('google.callbackUrl')
+
+        // Validate required configuration
+        if (!clientId || !clientSecret) {
+            throw new Error(
+                'Google OAuth credentials are not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your .env file.'
+            )
+        }
+
+        if (!callbackUrl) {
+            throw new Error(
+                'Google OAuth callback URL is not configured. Please set GOOGLE_CALLBACK_URL in your .env file.'
+            )
+        }
+
         super({
-            clientID: configService.get<string>('google.clientId') || '',
-            clientSecret:
-                configService.get<string>('google.clientSecret') || '',
-            callbackURL: configService.get<string>('google.callbackUrl') || '',
+            clientID: clientId,
+            clientSecret: clientSecret,
+            callbackURL: callbackUrl,
             scope: ['email', 'profile'],
         })
     }
