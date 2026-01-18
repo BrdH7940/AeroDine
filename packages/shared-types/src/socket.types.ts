@@ -268,7 +268,7 @@ export interface KitchenItemView {
 // STATUS TYPES (Matching Prisma enums)
 // ============================================================================
 
-export type OrderStatusType = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
+export type OrderStatusType = 'PENDING_REVIEW' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
 
 export type OrderItemStatusType =
     | 'QUEUED'

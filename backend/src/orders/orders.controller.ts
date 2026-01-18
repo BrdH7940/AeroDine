@@ -11,6 +11,7 @@ import {
     HttpCode,
     HttpStatus,
     Req,
+    UseGuards,
 } from '@nestjs/common'
 import type { RawBodyRequest } from '@nestjs/common'
 import { OrdersService } from './orders.service'
@@ -234,8 +235,21 @@ export class OrdersController {
     /**
      * Process cash payment for order
      * POST /orders/:id/pay-cash
+     * Case 2: Trust Your Device - Only authenticated staff can confirm cash payment
      */
+    @ApiBearerAuth('JWT-auth')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.WAITER, UserRole.ADMIN)
     @Post(':id/pay-cash')
+    @ApiOperation({
+        summary: 'Process cash payment for order (WAITER/ADMIN only)',
+        description:
+            'Waiter confirms cash payment from their device. This prevents fake payment screens from customers.',
+    })
+    @ApiParam({ name: 'id', type: Number, description: 'Order ID' })
+    @ApiResponse({ status: 200, description: 'Payment processed successfully' })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Staff authentication required' })
+    @ApiResponse({ status: 403, description: 'Forbidden - Waiter/Admin role required' })
     payCash(@Param('id', ParseIntPipe) id: number) {
         return this.ordersService.processCashPayment(id)
     }

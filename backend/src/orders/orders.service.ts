@@ -136,6 +136,25 @@ export class OrdersService {
             throw new NotFoundException('Table not found')
         }
 
+        // Case 3: Single Active Order - Prevent spam orders
+        // Check if table has an active order (not COMPLETED or CANCELLED)
+        const activeOrder = await this.prisma.order.findFirst({
+            where: {
+                tableId,
+                restaurantId,
+                status: {
+                    notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        })
+
+        if (activeOrder) {
+            throw new BadRequestException(
+                `Table ${table.name} already has an active order (ID: ${activeOrder.id}). Please add items to the existing order instead of creating a new one.`
+            )
+        }
+
         // Calculate total amount
         let totalAmount = 0
         const orderItems: Prisma.OrderItemCreateWithoutOrderInput[] = []
@@ -189,7 +208,8 @@ export class OrdersService {
             })
         }
 
-        // Create order with items
+        // Case 1: Ghost Order Prevention - Set status to PENDING_REVIEW
+        // Order requires waiter confirmation before going to kitchen
         const order = await this.prisma.order.create({
             data: {
                 restaurantId,
@@ -198,7 +218,7 @@ export class OrdersService {
                 guestCount: guestCount || 1,
                 note,
                 totalAmount,
-                status: OrderStatus.PENDING,
+                status: 'PENDING_REVIEW' as any, // Use string literal - Prisma client will be regenerated after migration
                 items: {
                     create: orderItems,
                 },
@@ -572,13 +592,15 @@ export class OrdersService {
     // ========================================================================
 
     /**
-     * Get pending orders for waiter
+     * Get pending orders for waiter (including PENDING_REVIEW orders requiring confirmation)
      */
     async getPendingOrders(restaurantId: number) {
         return this.prisma.order.findMany({
             where: {
                 restaurantId,
-                status: OrderStatus.PENDING,
+                status: {
+                    in: ['PENDING_REVIEW', 'PENDING'] as any,
+                },
             },
             include: {
                 table: true,
@@ -624,18 +646,24 @@ export class OrdersService {
 
     /**
      * Accept order (by waiter)
+     * Case 1: Waiter confirms order from PENDING_REVIEW -> IN_PROGRESS (goes to kitchen)
      */
     async acceptOrder(orderId: number, waiterId: number) {
         const order = await this.findOne(orderId)
 
-        if (order.status !== OrderStatus.PENDING) {
-            throw new BadRequestException('Order is not pending')
+        // Accept both PENDING_REVIEW and PENDING orders
+        // Convert to string for comparison (Prisma enum might be string)
+        const orderStatus = String(order.status)
+        if (orderStatus !== 'PENDING_REVIEW' && orderStatus !== 'PENDING') {
+            throw new BadRequestException(
+                `Cannot accept order with status ${orderStatus}. Order must be PENDING_REVIEW or PENDING.`
+            )
         }
 
         const updatedOrder = await this.prisma.order.update({
             where: { id: orderId },
             data: {
-                status: OrderStatus.IN_PROGRESS,
+                status: 'IN_PROGRESS' as any, // Use string literal - Prisma client will be regenerated after migration
                 waiterId,
             },
             include: {
@@ -670,8 +698,8 @@ export class OrdersService {
         // Emit status change
         const statusEvent: OrderStatusChangedEvent = {
             orderId,
-            previousStatus: OrderStatus.PENDING,
-            newStatus: OrderStatus.IN_PROGRESS,
+            previousStatus: String(order.status) as SharedOrderStatus,
+            newStatus: 'IN_PROGRESS' as SharedOrderStatus,
             updatedAt: new Date().toISOString(),
             updatedBy: waiterId,
         }
@@ -688,12 +716,18 @@ export class OrdersService {
 
     /**
      * Reject order (by waiter)
+     * Can reject PENDING_REVIEW orders (if table is empty/ghost order)
      */
     async rejectOrder(orderId: number, waiterId: number, reason?: string) {
         const order = await this.findOne(orderId)
 
-        if (order.status !== OrderStatus.PENDING) {
-            throw new BadRequestException('Order is not pending')
+        // Can reject both PENDING_REVIEW and PENDING orders
+        // Convert to string for comparison (Prisma enum might be string)
+        const orderStatus = String(order.status)
+        if (orderStatus !== 'PENDING_REVIEW' && orderStatus !== 'PENDING') {
+            throw new BadRequestException(
+                `Cannot reject order with status ${orderStatus}. Order must be PENDING_REVIEW or PENDING.`
+            )
         }
 
         const updatedOrder = await this.prisma.order.update({

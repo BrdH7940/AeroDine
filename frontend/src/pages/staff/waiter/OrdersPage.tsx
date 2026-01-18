@@ -70,19 +70,18 @@ export default function WaiterOrdersPage() {
     const fetchOrders = useCallback(async () => {
         try {
             setLoading(true)
-            const [pendingRes, activeRes] = await Promise.all([
-                orderService.getOrders({
-                    restaurantId,
-                    status: 'PENDING' as any,
-                }),
+            // Use getPendingOrders() which includes both PENDING_REVIEW and PENDING orders
+            const [pendingOrdersData, activeRes] = await Promise.all([
+                orderService.getPendingOrders(restaurantId),
                 orderService.getOrders({
                     restaurantId,
                     status: 'IN_PROGRESS' as any,
                 }),
             ])
 
+            // Map pending orders (includes PENDING_REVIEW and PENDING)
             setPendingOrders(
-                pendingRes.orders.map((o: any) => ({
+                pendingOrdersData.map((o: any) => ({
                     id: o.id,
                     tableId: o.tableId,
                     tableName: o.table?.name || `Table ${o.tableId}`,
@@ -272,8 +271,10 @@ export default function WaiterOrdersPage() {
                     ...prev,
                 ])
             }
-        } catch {
-            alert('Failed to accept order')
+        } catch (error: any) {
+            console.error('Failed to accept order:', error)
+            const errorMessage = error?.response?.data?.message || error?.message || 'Failed to accept order'
+            alert(`Failed to accept order: ${errorMessage}`)
         }
     }
 

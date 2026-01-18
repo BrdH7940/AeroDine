@@ -237,6 +237,7 @@ enum ItemStatus {
 }
 
 enum OrderStatus {
+  PENDING_REVIEW
   PENDING
   IN_PROGRESS
   COMPLETED
