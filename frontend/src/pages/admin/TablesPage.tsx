@@ -19,6 +19,7 @@ import { tablesApi } from '../../services/api'
 import { authApi } from '../../services/auth'
 import { TableStatus } from '@aerodine/shared-types'
 import type { Table } from '@aerodine/shared-types'
+import { useModal } from '../../contexts/ModalContext'
 
 // Table status types
 type TableStatusType = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'UNAVAILABLE'
@@ -201,6 +202,7 @@ export default function TablesPage() {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [selectedTable, setSelectedTable] = useState<TableWithRestaurant | null>(null)
     const [restaurantId, setRestaurantId] = useState<number | null>(null)
+    const { confirm, alert } = useModal()
 
     useEffect(() => {
         initializeAndFetchTables()
@@ -275,9 +277,13 @@ export default function TablesPage() {
         setCurrentPage(1)
     }, [searchQuery, statusFilter])
 
-    const handleAddTable = () => {
+    const handleAddTable = async () => {
         if (!restaurantId) {
-            alert('Restaurant ID not found. Please check database configuration.')
+            await alert({
+                title: 'Error',
+                message: 'Restaurant ID not found. Please check database configuration.',
+                type: 'error',
+            })
             return
         }
         setSelectedTable(null)
@@ -290,19 +296,31 @@ export default function TablesPage() {
     }
 
     const handleDelete = async (table: TableWithRestaurant) => {
-        if (
-            !confirm(
-                `Are you sure you want to delete ${table.name}? This action cannot be undone.`
-            )
-        ) {
+        const confirmed = await confirm({
+            title: 'Delete Table',
+            message: `Are you sure you want to delete ${table.name}? This action cannot be undone.`,
+            type: 'warning',
+            confirmText: 'Delete',
+            cancelText: 'Cancel',
+        })
+        if (!confirmed) {
             return
         }
 
         try {
             await tablesApi.deleteTable(table.id)
             setTables(tables.filter((t) => t.id !== table.id))
+            await alert({
+                title: 'Success',
+                message: `Table ${table.name} has been deleted successfully.`,
+                type: 'success',
+            })
         } catch (err: any) {
-            alert(`Unable to delete table: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            await alert({
+                title: 'Error',
+                message: `Unable to delete table: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
         }
     }
 
@@ -327,7 +345,11 @@ export default function TablesPage() {
             link.click()
             document.body.removeChild(link)
         } catch (err: any) {
-            alert(`Unable to download QR code: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            await alert({
+                title: 'Error',
+                message: `Unable to download QR code: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
         }
     }
 
@@ -343,7 +365,11 @@ export default function TablesPage() {
             // Create a new window for printing
             const printWindow = window.open('', '_blank')
             if (!printWindow) {
-                alert('Please allow popups to print QR code')
+                await alert({
+                    title: 'Popup Blocked',
+                    message: 'Please allow popups to print QR code',
+                    type: 'warning',
+                })
                 return
             }
 
@@ -393,45 +419,71 @@ export default function TablesPage() {
                 }, 250)
             }
         } catch (err: any) {
-            alert(`Unable to print QR code: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            await alert({
+                title: 'Error',
+                message: `Unable to print QR code: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
         }
     }
 
     const handleRegenerateQR = async (table: TableWithRestaurant) => {
-        if (
-            !confirm(
-                `Are you sure you want to regenerate the QR code for ${table.name}? The old QR code will no longer work.`
-            )
-        ) {
+        const confirmed = await confirm({
+            title: 'Regenerate QR Code',
+            message: `Are you sure you want to regenerate the QR code for ${table.name}? The old QR code will no longer work.`,
+            type: 'warning',
+            confirmText: 'Regenerate',
+            cancelText: 'Cancel',
+        })
+        if (!confirmed) {
             return
         }
 
         try {
             await tablesApi.refreshTableToken(table.id)
-            alert(`QR code for ${table.name} has been regenerated successfully.`)
+            await alert({
+                title: 'Success',
+                message: `QR code for ${table.name} has been regenerated successfully.`,
+                type: 'success',
+            })
             // Refresh tables to get updated data
             await fetchTables()
         } catch (err: any) {
-            alert(`Unable to regenerate QR code: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            await alert({
+                title: 'Error',
+                message: `Unable to regenerate QR code: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
         }
     }
 
     const handleRegenerateAllQR = async () => {
-        if (
-            !confirm(
-                `Are you sure you want to regenerate QR codes for ALL tables? All old QR codes will no longer work. This action cannot be undone.`
-            )
-        ) {
+        const confirmed = await confirm({
+            title: 'Regenerate All QR Codes',
+            message: `Are you sure you want to regenerate QR codes for ALL tables? All old QR codes will no longer work. This action cannot be undone.`,
+            type: 'warning',
+            confirmText: 'Regenerate All',
+            cancelText: 'Cancel',
+        })
+        if (!confirmed) {
             return
         }
 
         try {
             await tablesApi.refreshAllTableTokens(restaurantId || undefined)
-            alert(`All QR codes have been regenerated successfully.`)
+            await alert({
+                title: 'Success',
+                message: `All QR codes have been regenerated successfully.`,
+                type: 'success',
+            })
             // Refresh tables to get updated data
             await fetchTables()
         } catch (err: any) {
-            alert(`Unable to regenerate QR codes: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            await alert({
+                title: 'Error',
+                message: `Unable to regenerate QR codes: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
         }
     }
 
@@ -449,7 +501,11 @@ export default function TablesPage() {
     }) => {
         try {
             if (!restaurantId) {
-                alert('Restaurant ID not found')
+                await alert({
+                    title: 'Error',
+                    message: 'Restaurant ID not found',
+                    type: 'error',
+                })
                 return
             }
 
@@ -475,7 +531,11 @@ export default function TablesPage() {
             await fetchTables()
             handleCloseModals()
         } catch (err: any) {
-            alert(`Unable to save table: ${err.response?.data?.message || err.message || 'Unknown error'}`)
+            await alert({
+                title: 'Error',
+                message: `Unable to save table: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
         }
     }
 
@@ -753,6 +813,7 @@ function TableModal({
     }) => void
     table: TableWithRestaurant | null
 }) {
+    const { alert } = useModal()
     const [name, setName] = useState(table?.name || '')
     const [capacity, setCapacity] = useState(table?.capacity?.toString() || '4')
     const [status, setStatus] = useState<TableStatus>(
@@ -774,10 +835,14 @@ function TableModal({
         }
     }, [table])
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!name || !capacity) {
-            alert('Please fill in all required fields')
+            await alert({
+                title: 'Validation Error',
+                message: 'Please fill in all required fields',
+                type: 'warning',
+            })
             return
         }
         onSave({
