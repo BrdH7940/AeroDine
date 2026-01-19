@@ -251,7 +251,7 @@ export const MenuPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#0f0f0f] pb-20">
       {/* Header */}
-      <div className="bg-[#1a1a1a] p-5 sticky top-0 z-10 border-b border-gray-800/50 backdrop-blur-xl">
+      <div className="bg-[#1a1a1a] p-5 sticky top-0 z-50 border-b border-gray-800/50 backdrop-blur-xl">
         <div className="flex items-center justify-between mb-4">
           <div className="relative">
             <button
@@ -265,7 +265,7 @@ export const MenuPage: React.FC = () => {
             
             {/* Dropdown Menu */}
             {isMenuOpen && (
-              <div className="absolute left-0 mt-2 w-48 bg-[#1a1a1a] rounded-xl shadow-lg border border-gray-800/50 z-50 backdrop-blur-xl">
+              <div className="absolute left-0 mt-2 w-48 bg-[#1a1a1a] rounded-xl shadow-lg border border-gray-800/50 z-[60] backdrop-blur-xl">
                 <div className="py-1">
                   {isAuthenticated && user ? (
                     <>
@@ -277,11 +277,11 @@ export const MenuPage: React.FC = () => {
                         onClick={handleLogout}
                         className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800/50 transition-colors"
                       >
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 hover:text-amber-600">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                           </svg>
-                          Logout
+                          <span className="hover:text-amber-600">Logout</span>
                         </div>
                       </button>
                     </>
@@ -334,11 +334,11 @@ export const MenuPage: React.FC = () => {
           />
         </div>
       </div>
-      
+
       {/* Overlay to close menu when clicking outside */}
       {isMenuOpen && (
         <div
-          className="fixed inset-0 z-30"
+          className="fixed inset-0 z-40"
           onClick={() => setIsMenuOpen(false)}
         />
       )}
