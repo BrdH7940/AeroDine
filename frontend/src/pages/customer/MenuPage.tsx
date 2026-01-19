@@ -249,14 +249,14 @@ export const MenuPage: React.FC = () => {
   }, [selectedCategoryId, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f] pb-20">
+    <div className="min-h-screen bg-[#F9F7F2] pb-20">
       {/* Header */}
-      <div className="bg-[#1a1a1a] p-5 sticky top-0 z-50 border-b border-gray-800/50 backdrop-blur-xl">
+      <div className="bg-[#8A9A5B] p-5 sticky top-0 z-50 border-b border-[#8A9A5B]/20 backdrop-blur-xl shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div className="relative">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-white hover:bg-gray-800/50 p-2 rounded-xl transition-all duration-200"
+              className="text-white hover:bg-[#6B7A4A] p-2 rounded-xl transition-all duration-200"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -265,23 +265,23 @@ export const MenuPage: React.FC = () => {
             
             {/* Dropdown Menu */}
             {isMenuOpen && (
-              <div className="absolute left-0 mt-2 w-48 bg-[#1a1a1a] rounded-xl shadow-lg border border-gray-800/50 z-[60] backdrop-blur-xl">
+              <div className="absolute left-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-[#8A9A5B]/20 z-[60] backdrop-blur-xl">
                 <div className="py-1">
                   {isAuthenticated && user ? (
                     <>
-                      <div className="px-4 py-2 border-b border-gray-700/50">
-                        <p className="text-sm font-medium text-white">{user.fullName}</p>
-                        <p className="text-xs text-gray-400">{user.email}</p>
+                      <div className="px-4 py-2 border-b border-[#8A9A5B]/20">
+                        <p className="text-sm font-medium text-[#36454F]">{user.fullName}</p>
+                        <p className="text-xs text-[#36454F]/70">{user.email}</p>
                       </div>
                       <button
                         onClick={handleLogout}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800/50 transition-colors"
+                        className="w-full text-left px-4 py-2 text-sm text-[#36454F] hover:bg-[#F9F7F2] transition-colors"
                       >
-                        <div className="flex items-center gap-2 hover:text-amber-600">
+                        <div className="flex items-center gap-2 hover:text-[#8A9A5B]">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                           </svg>
-                          <span className="hover:text-amber-600">Logout</span>
+                          <span className="hover:text-[#8A9A5B]">Logout</span>
                         </div>
                       </button>
                     </>
@@ -291,7 +291,7 @@ export const MenuPage: React.FC = () => {
                         setIsMenuOpen(false);
                         navigate('/auth/login');
                       }}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800/50 transition-colors"
+                      className="w-full text-left px-4 py-2 text-sm text-[#36454F] hover:bg-[#F9F7F2] transition-colors"
                     >
                       <div className="flex items-center gap-2">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -307,13 +307,13 @@ export const MenuPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
               </svg>
               <span className="text-white text-sm font-semibold">Smart Restaurant</span>
             </div>
             {tableId && (
-              <span className="bg-amber-700 text-white px-4 py-1.5 rounded-full text-sm font-bold">
+              <span className="bg-[#D4AF37] text-white px-4 py-1.5 rounded-full text-sm font-bold">
                 Table {tableId}
               </span>
             )}
@@ -322,7 +322,7 @@ export const MenuPage: React.FC = () => {
 
         {/* Search */}
         <div className="relative group">
-          <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-amber-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+          <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#36454F]/50 group-focus-within:text-[#8A9A5B] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -330,7 +330,7 @@ export const MenuPage: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search menu items..."
-            className="w-full bg-[#252525] text-white pl-12 pr-4 py-3.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-700/30 transition-all duration-200 border border-gray-700/30 focus:border-amber-700/50 placeholder:text-gray-500"
+            className="w-full bg-white text-[#36454F] pl-12 pr-4 py-3.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#8A9A5B]/30 transition-all duration-200 border border-[#8A9A5B]/20 focus:border-[#8A9A5B] placeholder:text-[#36454F]/50 shadow-sm"
           />
         </div>
       </div>
@@ -344,14 +344,14 @@ export const MenuPage: React.FC = () => {
       )}
 
       {/* Categories */}
-      <div className="bg-[#1a1a1a] px-4 py-4 border-b border-gray-800/50 overflow-x-auto backdrop-blur-xl sticky top-[140px] z-30">
+      <div className="bg-white px-4 py-4 border-b border-[#8A9A5B]/20 overflow-x-auto backdrop-blur-xl sticky top-[140px] z-30 shadow-sm">
         <div className="flex gap-2">
           <button
             onClick={() => setSelectedCategoryId(undefined)}
             className={`px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 ${
               selectedCategoryId === undefined
-                ? 'bg-amber-700 text-white'
-                : 'bg-[#252525] text-gray-300 hover:bg-[#2a2a2a] border border-gray-700/30'
+                ? 'bg-[#8A9A5B] text-white'
+                : 'bg-white text-[#36454F] hover:bg-[#F9F7F2] border border-[#8A9A5B]/30'
             }`}
           >
             [All]
@@ -362,8 +362,8 @@ export const MenuPage: React.FC = () => {
               onClick={() => setSelectedCategoryId(category.id)}
               className={`px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 ${
                 selectedCategoryId === category.id
-                  ? 'bg-amber-700 text-white'
-                  : 'bg-[#252525] text-gray-300 hover:bg-[#2a2a2a] border border-gray-700/30'
+                  ? 'bg-[#8A9A5B] text-white'
+                  : 'bg-white text-[#36454F] hover:bg-[#F9F7F2] border border-[#8A9A5B]/30'
               }`}
             >
               [{category.name}]
@@ -377,13 +377,13 @@ export const MenuPage: React.FC = () => {
           {loading ? (
             <div className="space-y-3">
               {[...Array(5)].map((_, index) => (
-                <div key={index} className="bg-[#1a1a1a] rounded-xl p-4 animate-pulse border border-gray-800/50">
+                <div key={index} className="bg-white rounded-xl p-4 animate-pulse border border-[#8A9A5B]/20 shadow-sm">
                   <div className="flex gap-4">
-                    <div className="w-20 h-20 bg-gray-800 rounded-xl"></div>
+                    <div className="w-20 h-20 bg-[#F9F7F2] rounded-xl"></div>
                     <div className="flex-1">
-                      <div className="h-5 bg-gray-800 rounded w-3/4 mb-2"></div>
-                      <div className="h-4 bg-gray-800 rounded w-1/2 mb-2"></div>
-                      <div className="h-4 bg-gray-800 rounded w-1/4"></div>
+                      <div className="h-5 bg-[#F9F7F2] rounded w-3/4 mb-2"></div>
+                      <div className="h-4 bg-[#F9F7F2] rounded w-1/2 mb-2"></div>
+                      <div className="h-4 bg-[#F9F7F2] rounded w-1/4"></div>
                     </div>
                   </div>
                 </div>
@@ -391,8 +391,8 @@ export const MenuPage: React.FC = () => {
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-400 text-lg font-medium">No items found</p>
-              <p className="text-gray-500 text-sm mt-2">Try a different search</p>
+              <p className="text-[#36454F] text-lg font-medium">No items found</p>
+              <p className="text-[#36454F]/70 text-sm mt-2">Try a different search</p>
             </div>
           ) : (
             paginatedItems.map((item) => {
@@ -400,7 +400,7 @@ export const MenuPage: React.FC = () => {
               return (
                 <div 
                   key={item.id} 
-                  className="bg-[#1a1a1a] rounded-xl p-4 border border-gray-800/50 cursor-pointer hover:border-amber-700/50 transition-all duration-200"
+                  className="bg-white rounded-xl p-4 border border-[#8A9A5B]/20 cursor-pointer hover:border-[#8A9A5B] hover:shadow-md transition-all duration-200 shadow-sm"
                   onClick={() => handleItemClick(item)}
                 >
                   <div className="flex gap-4">
@@ -414,40 +414,40 @@ export const MenuPage: React.FC = () => {
                         }}
                       />
                     ) : (
-                      <div className="w-20 h-20 bg-gray-800 rounded-xl flex items-center justify-center">
-                        <svg className="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-20 h-20 bg-[#F9F7F2] rounded-xl flex items-center justify-center">
+                        <svg className="w-8 h-8 text-[#8A9A5B]/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                       </div>
                     )}
                     <div className="flex-1">
                       <div className="flex items-start justify-between mb-1">
-                        <h3 className="text-lg font-semibold text-white">{item.name}</h3>
-                        <span className="text-lg font-bold text-amber-600">
+                        <h3 className="text-lg font-semibold text-[#36454F]">{item.name}</h3>
+                        <span className="text-lg font-bold text-[#8A9A5B]">
                           {formatVND(Number(item.basePrice))}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mb-2">
-                        <div className="flex text-yellow-400">
+                        <div className="flex text-[#D4AF37]">
                           {[...Array(5)].map((_, i) => (
                             <svg key={i} className="w-4 h-4 fill-current" viewBox="0 0 20 20">
                               <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
                             </svg>
                           ))}
                         </div>
-                        <span className="text-sm text-gray-400">(24 reviews)</span>
+                        <span className="text-sm text-[#36454F]/70">(24 reviews)</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           {item.status === 'AVAILABLE' ? (
                             <>
-                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                              <span className="text-sm text-gray-300">Available</span>
+                              <div className="w-2 h-2 bg-[#8A9A5B] rounded-full"></div>
+                              <span className="text-sm text-[#36454F]">Available</span>
                             </>
                           ) : (
                             <>
                               <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                              <span className="text-sm text-gray-300">Sold Out</span>
+                              <span className="text-sm text-[#36454F]">Sold Out</span>
                             </>
                           )}
                         </div>
@@ -457,7 +457,7 @@ export const MenuPage: React.FC = () => {
                               e.stopPropagation();
                               handleAddToCart(menuItem);
                             }}
-                            className="px-4 py-1.5 bg-amber-700 text-white rounded-xl hover:bg-amber-600 transition-all duration-200 text-sm font-medium"
+                            className="px-4 py-1.5 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 text-sm font-medium"
                           >
                             [+ Add]
                           </button>
@@ -474,17 +474,17 @@ export const MenuPage: React.FC = () => {
       {/* Pagination */}
       {filteredItems.length > 0 && totalPages > 1 && (
         <div className="px-5 pb-5 mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-sm text-gray-400">
+          <div className="text-sm text-[#36454F]/70">
             Hiển thị {startIndex + 1} - {Math.min(endIndex, filteredItems.length)} trong tổng số {filteredItems.length} món
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
-              className="p-2 bg-[#252525] border border-gray-700/30 rounded-xl hover:bg-[#2a2a2a] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              className="p-2 bg-white border border-[#8A9A5B]/30 rounded-xl hover:bg-[#F9F7F2] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm"
               aria-label="Previous page"
             >
-              <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[#36454F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
@@ -495,8 +495,8 @@ export const MenuPage: React.FC = () => {
                   onClick={() => setCurrentPage(page)}
                   className={`px-3 py-1 rounded-xl text-sm font-medium transition-all duration-200 ${
                     currentPage === page
-                      ? 'bg-amber-700 text-white'
-                      : 'bg-[#252525] border border-gray-700/30 text-gray-300 hover:bg-[#2a2a2a]'
+                      ? 'bg-[#8A9A5B] text-white'
+                      : 'bg-white border border-[#8A9A5B]/30 text-[#36454F] hover:bg-[#F9F7F2] shadow-sm'
                   }`}
                 >
                   {page}
@@ -506,10 +506,10 @@ export const MenuPage: React.FC = () => {
             <button
               onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
               disabled={currentPage === totalPages}
-              className="p-2 bg-[#252525] border border-gray-700/30 rounded-xl hover:bg-[#2a2a2a] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              className="p-2 bg-white border border-[#8A9A5B]/30 rounded-xl hover:bg-[#F9F7F2] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm"
               aria-label="Next page"
             >
-              <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[#36454F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>

@@ -36,23 +36,23 @@ export const PaymentSuccessPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 bg-[#F9F7F2] min-h-screen">
         <div className="max-w-md mx-auto text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#eba157] mx-auto mb-4"></div>
-          <p className="text-gray-600">Processing payment...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8A9A5B] mx-auto mb-4"></div>
+          <p className="text-[#36454F]">Processing payment...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8 bg-[#F9F7F2] min-h-screen">
       <div className="max-w-md mx-auto">
         <div className="bg-white rounded-lg shadow-md p-8 text-center">
           <div className="mb-6">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-[#8A9A5B]/20 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
-                className="w-8 h-8 text-green-600"
+                className="w-8 h-8 text-[#8A9A5B]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -65,14 +65,14 @@ export const PaymentSuccessPage: React.FC = () => {
                 />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">Payment Successful!</h1>
-            <p className="text-gray-600">
+            <h1 className="text-2xl font-bold text-[#36454F] mb-2">Payment Successful!</h1>
+            <p className="text-[#36454F]/70">
               Your order has been placed and payment has been processed successfully.
             </p>
           </div>
 
           <div className="space-y-4">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-[#36454F]/70">
               Redirecting to your order tracking page...
             </p>
             <button
@@ -84,13 +84,13 @@ export const PaymentSuccessPage: React.FC = () => {
                   navigate('/customer/menu');
                 }
               }}
-              className="w-full px-6 py-3 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors duration-200 font-medium"
+              className="w-full px-6 py-3 bg-[#D4AF37] text-white rounded-lg hover:bg-[#B8941F] transition-colors duration-200 font-medium"
             >
               View Order
             </button>
             <button
               onClick={() => navigate('/customer/menu')}
-              className="w-full px-6 py-2 text-[#eba157] hover:text-[#d88f3f] font-medium"
+              className="w-full px-6 py-2 text-[#8A9A5B] hover:text-[#6B7A4A] font-medium"
             >
               Continue Shopping
             </button>

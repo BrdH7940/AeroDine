@@ -12,13 +12,13 @@ export const BottomNavigation: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-[#1a1a1a] border-t border-gray-800/50 z-50 backdrop-blur-xl">
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#8A9A5B]/20 z-50 backdrop-blur-xl shadow-lg">
       <div className="px-4">
         <div className="flex items-center justify-around py-3">
           <button
             onClick={() => navigate('/customer/menu')}
             className={`flex flex-col items-center gap-1 px-4 py-2 transition-all duration-200 ${
-              isActive('/customer/menu') ? 'text-amber-600' : 'text-gray-400'
+              isActive('/customer/menu') ? 'text-[#8A9A5B]' : 'text-[#36454F]/50'
             }`}
           >
             <svg
@@ -40,7 +40,7 @@ export const BottomNavigation: React.FC = () => {
           <button
             onClick={() => navigate('/customer/cart')}
             className={`flex flex-col items-center gap-1 px-4 py-2 transition-all duration-200 relative ${
-              isActive('/customer/cart') ? 'text-amber-600' : 'text-gray-400'
+              isActive('/customer/cart') ? 'text-[#8A9A5B]' : 'text-[#36454F]/50'
             }`}
           >
             <div className="relative">
@@ -58,7 +58,7 @@ export const BottomNavigation: React.FC = () => {
                 />
               </svg>
               {getItemCount() > 0 && (
-                <span className="absolute -top-2 -right-2 bg-amber-700 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                <span className="absolute -top-2 -right-2 bg-[#D4AF37] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                   {getItemCount()}
                 </span>
               )}
@@ -76,7 +76,7 @@ export const BottomNavigation: React.FC = () => {
               }
             }}
             className={`flex flex-col items-center gap-1 px-4 py-2 transition-all duration-200 ${
-              isActive('/customer/orders') ? 'text-amber-600' : 'text-gray-400'
+              isActive('/customer/orders') ? 'text-[#8A9A5B]' : 'text-[#36454F]/50'
             }`}
           >
             <svg

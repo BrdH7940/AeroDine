@@ -50,17 +50,17 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-[#F9F7F2] py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-[#36454F]">
             Đăng nhập vào AeroDine
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-[#36454F]/70">
             Hoặc{' '}
             <Link
               to="/auth/register"
-              className="font-medium text-primary hover:text-primary-dark"
+              className="font-medium text-[#8A9A5B] hover:text-[#6B7A4A]"
             >
               đăng ký tài khoản mới
             </Link>
@@ -68,7 +68,7 @@ export const LoginPage: React.FC = () => {
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
-            <div className="rounded-md bg-red-50 p-4">
+            <div className="rounded-md bg-red-50 p-4 border border-red-200">
               <div className="text-sm text-red-800">{error}</div>
             </div>
           )}
@@ -83,7 +83,7 @@ export const LoginPage: React.FC = () => {
                 type="email"
                 autoComplete="email"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-[#8A9A5B]/30 placeholder-[#36454F]/50 text-[#36454F] rounded-t-md focus:outline-none focus:ring-[#8A9A5B] focus:border-[#8A9A5B] focus:z-10 sm:text-sm bg-white"
                 placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -99,7 +99,7 @@ export const LoginPage: React.FC = () => {
                 type="password"
                 autoComplete="current-password"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-[#8A9A5B]/30 placeholder-[#36454F]/50 text-[#36454F] rounded-b-md focus:outline-none focus:ring-[#8A9A5B] focus:border-[#8A9A5B] focus:z-10 sm:text-sm bg-white"
                 placeholder="Mật khẩu"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -111,7 +111,7 @@ export const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-[#D4AF37] hover:bg-[#B8941F] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#D4AF37] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </button>
@@ -120,7 +120,7 @@ export const LoginPage: React.FC = () => {
           <div className="text-center">
             <Link
               to="/auth/forgot-password"
-              className="text-sm text-primary hover:text-primary-dark"
+              className="text-sm text-[#8A9A5B] hover:text-[#6B7A4A]"
             >
               Quên mật khẩu?
             </Link>
@@ -131,10 +131,10 @@ export const LoginPage: React.FC = () => {
         <div className="mt-6">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
+              <div className="w-full border-t border-[#8A9A5B]/30"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-gray-50 text-gray-500">Hoặc</span>
+              <span className="px-2 bg-[#F9F7F2] text-[#36454F]/70">Hoặc</span>
             </div>
           </div>
 
@@ -142,7 +142,7 @@ export const LoginPage: React.FC = () => {
             <button
               type="button"
               onClick={handleGoogleLogin}
-              className="w-full flex items-center justify-center gap-3 py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors"
+              className="w-full flex items-center justify-center gap-3 py-2 px-4 border border-[#8A9A5B]/30 rounded-md shadow-sm bg-white text-sm font-medium text-[#36454F] hover:bg-[#F9F7F2] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8A9A5B] transition-colors"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path

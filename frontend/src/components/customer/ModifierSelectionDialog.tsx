@@ -147,18 +147,18 @@ export const ModifierSelectionDialog: React.FC<ModifierSelectionDialogProps> = (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200">
+        <div className="px-6 py-4 border-b border-[#8A9A5B]/20 bg-[#8A9A5B]">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-gray-800">{itemName}</h2>
+            <h2 className="text-2xl font-bold text-white">{itemName}</h2>
             <button
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              className="text-white hover:text-[#F9F7F2] text-2xl font-bold"
               aria-label="Close"
             >
               ×
             </button>
           </div>
-          <p className="text-sm text-gray-600 mt-1">Customize your order</p>
+          <p className="text-sm text-white/90 mt-1">Customize your order</p>
         </div>
 
         {/* Content */}
@@ -173,13 +173,13 @@ export const ModifierSelectionDialog: React.FC<ModifierSelectionDialogProps> = (
               const isRequired = minSelection > 0;
 
               return (
-                <div key={groupId} className="border-b border-gray-200 pb-4 last:border-0">
+                <div key={groupId} className="border-b border-[#8A9A5B]/20 pb-4 last:border-0">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-semibold text-gray-800">
+                    <h3 className="text-lg font-semibold text-[#36454F]">
                       {group.name}
                       {isRequired && <span className="text-red-500 ml-1">*</span>}
                     </h3>
-                    <span className="text-sm text-gray-500">
+                    <span className="text-sm text-[#36454F]/70">
                       {maxSelection === 1
                         ? 'Select 1'
                         : `Select ${minSelection}${maxSelection > minSelection ? `-${maxSelection}` : ''}`}
@@ -198,8 +198,8 @@ export const ModifierSelectionDialog: React.FC<ModifierSelectionDialogProps> = (
                             key={optionId}
                             className={`flex items-center justify-between p-3 border-2 rounded-lg cursor-pointer transition-colors ${
                               isSelected
-                                ? 'border-[#eba157] bg-[#eba157]/10'
-                                : 'border-gray-200 hover:border-gray-300'
+                                ? 'border-[#8A9A5B] bg-[#8A9A5B]/10'
+                                : 'border-[#8A9A5B]/30 hover:border-[#8A9A5B]'
                             } ${!isAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             <div className="flex items-center">
@@ -210,7 +210,7 @@ export const ModifierSelectionDialog: React.FC<ModifierSelectionDialogProps> = (
                                   checked={isSelected}
                                   onChange={() => toggleOption(groupId, optionId)}
                                   disabled={!isAvailable}
-                                  className="mr-3 w-4 h-4 text-[#eba157] focus:ring-[#eba157]"
+                                  className="mr-3 w-4 h-4 text-[#8A9A5B] focus:ring-[#8A9A5B]"
                                 />
                               ) : (
                                 <input
@@ -218,17 +218,17 @@ export const ModifierSelectionDialog: React.FC<ModifierSelectionDialogProps> = (
                                   checked={isSelected}
                                   onChange={() => toggleOption(groupId, optionId)}
                                   disabled={!isAvailable || (!isSelected && selected.length >= maxSelection)}
-                                  className="mr-3 w-4 h-4 text-[#eba157] focus:ring-[#eba157] rounded"
+                                  className="mr-3 w-4 h-4 text-[#8A9A5B] focus:ring-[#8A9A5B] rounded"
                                 />
                               )}
-                              <span className="text-gray-800">{option.name}</span>
+                              <span className="text-[#36454F]">{option.name}</span>
                             </div>
                             {(() => {
                               const priceAdjustment = Number(option.priceAdjustment) || 0;
                               return priceAdjustment !== 0 ? (
                                 <span
                                   className={`text-sm font-medium ${
-                                    priceAdjustment > 0 ? 'text-green-600' : 'text-gray-600'
+                                    priceAdjustment > 0 ? 'text-[#8A9A5B]' : 'text-[#36454F]/70'
                                   }`}
                                 >
                                   {priceAdjustment > 0 ? '+' : ''}
@@ -241,7 +241,7 @@ export const ModifierSelectionDialog: React.FC<ModifierSelectionDialogProps> = (
                       })}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">No options available</p>
+                    <p className="text-sm text-[#36454F]/70">No options available</p>
                   )}
                   {selected.length < minSelection && (
                     <p className="text-sm text-red-500 mt-2">
@@ -255,18 +255,18 @@ export const ModifierSelectionDialog: React.FC<ModifierSelectionDialogProps> = (
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+        <div className="px-6 py-4 border-t border-[#8A9A5B]/20 bg-[#F9F7F2]">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-lg font-semibold text-gray-800">Total</span>
-            <span className="text-2xl font-bold text-[#eba157]">{formatVND(totalPrice)}</span>
+            <span className="text-lg font-semibold text-[#36454F]">Total</span>
+            <span className="text-2xl font-bold text-[#8A9A5B]">{formatVND(totalPrice)}</span>
           </div>
           <button
             onClick={handleConfirm}
             disabled={!isValid}
             className={`w-full py-3 rounded-lg font-medium transition-colors ${
               isValid
-                ? 'bg-[#eba157] text-white hover:bg-[#d88f3f]'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                ? 'bg-[#D4AF37] text-white hover:bg-[#B8941F]'
+                : 'bg-[#8A9A5B]/30 text-[#36454F]/50 cursor-not-allowed'
             }`}
           >
             Add to Cart

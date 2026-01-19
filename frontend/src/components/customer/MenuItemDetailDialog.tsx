@@ -217,12 +217,12 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
     return (
       <div className="flex items-center gap-1">
         {[...Array(fullStars)].map((_, i) => (
-          <svg key={i} className="w-5 h-5 text-yellow-400 fill-current" viewBox="0 0 20 20">
+          <svg key={i} className="w-5 h-5 text-[#D4AF37] fill-current" viewBox="0 0 20 20">
             <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
           </svg>
         ))}
         {hasHalfStar && (
-          <svg className="w-5 h-5 text-yellow-400 fill-current" viewBox="0 0 20 20">
+          <svg className="w-5 h-5 text-[#D4AF37] fill-current" viewBox="0 0 20 20">
             <defs>
               <linearGradient id="half-fill">
                 <stop offset="50%" stopColor="currentColor" />
@@ -233,7 +233,7 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
           </svg>
         )}
         {[...Array(emptyStars)].map((_, i) => (
-          <svg key={i} className="w-5 h-5 text-gray-600 fill-current" viewBox="0 0 20 20">
+          <svg key={i} className="w-5 h-5 text-[#8A9A5B]/30 fill-current" viewBox="0 0 20 20">
             <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
           </svg>
         ))}
@@ -242,15 +242,15 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 overflow-y-auto">
-      <div className="bg-[#1a1a1a] rounded-lg shadow-2xl max-w-2xl w-full mx-4 my-8 max-h-[90vh] overflow-hidden flex flex-col border border-gray-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full mx-4 my-8 max-h-[90vh] overflow-hidden flex flex-col border border-[#8A9A5B]/20">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-700 flex-shrink-0 bg-[#1f1f1f]">
+        <div className="px-6 py-4 border-b border-[#8A9A5B]/20 flex-shrink-0 bg-[#8A9A5B]">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-white">{menuItem.name}</h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white text-3xl font-bold leading-none transition-colors"
+              className="text-white hover:text-[#F9F7F2] text-3xl font-bold leading-none transition-colors"
               aria-label="Close"
             >
               ×
@@ -259,11 +259,11 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 bg-[#1a1a1a]">
+        <div className="flex-1 overflow-y-auto px-6 py-4 bg-white">
           <div className="space-y-6">
             {/* Image */}
             {menuItem.images && menuItem.images.length > 0 && (
-              <div className="w-full h-64 rounded-lg overflow-hidden bg-gray-800 border border-gray-700">
+              <div className="w-full h-64 rounded-lg overflow-hidden bg-[#F9F7F2] border border-[#8A9A5B]/20">
                 <img
                   src={menuItem.images[0].url}
                   alt={menuItem.name}
@@ -277,18 +277,18 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
 
             {/* Price */}
             <div className="flex items-center justify-between">
-              <span className="text-3xl font-bold text-amber-600">
+              <span className="text-3xl font-bold text-[#8A9A5B]">
                 {formatVND(Number(menuItem.basePrice))}
               </span>
               {isAvailable ? (
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-sm text-gray-300 font-medium">Có sẵn</span>
+                  <div className="w-3 h-3 bg-[#8A9A5B] rounded-full"></div>
+                  <span className="text-sm text-[#36454F] font-medium">Có sẵn</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                  <span className="text-sm text-gray-300 font-medium">Hết hàng</span>
+                  <span className="text-sm text-[#36454F] font-medium">Hết hàng</span>
                 </div>
               )}
             </div>
@@ -297,13 +297,13 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
             <div className="flex items-center gap-3">
               {loadingReviews ? (
                 <div className="flex items-center gap-2">
-                  <div className="w-20 h-5 bg-gray-700 rounded animate-pulse"></div>
-                  <div className="w-24 h-4 bg-gray-700 rounded animate-pulse"></div>
+                  <div className="w-20 h-5 bg-[#F9F7F2] rounded animate-pulse"></div>
+                  <div className="w-24 h-4 bg-[#F9F7F2] rounded animate-pulse"></div>
                 </div>
               ) : (
                 <>
                   {renderStars(averageRating)}
-                  <span className="text-sm text-gray-300">
+                  <span className="text-sm text-[#36454F]/70">
                     {averageRating > 0 ? `${averageRating.toFixed(1)}` : 'Chưa có đánh giá'} ({totalReviews} {totalReviews === 1 ? 'review' : 'reviews'})
                   </span>
                 </>
@@ -313,8 +313,8 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
             {/* Description */}
             {menuItem.description && (
               <div>
-                <h3 className="text-lg font-semibold text-white mb-2">Mô tả</h3>
-                <p className="text-gray-400 leading-relaxed">{menuItem.description}</p>
+                <h3 className="text-lg font-semibold text-[#36454F] mb-2">Mô tả</h3>
+                <p className="text-[#36454F]/70 leading-relaxed">{menuItem.description}</p>
               </div>
             )}
 
@@ -333,13 +333,13 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
                     const hasOptions = group.options && group.options.length > 0;
 
                     return (
-                      <div key={groupId} className="border-b border-gray-700 pb-4 last:border-0">
+                      <div key={groupId} className="border-b border-[#8A9A5B]/20 pb-4 last:border-0">
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-base font-semibold text-white">
+                          <h4 className="text-base font-semibold text-[#36454F]">
                             {group.name}
                             {isRequired && <span className="text-red-400 ml-1">*</span>}
                           </h4>
-                          <span className="text-sm text-gray-400">
+                          <span className="text-sm text-[#36454F]/70">
                             {maxSelection === 1
                               ? 'Chọn 1'
                               : `Chọn ${minSelection}${maxSelection > minSelection ? `-${maxSelection}` : ''}`}
@@ -358,8 +358,8 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
                                   key={optionId}
                                   className={`flex items-center justify-between p-3 border-2 rounded-lg cursor-pointer transition-colors ${
                                     isSelected
-                                      ? 'border-amber-700 bg-amber-700/20'
-                                      : 'border-gray-700 bg-[#1f1f1f] hover:border-gray-600'
+                                      ? 'border-[#8A9A5B] bg-[#8A9A5B]/10'
+                                      : 'border-[#8A9A5B]/30 bg-white hover:border-[#8A9A5B]'
                                   } ${!isAvailable ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                   <div className="flex items-center">
@@ -370,7 +370,7 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
                                         checked={isSelected}
                                         onChange={() => toggleOption(groupId, optionId)}
                                         disabled={!isAvailable}
-                                        className="mr-3 w-4 h-4 text-amber-700 focus:ring-amber-700 bg-gray-800 border-gray-600"
+                                        className="mr-3 w-4 h-4 text-[#8A9A5B] focus:ring-[#8A9A5B] bg-white border-[#8A9A5B]/30"
                                       />
                                     ) : (
                                       <input
@@ -378,17 +378,17 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
                                         checked={isSelected}
                                         onChange={() => toggleOption(groupId, optionId)}
                                         disabled={!isAvailable || (!isSelected && selected.length >= maxSelection)}
-                                        className="mr-3 w-4 h-4 text-amber-700 focus:ring-amber-700 rounded bg-gray-800 border-gray-600"
+                                        className="mr-3 w-4 h-4 text-[#8A9A5B] focus:ring-[#8A9A5B] rounded bg-white border-[#8A9A5B]/30"
                                       />
                                     )}
-                                    <span className="text-gray-200">{option.name}</span>
+                                    <span className="text-[#36454F]">{option.name}</span>
                                   </div>
                                   {(() => {
                                     const priceAdjustment = Number(option.priceAdjustment) || 0;
                                     return priceAdjustment !== 0 ? (
                                       <span
                                         className={`text-sm font-medium ${
-                                          priceAdjustment > 0 ? 'text-green-400' : 'text-gray-400'
+                                          priceAdjustment > 0 ? 'text-[#8A9A5B]' : 'text-[#36454F]/70'
                                         }`}
                                       >
                                         {priceAdjustment > 0 ? '+' : ''}
@@ -401,7 +401,7 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
                             })}
                           </div>
                         ) : (
-                          <p className="text-sm text-gray-400">Không có tùy chọn</p>
+                          <p className="text-sm text-[#36454F]/70">Không có tùy chọn</p>
                         )}
                         {selected.length < minSelection && (
                           <p className="text-sm text-red-400 mt-2">
@@ -417,12 +417,12 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
 
             {/* Notes */}
             <div>
-              <h3 className="text-lg font-semibold text-white mb-2">Ghi chú</h3>
+              <h3 className="text-lg font-semibold text-[#36454F] mb-2">Ghi chú</h3>
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Thêm ghi chú cho món ăn (tùy chọn)..."
-                className="w-full px-4 py-3 border border-gray-700 rounded-lg focus:ring-2 focus:ring-amber-700/30 focus:border-amber-700/50 resize-none bg-[#1f1f1f] text-white placeholder-gray-500 transition-all duration-200"
+                className="w-full px-4 py-3 border border-[#8A9A5B]/30 rounded-lg focus:ring-2 focus:ring-[#8A9A5B]/30 focus:border-[#8A9A5B] resize-none bg-white text-[#36454F] placeholder-[#36454F]/50 transition-all duration-200"
                 rows={3}
               />
             </div>
@@ -430,18 +430,18 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-700 bg-[#1f1f1f] flex-shrink-0">
+        <div className="px-6 py-4 border-t border-[#8A9A5B]/20 bg-[#F9F7F2] flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-lg font-semibold text-white">Tổng cộng</span>
-            <span className="text-2xl font-bold text-amber-600">{formatVND(totalPrice)}</span>
+            <span className="text-lg font-semibold text-[#36454F]">Tổng cộng</span>
+            <span className="text-2xl font-bold text-[#8A9A5B]">{formatVND(totalPrice)}</span>
           </div>
           <button
             onClick={handleAddToCart}
             disabled={!isValid || !isAvailable}
             className={`w-full py-3 rounded-xl font-medium transition-all duration-200 ${
               isValid && isAvailable
-                ? 'bg-amber-700 text-white hover:bg-amber-600'
-                : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                ? 'bg-[#D4AF37] text-white hover:bg-[#B8941F]'
+                : 'bg-[#8A9A5B]/30 text-[#36454F]/50 cursor-not-allowed'
             }`}
           >
             {isAvailable ? 'Thêm vào giỏ hàng' : 'Hết hàng'}
