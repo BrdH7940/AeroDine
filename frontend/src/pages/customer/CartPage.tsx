@@ -23,6 +23,14 @@ export const CartPage: React.FC = () => {
   const [guestCount, setGuestCount] = useState(1);
   const [note, setNote] = useState('');
   const [tableInputValue, setTableInputValue] = useState('');
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [orderId, setOrderId] = useState<number | null>(null);
+  const [orderTotal, setOrderTotal] = useState<number>(0);
+
+  // Calculate total before placing order
+  const calculateOrderTotal = (): number => {
+    return getTotal();
+  };
 
   const handlePlaceOrder = async () => {
     if (!tableId) {
@@ -44,6 +52,9 @@ export const CartPage: React.FC = () => {
         setIsPlacingOrder(false);
         return;
       }
+
+      // Calculate total before creating order
+      const total = calculateOrderTotal();
 
       const orderData = {
         tableId: numericTableId,
@@ -67,27 +78,24 @@ export const CartPage: React.FC = () => {
       // Create order
       const response = await apiClient.post('/orders', orderData);
       console.log('Order created:', response.data);
-      const orderId = response.data.id;
+      const createdOrderId = response.data.id;
 
       // Store orderId for later use
-      localStorage.setItem('lastOrderId', orderId.toString());
+      localStorage.setItem('lastOrderId', createdOrderId.toString());
 
-      // Create Stripe checkout session
-      const baseUrl = window.location.origin;
-      const checkoutResponse = await apiClient.post(`/orders/${orderId}/checkout`, {
-        successUrl: `${baseUrl}/customer/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `${baseUrl}/customer/payment/cancel?order_id=${orderId}`,
-      });
+      // Store order info for success dialog BEFORE clearing cart
+      setOrderId(createdOrderId);
+      setOrderTotal(total);
 
-      // Clear cart before redirecting to Stripe
-      clearCart();
-
-      // Redirect to Stripe checkout
-      if (checkoutResponse.data.url) {
-        window.location.href = checkoutResponse.data.url;
-      } else {
-        throw new Error('Failed to get checkout URL');
-      }
+      // Show success dialog first
+      setIsPlacingOrder(false);
+      setShowSuccessDialog(true);
+      console.log('Setting showSuccessDialog to true, orderId:', createdOrderId, 'total:', total);
+      
+      // Clear cart after dialog is shown (with delay to ensure dialog renders)
+      setTimeout(() => {
+        clearCart();
+      }, 300);
     } catch (error: any) {
       console.error('Failed to place order:', error);
       alert(error.response?.data?.message || 'Failed to place order. Please try again.');
@@ -95,7 +103,17 @@ export const CartPage: React.FC = () => {
     }
   };
 
-  if (items.length === 0) {
+  const handleSuccessDialogClose = () => {
+    setShowSuccessDialog(false);
+    if (orderId) {
+      navigate(`/customer/orders/${orderId}`);
+    } else {
+      navigate('/customer/menu');
+    }
+  };
+
+  // Don't show empty cart if success dialog is showing
+  if (items.length === 0 && !showSuccessDialog) {
     return (
       <div className="min-h-screen bg-[#F9F7F2] pb-20">
         <div className="p-5">
@@ -335,6 +353,63 @@ export const CartPage: React.FC = () => {
           <p>You can add more orders during your visit</p>
         </div>
       </div>
+
+      {/* Success Dialog */}
+      {showSuccessDialog && orderId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={(e) => {
+          // Close dialog when clicking outside
+          if (e.target === e.currentTarget) {
+            handleSuccessDialogClose();
+          }
+        }}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#8A9A5B]/20" onClick={(e) => e.stopPropagation()}>
+            <div className="text-center">
+              {/* Success Icon */}
+              <div className="w-16 h-16 bg-[#8A9A5B]/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg
+                  className="w-8 h-8 text-[#8A9A5B]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+
+              {/* Success Message */}
+              <h2 className="text-2xl font-bold text-[#36454F] mb-2">Order Placed Successfully!</h2>
+              <p className="text-[#36454F]/70 mb-4">
+                Your order has been received and is being prepared.
+              </p>
+
+              {/* Order Details */}
+              <div className="bg-[#F9F7F2] rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-[#36454F]/70">Order ID:</span>
+                  <span className="text-sm font-semibold text-[#36454F]">#{orderId}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-lg font-semibold text-[#36454F]">Total Amount:</span>
+                  <span className="text-xl font-bold text-[#8A9A5B]">{formatVND(orderTotal)}</span>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <button
+                onClick={handleSuccessDialogClose}
+                className="w-full px-6 py-3 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 font-medium"
+              >
+                View Order Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BottomNavigation />
     </div>
