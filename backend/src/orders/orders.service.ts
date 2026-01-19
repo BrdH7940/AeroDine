@@ -1427,6 +1427,7 @@ export class OrdersService {
         }
 
         // Create Stripe checkout session
+        // Note: VND has no decimal places (smallest unit), so we don't multiply by 100
         const session = await this.stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             line_items: order.items.map((item: any) => ({
@@ -1435,7 +1436,7 @@ export class OrdersService {
                     product_data: {
                         name: item.name,
                     },
-                    unit_amount: Math.round(Number(item.pricePerUnit) * 100), // Convert to cents (VND)
+                    unit_amount: Math.round(Number(item.pricePerUnit)), // VND has no cents, use amount as-is
                 },
                 quantity: item.quantity,
             })),
@@ -1467,7 +1468,10 @@ export class OrdersService {
      * Handle Stripe webhook events
      */
     async handleStripeWebhook(signature: string, body: Buffer) {
+        this.logger.log('🔔 Stripe webhook received')
+        
         if (!this.stripe) {
+            this.logger.error('Stripe client not initialized')
             throw new BadRequestException('Stripe is not configured')
         }
 
@@ -1475,10 +1479,24 @@ export class OrdersService {
             'stripe.webhookSecret'
         )
         if (!webhookSecret) {
+            this.logger.error('Stripe webhook secret not configured')
             throw new BadRequestException(
-                'Stripe webhook secret is not configured'
+                'Stripe webhook secret is not configured. Please set STRIPE_WEBHOOK_SECRET in .env'
             )
         }
+
+        if (!body || body.length === 0) {
+            this.logger.error('Webhook body is empty')
+            throw new BadRequestException('Webhook body is empty')
+        }
+
+        if (!signature) {
+            this.logger.error('Webhook signature is missing')
+            throw new BadRequestException('Missing stripe-signature header')
+        }
+
+        this.logger.log(`Webhook body size: ${body.length} bytes`)
+        this.logger.log(`Webhook signature: ${signature.substring(0, 20)}...`)
 
         let event: Stripe.Event
 
@@ -1488,9 +1506,13 @@ export class OrdersService {
                 signature,
                 webhookSecret
             )
+            this.logger.log(`✅ Webhook signature verified. Event type: ${event.type}`)
         } catch (err: any) {
+            this.logger.error(`❌ Webhook signature verification failed: ${err.message}`)
+            this.logger.error(`Webhook secret configured: ${webhookSecret ? 'Yes' : 'No'}`)
+            this.logger.error(`Webhook secret length: ${webhookSecret?.length || 0}`)
             throw new BadRequestException(
-                `Webhook signature verification failed: ${err.message}`
+                `Webhook signature verification failed: ${err.message}. Please check STRIPE_WEBHOOK_SECRET in .env`
             )
         }
 

@@ -9,6 +9,8 @@ import {
     Logger,
     Req,
     RawBodyRequest,
+    Inject,
+    forwardRef,
 } from '@nestjs/common'
 import { Request } from 'express'
 import { PaymentsService } from './payments.service'
@@ -22,13 +24,18 @@ import {
     ApiHeader,
 } from '@nestjs/swagger'
 import { PaymentMethod } from '@aerodine/shared-types'
+import { OrdersService } from '../orders/orders.service'
 
 @ApiTags('payments')
 @Controller('payments')
 export class PaymentsController {
     private readonly logger = new Logger(PaymentsController.name)
 
-    constructor(private readonly paymentsService: PaymentsService) {}
+    constructor(
+        private readonly paymentsService: PaymentsService,
+        @Inject(forwardRef(() => OrdersService))
+        private readonly ordersService: OrdersService
+    ) {}
 
     @Post('create')
     @ApiOperation({
@@ -65,9 +72,9 @@ export class PaymentsController {
     @Post('callback/stripe')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({
-        summary: 'Stripe Webhook callback (Public)',
+        summary: 'Stripe Webhook callback (Public) - Redirects to orders webhook',
         description:
-            'Webhook endpoint for Stripe. This is called by Stripe server after payment. No authentication required. Requires raw body for signature verification.',
+            'Webhook endpoint for Stripe. This endpoint redirects to the orders webhook handler which includes full order completion logic (socket events, table reset, etc.). No authentication required. Requires raw body for signature verification.',
     })
     @ApiHeader({
         name: 'stripe-signature',
@@ -89,11 +96,13 @@ export class PaymentsController {
 
         // Log webhook request for debugging
         this.logger.log(
-            `Received Stripe webhook with signature: ${signature?.substring(0, 20)}...`
+            `🔔 Received Stripe webhook at /payments/callback/stripe`
         )
+        this.logger.log(`Headers: ${JSON.stringify(Object.keys(req.headers))}`)
+        this.logger.log(`Raw body type: ${typeof req.rawBody}, length: ${req.rawBody ? (req.rawBody as Buffer).length : 0}`)
 
         if (!signature) {
-            this.logger.warn('Stripe webhook signature missing')
+            this.logger.error('❌ Stripe webhook signature missing')
             throw new Error('Missing stripe-signature header')
         }
 
@@ -101,22 +110,33 @@ export class PaymentsController {
         const rawBody = req.rawBody
 
         if (!rawBody) {
-            this.logger.error('Raw body not available for Stripe webhook')
+            this.logger.error('❌ Raw body not available for Stripe webhook')
+            this.logger.error('Make sure rawBody: true is set in NestFactory.create()')
             throw new Error('Raw body required for Stripe webhook verification')
         }
 
+        // Convert to Buffer if it's a string
+        const bodyBuffer = typeof rawBody === 'string' 
+            ? Buffer.from(rawBody, 'utf-8')
+            : rawBody as Buffer
+
         try {
-            // Convert rawBody to string if it's a Buffer
-            const payload =
-                typeof rawBody === 'string' ? rawBody : rawBody.toString('utf-8')
-
-            await this.paymentsService.handleStripeIPN(payload, signature)
-
-            return { received: true }
+            // Redirect to orders webhook handler which has full logic
+            // (socket events, table reset, etc.)
+            this.logger.log('Forwarding to orders webhook handler...')
+            const result = await this.ordersService.handleStripeWebhook(
+                signature,
+                bodyBuffer
+            )
+            this.logger.log('✅ Webhook processed successfully')
+            return result
         } catch (error) {
             this.logger.error(
-                `Error handling Stripe webhook: ${error instanceof Error ? error.message : 'Unknown error'}`
+                `❌ Error handling Stripe webhook: ${error instanceof Error ? error.message : 'Unknown error'}`
             )
+            if (error instanceof Error) {
+                this.logger.error(`Error stack: ${error.stack}`)
+            }
             throw error
         }
     }

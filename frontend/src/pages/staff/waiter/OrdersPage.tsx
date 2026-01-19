@@ -153,6 +153,39 @@ export default function WaiterOrdersPage() {
         fetchOrders()
     }, [fetchOrders])
 
+    // Polling fallback: Check for completed orders every 5 seconds
+    // This ensures orders are removed even if socket events fail
+    useEffect(() => {
+        const interval = setInterval(() => {
+            // Only poll if there are active orders
+            if (activeOrders.length > 0) {
+                console.log('🔄 Polling: Checking for completed orders...')
+                orderService.getOrders({
+                    restaurantId,
+                    status: 'IN_PROGRESS' as any,
+                }).then((res) => {
+                    const currentActiveOrderIds = new Set(activeOrders.map(o => o.id))
+                    const serverActiveOrderIds = new Set(res.orders.map((o: any) => o.id))
+                    
+                    // Find orders that are no longer IN_PROGRESS on server
+                    const completedOrderIds = activeOrders
+                        .filter(o => !serverActiveOrderIds.has(o.id))
+                        .map(o => o.id)
+                    
+                    if (completedOrderIds.length > 0) {
+                        console.log(`✅ Polling found completed orders: ${completedOrderIds.join(', ')}`)
+                        setActiveOrders((prev) => prev.filter((o) => !completedOrderIds.includes(o.id)))
+                        setReadyItems((prev) => prev.filter((item) => !completedOrderIds.includes(item.orderId)))
+                    }
+                }).catch((err) => {
+                    console.error('Polling error:', err)
+                })
+            }
+        }, 5000) // Poll every 5 seconds
+
+        return () => clearInterval(interval)
+    }, [activeOrders, restaurantId])
+
     // Handle new order created
     const handleOrderCreated = useCallback(
         (event: OrderCreatedEvent) => {
@@ -258,12 +291,18 @@ export default function WaiterOrdersPage() {
             
             // If order is completed, remove it from active orders
             if (event.newStatus === 'COMPLETED') {
-                setActiveOrders((prev) => prev.filter((o) => o.id !== event.orderId))
+                console.log(`✅ Removing order #${event.orderId} from active orders`)
+                setActiveOrders((prev) => {
+                    const filtered = prev.filter((o) => o.id !== event.orderId)
+                    console.log(`📊 Active orders after removal: ${filtered.length}`)
+                    return filtered
+                })
                 // Remove any ready items for this order
                 setReadyItems((prev) =>
                     prev.filter((item) => item.orderId !== event.orderId)
                 )
                 playNotificationSound()
+                alert(`Order #${event.orderId} has been completed and removed from active orders`)
             }
         },
         [playNotificationSound]
