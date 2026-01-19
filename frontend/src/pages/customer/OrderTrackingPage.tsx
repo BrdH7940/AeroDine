@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiClient } from '../../services/api';
 import { useSocket } from '../../hooks/useSocket';
@@ -46,13 +46,92 @@ export const OrderTrackingPage: React.FC = () => {
   const { tableId } = useCartStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
   const socket = useSocket();
+
+  const loadOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      let tableOrders: Order[] = [];
+      
+      // Always prioritize tableId from cart store
+      if (tableId) {
+        // Load all orders for the current table
+        const allOrdersResponse = await apiClient.get('/orders');
+        // Backend returns { orders: [...], total, page, ... }
+        const allOrders = Array.isArray(allOrdersResponse.data) 
+          ? allOrdersResponse.data 
+          : allOrdersResponse.data?.orders || [];
+        // Ensure both values are numbers for comparison
+        tableOrders = allOrders.filter(
+          (o: Order) => {
+            const orderTableId = o.table?.id ? Number(o.table.id) : null;
+            const currentTableId = Number(tableId);
+            return orderTableId === currentTableId && !['CANCELLED'].includes(o.status);
+          }
+        );
+      } else if (orderId) {
+        // If no tableId, try to get from orderId
+        const response = await apiClient.get(`/orders/${orderId}`);
+        const order = response.data;
+        
+        // Load all orders for the same table
+        const allOrdersResponse = await apiClient.get('/orders');
+        const allOrders = Array.isArray(allOrdersResponse.data) 
+          ? allOrdersResponse.data 
+          : allOrdersResponse.data?.orders || [];
+        tableOrders = allOrders.filter(
+          (o: Order) => {
+            const orderTableId = o.table?.id ? Number(o.table.id) : null;
+            const targetTableId = order.table?.id ? Number(order.table.id) : null;
+            return orderTableId === targetTableId && !['CANCELLED'].includes(o.status);
+          }
+        );
+      } else {
+        // Try to get last order from localStorage
+        const lastOrderId = localStorage.getItem('lastOrderId');
+        if (lastOrderId) {
+          const response = await apiClient.get(`/orders/${lastOrderId}`);
+          const order = response.data;
+          const allOrdersResponse = await apiClient.get('/orders');
+          const allOrders = Array.isArray(allOrdersResponse.data) 
+            ? allOrdersResponse.data 
+            : allOrdersResponse.data?.orders || [];
+          tableOrders = allOrders.filter(
+            (o: Order) => {
+              const orderTableId = o.table?.id ? Number(o.table.id) : null;
+              const targetTableId = order.table?.id ? Number(order.table.id) : null;
+              return orderTableId === targetTableId && !['CANCELLED'].includes(o.status);
+            }
+          );
+        }
+      }
+
+      // Sort orders and update state together to avoid glitch
+      const sortedOrders = tableOrders.sort((a: Order, b: Order) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      
+      // Use requestAnimationFrame to ensure smooth transition
+      requestAnimationFrame(() => {
+        setOrders(sortedOrders);
+        setLoading(false);
+        setInitialLoad(false);
+      });
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+      setLoading(false);
+      setInitialLoad(false);
+    }
+  }, [tableId, orderId]);
 
   useEffect(() => {
     loadOrders();
+  }, [loadOrders]);
 
-    // Subscribe to order updates via WebSocket
-    if (socket) {
+  useEffect(() => {
+    // Subscribe to order updates via WebSocket (only after initial load)
+    if (socket && !initialLoad) {
       const handleOrderUpdate = (updatedOrder: Order) => {
         // Only update if the order belongs to current table
         if (tableId) {
@@ -78,74 +157,13 @@ export const OrderTrackingPage: React.FC = () => {
       };
 
       // Subscribe to all order updates for this table
-      socket.on('order:update', handleOrderUpdate);
+      socket.socket?.on('order:update', handleOrderUpdate);
 
       return () => {
-        socket.off('order:update', handleOrderUpdate);
+        socket.socket?.off('order:update', handleOrderUpdate);
       };
     }
-  }, [socket, tableId]);
-
-  const loadOrders = async () => {
-    setLoading(true);
-    try {
-      // Always prioritize tableId from cart store
-      if (tableId) {
-        // Load all orders for the current table
-        const allOrdersResponse = await apiClient.get('/orders');
-        // Ensure both values are numbers for comparison
-        const tableOrders = allOrdersResponse.data.filter(
-          (o: Order) => {
-            const orderTableId = o.table?.id ? Number(o.table.id) : null;
-            const currentTableId = Number(tableId);
-            return orderTableId === currentTableId && !['CANCELLED'].includes(o.status);
-          }
-        );
-        setOrders(tableOrders.sort((a: Order, b: Order) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        ));
-      } else if (orderId) {
-        // If no tableId, try to get from orderId
-        const response = await apiClient.get(`/orders/${orderId}`);
-        const order = response.data;
-        
-        // Load all orders for the same table
-        const allOrdersResponse = await apiClient.get('/orders');
-        const tableOrders = allOrdersResponse.data.filter(
-          (o: Order) => {
-            const orderTableId = o.table?.id ? Number(o.table.id) : null;
-            const targetTableId = order.table?.id ? Number(order.table.id) : null;
-            return orderTableId === targetTableId && !['CANCELLED'].includes(o.status);
-          }
-        );
-        setOrders(tableOrders.sort((a: Order, b: Order) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        ));
-      } else {
-        // Try to get last order from localStorage
-        const lastOrderId = localStorage.getItem('lastOrderId');
-        if (lastOrderId) {
-          const response = await apiClient.get(`/orders/${lastOrderId}`);
-          const order = response.data;
-          const allOrdersResponse = await apiClient.get('/orders');
-          const tableOrders = allOrdersResponse.data.filter(
-            (o: Order) => {
-              const orderTableId = o.table?.id ? Number(o.table.id) : null;
-              const targetTableId = order.table?.id ? Number(order.table.id) : null;
-              return orderTableId === targetTableId && !['CANCELLED'].includes(o.status);
-            }
-          );
-          setOrders(tableOrders.sort((a: Order, b: Order) => 
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          ));
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load orders:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [socket, tableId, initialLoad]);
 
   const getCurrentStatusIndex = (status: string) => {
     return orderStatusFlow.indexOf(status);
@@ -160,13 +178,13 @@ export const OrderTrackingPage: React.FC = () => {
     return orders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
   };
 
-  if (loading) {
+  if (loading && initialLoad) {
     return (
-      <div className="min-h-screen bg-gray-50 pb-20">
-        <div className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-[#F9F7F2] pb-20">
+        <div className="p-5 py-8">
           <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#eba157]"></div>
-            <p className="mt-4 text-gray-600">Loading orders...</p>
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#8A9A5B]"></div>
+            <p className="mt-4 text-[#36454F]">Loading orders...</p>
           </div>
         </div>
         <BottomNavigation />
@@ -174,15 +192,15 @@ export const OrderTrackingPage: React.FC = () => {
     );
   }
 
-  if (orders.length === 0) {
+  if (!loading && orders.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 pb-20">
-        <div className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-[#F9F7F2] pb-20">
+        <div className="p-5 py-8">
           <div className="text-center py-12">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">No orders found</h2>
+            <h2 className="text-2xl font-bold text-[#36454F] mb-4">No orders found</h2>
             <button
               onClick={() => navigate('/customer/menu')}
-              className="px-6 py-3 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors duration-200 font-medium"
+              className="px-6 py-3 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 font-medium"
             >
               Back to Menu
             </button>
@@ -196,14 +214,14 @@ export const OrderTrackingPage: React.FC = () => {
   const currentTable = orders[0]?.table || (tableId ? { id: tableId, name: tableId.toString() } : null);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-[#F9F7F2] pb-20">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="container mx-auto px-4 py-3">
+      <div className="bg-[#8A9A5B] border-b border-[#8A9A5B]/20 shadow-sm">
+        <div className="p-5">
           <div className="flex items-center justify-between">
-            <span className="font-semibold text-gray-800">Smart Restaurant</span>
+            <span className="font-semibold text-white">Smart Restaurant</span>
             {currentTable && (
-              <span className="px-3 py-1 bg-[#eba157] text-white rounded-full text-sm font-medium">
+              <span className="px-3 py-1 bg-[#D4AF37] text-white rounded-full text-sm font-medium">
                 {currentTable.name}
               </span>
             )}
@@ -211,8 +229,8 @@ export const OrderTrackingPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-4">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">Your Orders</h2>
+      <div className="p-5">
+        <h2 className="text-xl font-bold text-[#36454F] mb-4">Your Orders</h2>
 
         <div className="space-y-4 mb-6">
           {orders.map((order) => {
@@ -223,9 +241,9 @@ export const OrderTrackingPage: React.FC = () => {
             });
 
             return (
-              <div key={order.id} className="bg-orange-100 rounded-lg p-4 border border-gray-700">
+              <div key={order.id} className="bg-white rounded-xl p-4 border border-[#8A9A5B]/20 shadow-sm">
                 <div className="mb-3">
-                  <h3 className="font-semibold text-black">
+                  <h3 className="font-semibold text-[#36454F]">
                     Order #{order.id} - {orderTime}
                   </h3>
                 </div>
@@ -241,21 +259,21 @@ export const OrderTrackingPage: React.FC = () => {
                       <div key={status} className="flex items-center gap-2">
                         <div className="flex items-center gap-2 min-w-[140px]">
                           {isCompleted ? (
-                            <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                            <svg className="w-5 h-5 text-[#8A9A5B]" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                             </svg>
                           ) : (
-                            <div className="w-5 h-5 rounded-full border-2 border-gray-500"></div>
+                            <div className="w-5 h-5 rounded-full border-2 border-[#8A9A5B]/30"></div>
                           )}
-                          <span className={`text-sm ${isCompleted ? 'text-black' : 'text-black'}`}>
+                          <span className={`text-sm ${isCompleted ? 'text-[#36454F]' : 'text-[#36454F]/70'}`}>
                             {statusLabel}
                           </span>
                           {isCurrent && (
-                            <span className="text-xs text-black font-medium">← Current</span>
+                            <span className="text-xs text-[#8A9A5B] font-medium">← Current</span>
                           )}
                         </div>
                         {isCurrent && status === 'IN_PROGRESS' && (
-                          <div className="flex items-center gap-1 text-sm text-blue-400">
+                          <div className="flex items-center gap-1 text-sm text-[#8A9A5B]">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
@@ -268,18 +286,18 @@ export const OrderTrackingPage: React.FC = () => {
                 </div>
 
                 {/* Order Items */}
-                <div className="mt-4 pt-4 border-t border-gray-700">
-                  <p className="text-sm font-medium text-black mb-2">Items:</p>
+                <div className="mt-4 pt-4 border-t border-[#8A9A5B]/20">
+                  <p className="text-sm font-medium text-[#36454F] mb-2">Items:</p>
                   <div className="space-y-1">
                     {order.items.map((item) => (
-                      <div key={item.id} className="flex items-center gap-2 text-sm text-black">
+                      <div key={item.id} className="flex items-center gap-2 text-sm text-[#36454F]/70">
                         <span>• {item.name} x{item.quantity}</span>
                         {item.status === 'READY' || item.status === 'COMPLETED' ? (
-                          <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                          <svg className="w-4 h-4 text-[#8A9A5B]" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                           </svg>
                         ) : (
-                          <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 text-[#8A9A5B]/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                           </svg>
                         )}
@@ -293,10 +311,10 @@ export const OrderTrackingPage: React.FC = () => {
         </div>
 
         {/* Total */}
-        <div className="mb-6 border-t border-gray-200 pt-4">
+        <div className="mb-6 border-t border-[#8A9A5B]/20 pt-4">
           <div className="flex justify-between items-center">
-            <span className="text-lg font-semibold text-black">Total so far:</span>
-            <span className="text-lg font-bold text-black">{formatVND(getTotalAmount())}</span>
+            <span className="text-lg font-semibold text-[#36454F]">Total so far:</span>
+            <span className="text-lg font-bold text-[#8A9A5B]">{formatVND(getTotalAmount())}</span>
           </div>
         </div>
 
@@ -306,7 +324,7 @@ export const OrderTrackingPage: React.FC = () => {
             // Navigate to payment/bill page
             navigate('/customer/menu');
           }}
-          className="w-full px-6 py-3 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors duration-200 font-medium"
+          className="w-full px-6 py-3 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 font-medium"
         >
           Request Bill
         </button>

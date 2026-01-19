@@ -13,9 +13,12 @@ import { RegisterDto } from './dto/create-auth.dto'
 import { LoginDto } from './dto/update-auth.dto'
 import { ForgotPasswordDto } from './dto/forgot-password.dto'
 import { ResetPasswordDto } from './dto/reset-password.dto'
+import { VerifyOtpDto } from './dto/verify-otp.dto'
+import { ResetPasswordWithOtpDto } from './dto/reset-password-with-otp.dto'
 import { UsersService } from '../users/users.service'
 import { CreateUserDto } from '../users/dto/create-user.dto'
 import { MailService } from '../mail/mail.service'
+import { OtpService } from './otp.service'
 import { UserRole } from '@aerodine/shared-types'
 import { UserRole as PrismaUserRole } from '@prisma/client'
 
@@ -35,7 +38,8 @@ export class AuthService {
         private readonly usersService: UsersService,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
-        private readonly mailService: MailService
+        private readonly mailService: MailService,
+        private readonly otpService: OtpService
     ) {}
 
     async register(registerDto: RegisterDto) {
@@ -207,7 +211,7 @@ export class AuthService {
     }
 
     /**
-     * Send forgot password email
+     * Send forgot password email with OTP code
      */
     async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
         const user = await this.usersService.findByEmail(dto.email)
@@ -217,24 +221,24 @@ export class AuthService {
             // Still return success message to prevent email enumeration
             return {
                 message:
-                    'If an account with that email exists, a password reset link has been sent.',
+                    'If an account with that email exists, a verification code has been sent.',
             }
         }
 
         try {
-            // Generate password reset token
-            const resetToken = await this.signPasswordResetToken(
-                user.id,
-                user.email
-            )
+            // Generate OTP code
+            const otpCode = this.otpService.generateOtpCode()
 
-            // Send password reset email
+            // Store OTP with expiration
+            this.otpService.storeOtp(user.email, user.id, otpCode)
+
+            // Send OTP code via email
             // Wrap in try-catch to prevent email enumeration if sending fails
-            await this.mailService.sendPasswordReset(user, resetToken)
+            await this.mailService.sendPasswordResetOTP(user, otpCode)
         } catch (error) {
             // Log error but don't reveal to user to prevent email enumeration
             this.logger.error(
-                `Failed to send password reset email to ${dto.email}:`,
+                `Failed to send password reset OTP to ${dto.email}:`,
                 error
             )
         }
@@ -242,12 +246,80 @@ export class AuthService {
         // Always return success message to prevent email enumeration
         return {
             message:
-                'If an account with that email exists, a password reset link has been sent.',
+                'If an account with that email exists, a verification code has been sent.',
         }
     }
 
     /**
-     * Reset password using token
+     * Verify OTP code
+     */
+    async verifyOtp(dto: VerifyOtpDto): Promise<{ message: string; verified: boolean }> {
+        const user = await this.usersService.findByEmail(dto.email)
+
+        // Don't reveal if email exists for security
+        if (!user) {
+            return {
+                message: 'Invalid verification code',
+                verified: false,
+            }
+        }
+
+        // Verify OTP
+        const result = this.otpService.verifyOtp(dto.email, dto.otpCode)
+
+        if (!result.valid) {
+            return {
+                message: 'Invalid or expired verification code',
+                verified: false,
+            }
+        }
+
+        return {
+            message: 'Verification code verified successfully',
+            verified: true,
+        }
+    }
+
+    /**
+     * Reset password using OTP code
+     */
+    async resetPasswordWithOtp(
+        dto: ResetPasswordWithOtpDto
+    ): Promise<{ message: string }> {
+        // Verify OTP first
+        const otpResult = this.otpService.verifyOtp(dto.email, dto.otpCode)
+
+        if (!otpResult.valid) {
+            throw new BadRequestException('Invalid or expired verification code')
+        }
+
+        // Find user
+        const user = await this.usersService.findByEmail(dto.email)
+        if (!user) {
+            throw new NotFoundException('User not found')
+        }
+
+        // Verify user ID matches
+        if (user.id !== otpResult.userId) {
+            throw new BadRequestException('Verification code does not match user')
+        }
+
+        // Hash new password
+        const passwordHash = await bcrypt.hash(dto.newPassword, 10)
+
+        // Update user password
+        await this.usersService.updatePassword(user.id, passwordHash)
+
+        // Remove OTP after successful use
+        this.otpService.removeOtp(dto.email)
+
+        return {
+            message: 'Password has been reset successfully',
+        }
+    }
+
+    /**
+     * Reset password using token (legacy method, kept for backward compatibility)
      */
     async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
         const secret = this.configService.get<string>('jwt.secret')

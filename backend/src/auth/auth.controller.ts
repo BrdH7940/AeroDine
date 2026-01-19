@@ -16,6 +16,8 @@ import { LoginDto } from './dto/update-auth.dto'
 import { ForgotPasswordDto } from './dto/forgot-password.dto'
 import { ResetPasswordDto } from './dto/reset-password.dto'
 import { RefreshTokenDto } from './dto/refresh-token.dto'
+import { VerifyOtpDto } from './dto/verify-otp.dto'
+import { ResetPasswordWithOtpDto } from './dto/reset-password-with-otp.dto'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { GoogleAuthGuard } from './guards/google-auth.guard'
 import { CurrentUser } from './decorators/current-user.decorator'
@@ -133,17 +135,17 @@ export class AuthController {
     @Throttle({ short: { ttl: 60000, limit: 3 } }) // 3 requests per minute
     @Post('forgot-password')
     @ApiOperation({
-        summary: 'Request password reset',
+        summary: 'Request password reset with OTP',
         description:
-            'Sends a password reset email to the user. Always returns success to prevent email enumeration. Rate limited to 3 requests per minute.',
+            'Sends a 6-digit OTP code to the user email. Always returns success to prevent email enumeration. Rate limited to 3 requests per minute.',
     })
     @ApiResponse({
         status: 200,
-        description: 'Password reset email sent (if email exists)',
+        description: 'OTP code sent to email (if email exists)',
         schema: {
             example: {
                 message:
-                    'If an account with that email exists, a password reset link has been sent.',
+                    'If an account with that email exists, a verification code has been sent.',
             },
         },
     })
@@ -155,9 +157,59 @@ export class AuthController {
         return this.authService.forgotPassword(forgotPasswordDto)
     }
 
+    @Post('verify-otp')
+    @ApiOperation({
+        summary: 'Verify OTP code',
+        description: 'Verifies the OTP code sent to user email for password reset.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'OTP verified successfully',
+        schema: {
+            example: {
+                message: 'Verification code verified successfully',
+                verified: true,
+            },
+        },
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid or expired OTP code',
+    })
+    async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
+        return this.authService.verifyOtp(verifyOtpDto)
+    }
+
+    @Post('reset-password-with-otp')
+    @ApiOperation({
+        summary: 'Reset password with OTP code',
+        description:
+            'Resets user password using the OTP code received via email. OTP expires in 10 minutes.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Password reset successfully',
+        schema: {
+            example: {
+                message: 'Password has been reset successfully',
+            },
+        },
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid or expired OTP code',
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'User not found',
+    })
+    async resetPasswordWithOtp(@Body() resetPasswordWithOtpDto: ResetPasswordWithOtpDto) {
+        return this.authService.resetPasswordWithOtp(resetPasswordWithOtpDto)
+    }
+
     @Post('reset-password')
     @ApiOperation({
-        summary: 'Reset password with token',
+        summary: 'Reset password with token (legacy)',
         description:
             'Resets user password using the token received via email. Token expires in 15 minutes.',
     })

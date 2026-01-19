@@ -185,7 +185,11 @@ export class MenusService {
                     category: true,
                     modifierGroups: {
                         include: {
-                            modifierGroup: true,
+                            modifierGroup: {
+                                include: {
+                                    options: true,
+                                },
+                            },
                         },
                     },
                 },
@@ -213,7 +217,13 @@ export class MenusService {
                 images: true,
                 category: true,
                 modifierGroups: {
-                    include: { modifierGroup: true },
+                    include: {
+                        modifierGroup: {
+                            include: {
+                                options: true,
+                            },
+                        },
+                    },
                 },
             },
         })
@@ -394,7 +404,13 @@ export class MenusService {
                     images: true,
                     category: true,
                     modifierGroups: {
-                        include: { modifierGroup: true },
+                        include: {
+                            modifierGroup: {
+                                include: {
+                                    options: true,
+                                },
+                            },
+                        },
                     },
                 },
             })
@@ -425,5 +441,54 @@ export class MenusService {
         return this.prisma.menuItem.delete({
             where: { id },
         })
+    }
+
+    async getMenuItemReviews(menuItemId: number) {
+        // Check if menu item exists
+        const menuItem = await this.prisma.menuItem.findUnique({
+            where: { id: menuItemId },
+        })
+
+        if (!menuItem) {
+            throw new NotFoundException(`Menu item with ID ${menuItemId} not found`)
+        }
+
+        // Get all reviews for this menu item
+        const reviews = await this.prisma.review.findMany({
+            where: { menuItemId },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        email: true,
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        })
+
+        // Calculate average rating
+        const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0)
+        const averageRating = reviews.length > 0 ? totalRating / reviews.length : 0
+
+        return {
+            menuItemId,
+            averageRating: Math.round(averageRating * 10) / 10, // Round to 1 decimal place
+            totalReviews: reviews.length,
+            reviews: reviews.map((review) => ({
+                id: review.id,
+                rating: review.rating,
+                comment: review.comment,
+                createdAt: review.createdAt,
+                user: {
+                    id: review.user.id,
+                    fullName: review.user.fullName,
+                    email: review.user.email,
+                },
+            })),
+        }
     }
 }

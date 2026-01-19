@@ -23,6 +23,14 @@ export const CartPage: React.FC = () => {
   const [guestCount, setGuestCount] = useState(1);
   const [note, setNote] = useState('');
   const [tableInputValue, setTableInputValue] = useState('');
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [orderId, setOrderId] = useState<number | null>(null);
+  const [orderTotal, setOrderTotal] = useState<number>(0);
+
+  // Calculate total before placing order
+  const calculateOrderTotal = (): number => {
+    return getTotal();
+  };
 
   const handlePlaceOrder = async () => {
     if (!tableId) {
@@ -44,6 +52,9 @@ export const CartPage: React.FC = () => {
         setIsPlacingOrder(false);
         return;
       }
+
+      // Calculate total before creating order
+      const total = calculateOrderTotal();
 
       const orderData = {
         tableId: numericTableId,
@@ -67,27 +78,24 @@ export const CartPage: React.FC = () => {
       // Create order
       const response = await apiClient.post('/orders', orderData);
       console.log('Order created:', response.data);
-      const orderId = response.data.id;
+      const createdOrderId = response.data.id;
 
       // Store orderId for later use
-      localStorage.setItem('lastOrderId', orderId.toString());
+      localStorage.setItem('lastOrderId', createdOrderId.toString());
 
-      // Create Stripe checkout session
-      const baseUrl = window.location.origin;
-      const checkoutResponse = await apiClient.post(`/orders/${orderId}/checkout`, {
-        successUrl: `${baseUrl}/customer/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `${baseUrl}/customer/payment/cancel?order_id=${orderId}`,
-      });
+      // Store order info for success dialog BEFORE clearing cart
+      setOrderId(createdOrderId);
+      setOrderTotal(total);
 
-      // Clear cart before redirecting to Stripe
-      clearCart();
-
-      // Redirect to Stripe checkout
-      if (checkoutResponse.data.url) {
-        window.location.href = checkoutResponse.data.url;
-      } else {
-        throw new Error('Failed to get checkout URL');
-      }
+      // Show success dialog first
+      setIsPlacingOrder(false);
+      setShowSuccessDialog(true);
+      console.log('Setting showSuccessDialog to true, orderId:', createdOrderId, 'total:', total);
+      
+      // Clear cart after dialog is shown (with delay to ensure dialog renders)
+      setTimeout(() => {
+        clearCart();
+      }, 300);
     } catch (error: any) {
       console.error('Failed to place order:', error);
       alert(error.response?.data?.message || 'Failed to place order. Please try again.');
@@ -95,25 +103,35 @@ export const CartPage: React.FC = () => {
     }
   };
 
-  if (items.length === 0) {
+  const handleSuccessDialogClose = () => {
+    setShowSuccessDialog(false);
+    if (orderId) {
+      navigate(`/customer/orders/${orderId}`);
+    } else {
+      navigate('/customer/menu');
+    }
+  };
+
+  // Don't show empty cart if success dialog is showing
+  if (items.length === 0 && !showSuccessDialog) {
     return (
-      <div className="min-h-screen bg-gray-50 pb-20">
-        <div className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-[#F9F7F2] pb-20">
+        <div className="p-5">
           <div className="flex items-center justify-between mb-6">
             <button
               onClick={() => navigate('/customer/menu')}
-              className="text-[#eba157] hover:text-[#d88f3f] font-medium"
+              className="text-[#8A9A5B] hover:text-[#6B7A4A] font-medium transition-colors duration-200"
             >
               ← Back
             </button>
-            <h1 className="text-xl font-bold text-gray-800">Shopping Cart</h1>
+            <h1 className="text-xl font-bold text-[#36454F]">Shopping Cart</h1>
             <div></div>
           </div>
           <div className="text-center py-12">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Your cart is empty</h2>
+            <h2 className="text-2xl font-bold text-[#36454F] mb-4">Your cart is empty</h2>
             <button
               onClick={() => navigate('/customer/menu')}
-              className="px-6 py-3 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors duration-200 font-medium"
+              className="px-6 py-3 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 font-medium"
             >
               [+ Browse Menu]
             </button>
@@ -125,28 +143,28 @@ export const CartPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-[#F9F7F2] pb-20">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="container mx-auto px-4 py-3">
+      <div className="bg-[#8A9A5B] border-b border-[#8A9A5B]/20 shadow-sm">
+        <div className="p-5">
           <div className="flex items-center justify-between">
             <button
               onClick={() => navigate('/customer/menu')}
-              className="text-[#eba157] hover:text-[#d88f3f] font-medium"
+              className="text-white hover:text-[#F9F7F2] font-medium transition-colors duration-200"
             >
               ← Back
             </button>
-            <h1 className="text-xl font-bold text-gray-800">Shopping Cart</h1>
+            <h1 className="text-xl font-bold text-white">Shopping Cart</h1>
             <div></div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-4">
+      <div className="p-5">
         {/* Table and Order Title */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-semibold text-gray-800">
+            <h2 className="text-lg font-semibold text-[#36454F]">
               {tableId ? `Table ${tableId}` : 'Table'} - Your Order
             </h2>
             {tableId && (
@@ -155,7 +173,7 @@ export const CartPage: React.FC = () => {
                   setTableId(0);
                   setTableInputValue('');
                 }}
-                className="text-xs text-[#eba157] hover:text-[#d88f3f] font-medium"
+                className="text-xs text-[#8A9A5B] hover:text-[#6B7A4A] font-medium transition-colors duration-200"
               >
                 Change
               </button>
@@ -163,8 +181,8 @@ export const CartPage: React.FC = () => {
           </div>
           {(!tableId || tableId === 0) && (
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Table Number <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-[#36454F] mb-2">
+                Table Number <span className="text-red-400">*</span>
               </label>
               <input
                 type="number"
@@ -204,20 +222,20 @@ export const CartPage: React.FC = () => {
                     e.currentTarget.blur();
                   }
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#eba157] focus:border-transparent"
+                className="w-full px-4 py-3 bg-white text-[#36454F] border border-[#8A9A5B]/30 rounded-xl focus:ring-2 focus:ring-[#8A9A5B]/30 focus:border-[#8A9A5B] transition-all duration-200 placeholder:text-[#36454F]/50 shadow-sm"
                 placeholder="Enter table number"
                 min="1"
                 required
               />
-              <p className="mt-1 text-xs text-gray-500">Please enter your table number to place an order</p>
+              <p className="mt-1 text-xs text-[#36454F]/70">Please enter your table number to place an order</p>
             </div>
           )}
         </div>
 
         {/* Cart Items */}
-        <div className="space-y-4 mb-6">
+        <div className="space-y-3 mb-6">
           {items.map((item, index) => (
-            <div key={`${item.menuItemId}-${index}`} className="bg-white rounded-lg p-4 border border-gray-200">
+            <div key={`${item.menuItemId}-${index}`} className="bg-white rounded-xl p-4 border border-[#8A9A5B]/20 shadow-sm">
               <div className="flex gap-4">
                 {item.image && (
                   <img
@@ -232,22 +250,22 @@ export const CartPage: React.FC = () => {
                 <div className="flex-1">
                   <div className="flex items-start justify-between mb-1">
                     <div>
-                      <h3 className="font-semibold text-gray-800">
+                      <h3 className="font-semibold text-[#36454F]">
                         {item.name}
                         {item.modifiers && item.modifiers.length > 0 && (
-                          <span className="text-sm text-gray-600 font-normal">
+                          <span className="text-sm text-[#36454F]/70 font-normal">
                             {' '}({item.modifiers.map((m) => m.modifierName).join(', ')})
                           </span>
                         )}
                       </h3>
                       {item.modifiers && item.modifiers.some((m) => m.modifierName.toLowerCase().includes('large')) && (
-                        <p className="text-sm text-gray-600">+ {item.modifiers.find((m) => m.modifierName.toLowerCase().includes('large'))?.modifierName}</p>
+                        <p className="text-sm text-[#36454F]/70">+ {item.modifiers.find((m) => m.modifierName.toLowerCase().includes('large'))?.modifierName}</p>
                       )}
                       {item.modifiers && item.modifiers.some((m) => m.modifierName.toLowerCase().includes('salad')) && (
-                        <p className="text-sm text-gray-600">+ {item.modifiers.find((m) => m.modifierName.toLowerCase().includes('salad'))?.modifierName}</p>
+                        <p className="text-sm text-[#36454F]/70">+ {item.modifiers.find((m) => m.modifierName.toLowerCase().includes('salad'))?.modifierName}</p>
                       )}
                       {item.note && (
-                        <p className="text-sm text-gray-600 italic">"{item.note}"</p>
+                        <p className="text-sm text-[#36454F]/70 italic">"{item.note}"</p>
                       )}
                     </div>
                   </div>
@@ -261,19 +279,19 @@ export const CartPage: React.FC = () => {
                             removeItem(item.menuItemId, item.modifiers);
                           }
                         }}
-                        className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded hover:bg-gray-100"
+                        className="w-8 h-8 flex items-center justify-center border border-[#8A9A5B]/30 rounded-xl hover:bg-[#F9F7F2] text-[#36454F] transition-all duration-200"
                       >
                         -
                       </button>
-                      <span className="w-8 text-center font-medium">{item.quantity}</span>
+                      <span className="w-8 text-center font-medium text-[#36454F]">{item.quantity}</span>
                       <button
                         onClick={() => updateQuantity(item.menuItemId, item.quantity + 1, item.modifiers)}
-                        className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded hover:bg-gray-100"
+                        className="w-8 h-8 flex items-center justify-center border border-[#8A9A5B]/30 rounded-xl hover:bg-[#F9F7F2] text-[#36454F] transition-all duration-200"
                       >
                         +
                       </button>
                     </div>
-                    <span className="font-bold text-gray-800">
+                    <span className="font-bold text-[#8A9A5B]">
                       {formatVND((item.basePrice + (item.modifiers?.reduce((sum, mod) => sum + mod.priceAdjustment, 0) || 0)) * item.quantity)}
                     </span>
                   </div>
@@ -285,11 +303,11 @@ export const CartPage: React.FC = () => {
 
         {/* Add More Items */}
         <div className="mb-6">
-          <div className="flex items-center justify-between py-2 border-t border-b border-gray-200">
-            <span className="text-gray-700">Add more items</span>
+          <div className="flex items-center justify-between py-2 border-t border-b border-[#8A9A5B]/20">
+            <span className="text-[#36454F]">Add more items</span>
             <button
               onClick={() => navigate('/customer/menu')}
-              className="px-4 py-2 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors text-sm font-medium"
+              className="px-4 py-2 bg-[#8A9A5B] text-white rounded-xl hover:bg-[#6B7A4A] transition-all duration-200 text-sm font-medium"
             >
               [+ Browse Menu]
             </button>
@@ -298,23 +316,23 @@ export const CartPage: React.FC = () => {
 
         {/* Special Instructions */}
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-[#36454F] mb-2">
             Special Instructions (Order):
           </label>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#eba157] focus:border-transparent"
+            className="w-full px-4 py-3 bg-white text-[#36454F] border border-[#8A9A5B]/30 rounded-xl focus:ring-2 focus:ring-[#8A9A5B]/30 focus:border-[#8A9A5B] transition-all duration-200 placeholder:text-[#36454F]/50 shadow-sm"
             rows={3}
             placeholder="We're celebrating birthday!"
           />
         </div>
 
         {/* Subtotal */}
-        <div className="mb-6 border-t border-gray-200 pt-4">
+        <div className="mb-6 border-t border-[#8A9A5B]/20 pt-4">
           <div className="flex justify-between items-center">
-            <span className="text-lg font-semibold text-gray-800">Subtotal:</span>
-            <span className="text-lg font-bold text-gray-800">{formatVND(getTotal())}</span>
+            <span className="text-lg font-semibold text-[#36454F]">Subtotal:</span>
+            <span className="text-lg font-bold text-[#8A9A5B]">{formatVND(getTotal())}</span>
           </div>
         </div>
 
@@ -322,19 +340,76 @@ export const CartPage: React.FC = () => {
         <button
           onClick={handlePlaceOrder}
           disabled={isPlacingOrder || !tableId || tableId === 0}
-          className="w-full px-6 py-3 bg-[#eba157] text-white rounded-lg hover:bg-[#d88f3f] transition-colors duration-200 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed mb-4"
+          className="w-full px-6 py-3 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 font-medium disabled:bg-[#8A9A5B]/30 disabled:cursor-not-allowed mb-4"
         >
           {isPlacingOrder ? 'Placing Order...' : 'Place Order'}
         </button>
 
         {/* Info Message */}
-        <div className="flex items-start gap-2 text-sm text-gray-600">
-          <svg className="w-5 h-5 text-[#eba157] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex items-start gap-2 text-sm text-[#36454F]/70">
+          <svg className="w-5 h-5 text-[#8A9A5B] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p>You can add more orders during your visit</p>
         </div>
       </div>
+
+      {/* Success Dialog */}
+      {showSuccessDialog && orderId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={(e) => {
+          // Close dialog when clicking outside
+          if (e.target === e.currentTarget) {
+            handleSuccessDialogClose();
+          }
+        }}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-[#8A9A5B]/20" onClick={(e) => e.stopPropagation()}>
+            <div className="text-center">
+              {/* Success Icon */}
+              <div className="w-16 h-16 bg-[#8A9A5B]/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg
+                  className="w-8 h-8 text-[#8A9A5B]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+
+              {/* Success Message */}
+              <h2 className="text-2xl font-bold text-[#36454F] mb-2">Order Placed Successfully!</h2>
+              <p className="text-[#36454F]/70 mb-4">
+                Your order has been received and is being prepared.
+              </p>
+
+              {/* Order Details */}
+              <div className="bg-[#F9F7F2] rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-[#36454F]/70">Order ID:</span>
+                  <span className="text-sm font-semibold text-[#36454F]">#{orderId}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-lg font-semibold text-[#36454F]">Total Amount:</span>
+                  <span className="text-xl font-bold text-[#8A9A5B]">{formatVND(orderTotal)}</span>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <button
+                onClick={handleSuccessDialogClose}
+                className="w-full px-6 py-3 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 font-medium"
+              >
+                View Order Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BottomNavigation />
     </div>

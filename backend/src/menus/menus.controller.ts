@@ -169,5 +169,14 @@ export class MenusController {
     deleteMenuItem(@Param('id') id: string) {
         return this.menusService.deleteMenuItem(+id)
     }
+
+    @Get('menu-items/:id/reviews')
+    @ApiOperation({
+        summary: 'Get reviews and rating for a menu item (Public)',
+        description: 'Returns reviews and average rating for a specific menu item',
+    })
+    getMenuItemReviews(@Param('id') id: string) {
+        return this.menusService.getMenuItemReviews(+id)
+    }
 }
 

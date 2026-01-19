@@ -141,4 +141,54 @@ export const authService = {
   isAuthenticated(): boolean {
     return !!this.getToken();
   },
+
+  /**
+   * Get current user profile from API
+   * Requires valid token in localStorage
+   */
+  async getProfile(): Promise<AuthResponse['user']> {
+    const response = await apiClient.get<any>('/auth/profile');
+    const user = response.data;
+    
+    // Update localStorage with fresh user data
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+    
+    return user;
+  },
+
+  /**
+   * Request password reset - sends OTP code to email
+   */
+  async forgotPassword(data: { email: string }): Promise<{ message: string }> {
+    const response = await apiClient.post<any>('/auth/forgot-password', data);
+    return response.data;
+  },
+
+  /**
+   * Verify OTP code for password reset
+   */
+  async verifyOtp(data: {
+    email: string;
+    otpCode: string;
+  }): Promise<{ message: string; verified: boolean }> {
+    const response = await apiClient.post<any>('/auth/verify-otp', data);
+    return response.data;
+  },
+
+  /**
+   * Reset password using OTP code
+   */
+  async resetPasswordWithOtp(data: {
+    email: string;
+    otpCode: string;
+    newPassword: string;
+  }): Promise<{ message: string }> {
+    const response = await apiClient.post<any>(
+      '/auth/reset-password-with-otp',
+      data
+    );
+    return response.data;
+  },
 };
