@@ -1,4 +1,4 @@
-import apiClient from './api';
+import { apiClient } from './api';
 
 export interface LoginRequest {
   email: string;
@@ -26,9 +26,9 @@ export interface AuthResponse {
 export const authService = {
   async login(credentials: LoginRequest): Promise<AuthResponse> {
     const response = await apiClient.post<any>('/auth/login', credentials);
-    // Backend returns access_token (snake_case), normalize to accessToken
-    const token = response.data.access_token || response.data.accessToken;
-    const refreshToken = response.data.refresh_token || response.data.refreshToken;
+    // Backend returns access_token (snake_case)
+    const token = response.data.access_token;
+    const refreshToken = response.data.refresh_token;
     const user = response.data.user;
     
     // Lưu tokens vào localStorage
@@ -50,9 +50,9 @@ export const authService = {
 
   async register(userData: RegisterRequest): Promise<AuthResponse> {
     const response = await apiClient.post<any>('/auth/register', userData);
-    // Backend returns access_token (snake_case), normalize to accessToken
-    const token = response.data.access_token || response.data.accessToken;
-    const refreshToken = response.data.refresh_token || response.data.refreshToken;
+    // Backend returns access_token (snake_case)
+    const token = response.data.access_token;
+    const refreshToken = response.data.refresh_token;
     const user = response.data.user;
     
     // Lưu tokens vào localStorage
@@ -120,7 +120,7 @@ export const authService = {
       const response = await apiClient.post<any>('/auth/refresh', {
         refresh_token: refreshToken,
       });
-      const newAccessToken = response.data.access_token || response.data.accessToken;
+      const newAccessToken = response.data.access_token;
       
       if (newAccessToken) {
         localStorage.setItem('token', newAccessToken);
@@ -190,5 +190,26 @@ export const authService = {
       data
     );
     return response.data;
+  },
+
+  /**
+   * Auto-login with admin credentials (development only)
+   * This should only be used in development mode for convenience
+   */
+  async autoLoginDev(): Promise<boolean> {
+    if (import.meta.env.PROD) {
+      return false;
+    }
+
+    try {
+      // Try to login with default admin credentials from seed
+      const response = await this.login({
+        email: 'admin@aerodine.com',
+        password: 'password123',
+      });
+      return !!response.accessToken;
+    } catch {
+      return false;
+    }
   },
 };

@@ -17,7 +17,7 @@ import {
 import { motion } from 'framer-motion'
 import Fuse from 'fuse.js'
 import { tablesApi } from '../../services/api'
-import { authApi } from '../../services/auth'
+import { authService } from '../../services/auth.service'
 import { TableStatus } from '@aerodine/shared-types'
 import type { Table } from '@aerodine/shared-types'
 import { useModal } from '../../contexts/ModalContext'
@@ -215,9 +215,9 @@ export default function TablesPage() {
             setError(null)
 
             // Auto-login in development mode if not authenticated
-            if (import.meta.env.DEV && !authApi.isAuthenticated()) {
+            if (import.meta.env.DEV && !authService.isAuthenticated()) {
                 try {
-                    await authApi.autoLoginDev()
+                    await authService.autoLoginDev()
                 } catch {
                     // Auto-login failed, continuing without auth
                 }

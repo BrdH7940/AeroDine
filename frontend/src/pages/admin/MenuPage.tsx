@@ -11,7 +11,7 @@ import {
 import { motion } from 'framer-motion'
 import Fuse from 'fuse.js'
 import { menusApi, tablesApi } from '../../services/api'
-import { authApi } from '../../services/auth'
+import { authService } from '../../services/auth.service'
 import { useModal } from '../../contexts/ModalContext'
 
 interface MenuItem {
@@ -86,9 +86,9 @@ export default function MenuPage() {
             setError(null)
 
             // Auto-login in development mode if not authenticated
-            if (import.meta.env.DEV && !authApi.isAuthenticated()) {
+            if (import.meta.env.DEV && !authService.isAuthenticated()) {
                 try {
-                    await authApi.autoLoginDev()
+                    await authService.autoLoginDev()
                 } catch (loginError) {
                     // Auto-login failed, continue without auth
                 }

@@ -319,7 +319,8 @@ export class AuthService {
     }
 
     /**
-     * Reset password using token (legacy method, kept for backward compatibility)
+     * Reset password using token (legacy method, deprecated - use resetPasswordWithOtp instead)
+     * @deprecated Use resetPasswordWithOtp instead
      */
     async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
         const secret = this.configService.get<string>('jwt.secret')

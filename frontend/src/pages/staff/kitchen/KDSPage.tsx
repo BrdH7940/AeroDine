@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Clock } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { ordersApi } from '../../../services/api'
-import { authApi } from '../../../services/auth'
+import { orderService } from '../../../services/order.service'
+import { authService } from '../../../services/auth.service'
 import { OrderItemStatus } from '@aerodine/shared-types'
 import { useKitchenEvents } from '../../../hooks/useSocket'
 import type { KitchenOrderEvent, OrderItemStatusChangedEvent } from '@aerodine/shared-types'
@@ -172,7 +172,7 @@ export default function KDSPage() {
     // Fetch orders function - KDS only shows orders that have been accepted (IN_PROGRESS)
     const fetchOrders = useCallback(async () => {
         try {
-            const ordersData = await ordersApi.getOrders({ restaurantId })
+            const ordersData = await orderService.getOrders({ restaurantId })
             const ordersArray = Array.isArray(ordersData) ? ordersData : (ordersData.orders || [])
             // Only show IN_PROGRESS orders (waiter has already accepted)
             const activeOrders = ordersArray.filter(
@@ -277,9 +277,9 @@ export default function KDSPage() {
             setError(null)
 
             // Auto-login in development mode if not authenticated
-            if (import.meta.env.DEV && !authApi.isAuthenticated()) {
+            if (import.meta.env.DEV && !authService.isAuthenticated()) {
                 try {
-                    await authApi.autoLoginDev()
+                    await authService.autoLoginDev()
                 } catch (loginError) {
                     console.warn('Auto-login failed, continuing without auth:', loginError)
                 }
@@ -296,7 +296,7 @@ export default function KDSPage() {
 
     const handleStatusChange = async (orderId: number, itemId: number, newStatus: OrderItemStatus) => {
         try {
-            await ordersApi.updateOrderItemStatus(orderId, itemId, newStatus)
+            await orderService.updateItemStatus(itemId, newStatus)
             // Refresh orders after update
             await fetchOrders()
         } catch (err: any) {

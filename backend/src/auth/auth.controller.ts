@@ -209,9 +209,9 @@ export class AuthController {
 
     @Post('reset-password')
     @ApiOperation({
-        summary: 'Reset password with token (legacy)',
+        summary: 'Reset password with token (legacy - deprecated)',
         description:
-            'Resets user password using the token received via email. Token expires in 15 minutes.',
+            'DEPRECATED: Use /auth/reset-password-with-otp instead. Resets user password using the token received via email. Token expires in 15 minutes.',
     })
     @ApiResponse({
         status: 200,

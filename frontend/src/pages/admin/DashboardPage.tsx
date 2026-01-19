@@ -19,8 +19,9 @@ import {
     ResponsiveContainer,
 } from 'recharts'
 import { motion } from 'framer-motion'
-import { reportsApi, ordersApi } from '../../services/api'
-import { authApi } from '../../services/auth'
+import { reportsApi } from '../../services/api'
+import { orderService } from '../../services/order.service'
+import { authService } from '../../services/auth.service'
 import type { OrderStatus } from '@aerodine/shared-types'
 
 interface KPICardProps {
@@ -166,9 +167,9 @@ export default function DashboardPage() {
             setError(null)
 
             // Auto-login in development mode if not authenticated
-            if (import.meta.env.DEV && !authApi.isAuthenticated()) {
+            if (import.meta.env.DEV && !authService.isAuthenticated()) {
                 try {
-                    await authApi.autoLoginDev()
+                    await authService.autoLoginDev()
                 } catch {
                     // Auto-login failed, continuing without auth
                 }
@@ -188,7 +189,7 @@ export default function DashboardPage() {
             const [statsData, revenueData, ordersData] = await Promise.all([
                 reportsApi.getDashboardStats(),
                 reportsApi.getRevenueChart('week'),
-                ordersApi.getOrders({ restaurantId: 2 }), // TODO: Get restaurantId from context/auth - TEMP: using 2 to match database
+                orderService.getOrders({ restaurantId: 2 }), // TODO: Get restaurantId from context/auth - TEMP: using 2 to match database
             ])
 
             setStats(statsData)
@@ -203,7 +204,9 @@ export default function DashboardPage() {
             setChartData(transformedChartData)
 
             // Get recent 5 orders sorted by date
-            const sortedOrders = (ordersData?.orders || [])
+            // orderService.getOrders returns OrderListResponse with orders array
+            const ordersList = ordersData?.orders || ordersData || []
+            const sortedOrders = (Array.isArray(ordersList) ? ordersList : [])
                 .sort(
                     (a: RecentOrder, b: RecentOrder) =>
                         new Date(b.createdAt).getTime() -

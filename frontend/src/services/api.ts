@@ -1,7 +1,7 @@
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 import { apiConfig } from '../config/api.config';
 import { authService } from './auth.service';
-import type { OrderStatus, OrderItemStatus, TableStatus } from '@aerodine/shared-types';
+import type { TableStatus } from '@aerodine/shared-types';
 
 /**
  * Axios instance configured with base URL from environment
@@ -233,64 +233,6 @@ export const reportsApi = {
   },
 };
 
-// ============================================
-// ORDERS API
-// ============================================
-
-export interface CreateOrderDto {
-  tableToken: string;
-  items: Array<{
-    menuItemId: number;
-    quantity: number;
-    modifiers?: Array<{
-      modifierOptionId: number;
-    }>;
-  }>;
-  notes?: string;
-}
-
-export const ordersApi = {
-  /**
-   * Get all orders with optional filters
-   */
-  getOrders: async (params?: { status?: OrderStatus; restaurantId?: number }) => {
-    const response = await apiClient.get('/orders', { params });
-    return response.data;
-  },
-
-  /**
-   * Get order by ID
-   */
-  getOrderById: async (id: number) => {
-    const response = await apiClient.get(`/orders/${id}`);
-    return response.data;
-  },
-
-  /**
-   * Create a new order
-   */
-  createOrder: async (data: CreateOrderDto) => {
-    const response = await apiClient.post('/orders', data);
-    return response.data;
-  },
-
-  /**
-   * Update order status
-   */
-  updateOrderStatus: async (id: number, status: OrderStatus) => {
-    const response = await apiClient.patch(`/orders/${id}/status`, { status });
-    return response.data;
-  },
-
-  /**
-   * Update order item status (for KDS)
-   */
-  updateOrderItemStatus: async (_orderId: number, itemId: number, status: OrderItemStatus) => {
-    // Note: orderId is not used in the API endpoint, kept for backward compatibility
-    const response = await apiClient.patch(`/orders/items/${itemId}/status`, { status });
-    return response.data;
-  },
-};
 
 // ============================================
 // MENUS API
@@ -591,4 +533,5 @@ export const restaurantsApi = {
   },
 };
 
-export default apiClient;
+// Export apiClient as named export only (no default export)
+// Use: import { apiClient } from './api'

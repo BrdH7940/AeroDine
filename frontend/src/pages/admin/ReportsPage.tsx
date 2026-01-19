@@ -40,7 +40,7 @@ import {
 } from 'recharts'
 import { Calendar, TrendingUp, DollarSign, ShoppingCart } from 'lucide-react'
 import { reportsApi } from '../../services/api'
-import { authApi } from '../../services/auth'
+import { authService } from '../../services/auth.service'
 
 // Date Range Selector Component
 function DateRangeSelector({
@@ -1257,11 +1257,11 @@ export default function ReportsPage() {
             setError(null)
 
             // Check authentication and ensure token is available
-            if (!authApi.isAuthenticated()) {
+            if (!authService.isAuthenticated()) {
                 // Auto-login in development mode if not authenticated
                 if (import.meta.env.DEV) {
                     try {
-                        const success = await authApi.autoLoginDev()
+                        const success = await authService.autoLoginDev()
                         if (!success) {
                             setError('Please login to view reports.')
                             setLoading(false)
@@ -1280,7 +1280,7 @@ export default function ReportsPage() {
             }
 
             // Verify token exists before making API calls
-            const token = authApi.getToken()
+            const token = authService.getToken()
             if (!token) {
                 setError('Authentication token not found. Please login again.')
                 setLoading(false)

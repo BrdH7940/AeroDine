@@ -4,7 +4,7 @@
  * @author Dev 2 - Operations Team
  */
 
-import api from './api'
+import { apiClient } from './api'
 import { OrderStatus } from '@aerodine/shared-types'
 import type {
     CreateOrderDto,
@@ -24,7 +24,7 @@ export const orderService = {
      * Create a new order
      */
     async createOrder(data: CreateOrderDto): Promise<Order> {
-        const response = await api.post('/orders', data)
+        const response = await apiClient.post('/orders', data)
         return response.data
     },
 
@@ -41,7 +41,7 @@ export const orderService = {
         page?: number
         pageSize?: number
     }): Promise<OrderListResponse> {
-        const response = await api.get('/orders', { params })
+        const response = await apiClient.get('/orders', { params })
         return response.data
     },
 
@@ -49,7 +49,7 @@ export const orderService = {
      * Get single order by ID
      */
     async getOrder(id: number): Promise<OrderWithDetails> {
-        const response = await api.get(`/orders/${id}`)
+        const response = await apiClient.get(`/orders/${id}`)
         return response.data
     },
 
@@ -60,7 +60,7 @@ export const orderService = {
         id: number,
         data: Partial<{ status: OrderStatus; waiterId: number; note: string }>,
     ): Promise<Order> {
-        const response = await api.patch(`/orders/${id}`, data)
+        const response = await apiClient.patch(`/orders/${id}`, data)
         return response.data
     },
 
@@ -68,7 +68,7 @@ export const orderService = {
      * Cancel order
      */
     async cancelOrder(id: number, reason?: string): Promise<Order> {
-        const response = await api.delete(`/orders/${id}`, {
+        const response = await apiClient.delete(`/orders/${id}`, {
             params: { reason },
         })
         return response.data
@@ -78,7 +78,7 @@ export const orderService = {
      * Add items to existing order
      */
     async addItemsToOrder(id: number, data: AddItemsToOrderDto): Promise<Order> {
-        const response = await api.post(`/orders/${id}/items`, data)
+        const response = await apiClient.post(`/orders/${id}/items`, data)
         return response.data
     },
 
@@ -91,7 +91,7 @@ export const orderService = {
      * No authentication required
      */
     async getOrdersByTable(tableId: number, excludeCancelled: boolean = true): Promise<Order[]> {
-        const response = await api.get(`/orders/table/${tableId}`, {
+        const response = await apiClient.get(`/orders/table/${tableId}`, {
             params: { excludeCancelled: excludeCancelled ? 'true' : 'false' }
         })
         // Backend returns { orders: [...], total, page, ... }
@@ -103,7 +103,7 @@ export const orderService = {
      * No authentication required
      */
     async getPublicOrder(id: number): Promise<OrderWithDetails> {
-        const response = await api.get(`/orders/public/${id}`)
+        const response = await apiClient.get(`/orders/public/${id}`)
         return response.data
     },
 
@@ -115,7 +115,7 @@ export const orderService = {
      * Get pending orders for waiter
      */
     async getPendingOrders(restaurantId: number): Promise<Order[]> {
-        const response = await api.get('/orders/waiter/pending', {
+        const response = await apiClient.get('/orders/waiter/pending', {
             params: { restaurantId },
         })
         return response.data
@@ -125,7 +125,7 @@ export const orderService = {
      * Assign waiter to order
      */
     async assignWaiter(orderId: number, waiterId: number): Promise<Order> {
-        const response = await api.post(`/orders/${orderId}/assign`, { waiterId })
+        const response = await apiClient.post(`/orders/${orderId}/assign`, { waiterId })
         return response.data
     },
 
@@ -133,7 +133,7 @@ export const orderService = {
      * Accept order
      */
     async acceptOrder(orderId: number, waiterId: number, mergeWithOrderId?: number): Promise<any> {
-        const response = await api.post(`/orders/${orderId}/accept`, { 
+        const response = await apiClient.post(`/orders/${orderId}/accept`, { 
             waiterId,
             mergeWithOrderId 
         })
@@ -148,7 +148,7 @@ export const orderService = {
         waiterId: number,
         reason?: string,
     ): Promise<Order> {
-        const response = await api.post(`/orders/${orderId}/reject`, {
+        const response = await apiClient.post(`/orders/${orderId}/reject`, {
             waiterId,
             reason,
         })
@@ -159,7 +159,7 @@ export const orderService = {
      * Mark order as served
      */
     async markOrderServed(orderId: number): Promise<Order> {
-        const response = await api.post(`/orders/${orderId}/serve`)
+        const response = await apiClient.post(`/orders/${orderId}/serve`)
         return response.data
     },
 
@@ -167,7 +167,7 @@ export const orderService = {
      * Process cash payment for order
      */
     async processCashPayment(orderId: number): Promise<Order> {
-        const response = await api.post(`/orders/${orderId}/pay-cash`)
+        const response = await apiClient.post(`/orders/${orderId}/pay-cash`)
         return response.data
     },
 
@@ -176,7 +176,7 @@ export const orderService = {
      */
     async createStripeCheckout(orderId: number): Promise<{ url: string; sessionId: string }> {
         const baseUrl = window.location.origin
-        const response = await api.post(`/orders/${orderId}/checkout`, {
+        const response = await apiClient.post(`/orders/${orderId}/checkout`, {
             successUrl: `${baseUrl}/waiter/payment/success?order_id=${orderId}`,
             cancelUrl: `${baseUrl}/waiter/payment/cancel?order_id=${orderId}`,
         })
@@ -191,7 +191,7 @@ export const orderService = {
      * Get orders for Kitchen Display System
      */
     async getKitchenOrders(restaurantId: number): Promise<KitchenOrderCard[]> {
-        const response = await api.get('/orders/kitchen/display', {
+        const response = await apiClient.get('/orders/kitchen/display', {
             params: { restaurantId },
         })
         return response.data
@@ -204,7 +204,7 @@ export const orderService = {
         itemId: number,
         status: 'QUEUED' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED',
     ): Promise<any> {
-        const response = await api.patch(`/orders/items/${itemId}/status`, {
+        const response = await apiClient.patch(`/orders/items/${itemId}/status`, {
             status,
         })
         return response.data
@@ -214,7 +214,7 @@ export const orderService = {
      * Start preparing item
      */
     async startPreparingItem(itemId: number): Promise<any> {
-        const response = await api.post(`/orders/items/${itemId}/start`)
+        const response = await apiClient.post(`/orders/items/${itemId}/start`)
         return response.data
     },
 
@@ -222,7 +222,7 @@ export const orderService = {
      * Mark item as ready
      */
     async markItemReady(itemId: number): Promise<any> {
-        const response = await api.post(`/orders/items/${itemId}/ready`)
+        const response = await apiClient.post(`/orders/items/${itemId}/ready`)
         return response.data
     },
 
@@ -234,7 +234,7 @@ export const orderService = {
      * Request bill
      */
     async requestBill(orderId: number): Promise<any> {
-        const response = await api.post(`/orders/${orderId}/bill`)
+        const response = await apiClient.post(`/orders/${orderId}/bill`)
         return response.data
     },
 }
