@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useWaiterEvents, useBillRequested } from '../../../hooks/useSocket'
+import { useWaiterEvents, useBillRequested, useOrderStatusChanged, useNotification } from '../../../hooks/useSocket'
 import { orderService } from '../../../services/order.service'
 import OrderCard from '../../../components/staff/OrderCard'
 import type {
     OrderCreatedEvent,
     OrderItemStatusChangedEvent,
+    OrderStatusChangedEvent,
+    NotificationEvent,
 } from '@aerodine/shared-types'
 
 /**
@@ -249,6 +251,53 @@ export default function WaiterOrdersPage() {
         [playNotificationSound]
     )
 
+    // Handle order status changed (for payment completed)
+    const handleOrderStatusChanged = useCallback(
+        (event: OrderStatusChangedEvent) => {
+            console.log('🔔 Order status changed:', event)
+            
+            // If order is completed, remove it from active orders
+            if (event.newStatus === 'COMPLETED') {
+                setActiveOrders((prev) => prev.filter((o) => o.id !== event.orderId))
+                // Remove any ready items for this order
+                setReadyItems((prev) =>
+                    prev.filter((item) => item.orderId !== event.orderId)
+                )
+                playNotificationSound()
+            }
+        },
+        [playNotificationSound]
+    )
+
+    // Handle notifications (for payment completed notifications)
+    const handleNotification = useCallback(
+        (event: NotificationEvent) => {
+            console.log('🔔 Notification received:', event)
+            
+            // Show notification for payment completed
+            if (event.type === 'success' && event.message.includes('paid')) {
+                alert(event.message)
+                playNotificationSound()
+                
+                // If notification has orderId, ensure it's removed from active orders
+                if (event.orderId) {
+                    setActiveOrders((prev) => prev.filter((o) => o.id !== event.orderId))
+                    setReadyItems((prev) =>
+                        prev.filter((item) => item.orderId !== event.orderId)
+                    )
+                }
+            }
+        },
+        [playNotificationSound]
+    )
+
+    // Handle card payment initiated (callback from OrderCard)
+    const handleCardPayment = useCallback(() => {
+        // This is called when QR code modal is shown
+        // Could add any additional logic here if needed
+        console.log('💳 Card payment initiated for order')
+    }, [])
+
     // Setup socket event listeners
     useWaiterEvents(restaurantId, userId, {
         onOrderCreated: handleOrderCreated,
@@ -257,6 +306,8 @@ export default function WaiterOrdersPage() {
     })
 
     useBillRequested(handleBillRequested)
+    useOrderStatusChanged(handleOrderStatusChanged)
+    useNotification(handleNotification)
 
     // Accept order
     const handleAcceptOrder = async (orderId: number) => {
@@ -522,6 +573,7 @@ export default function WaiterOrdersPage() {
                                     type="active"
                                     onServe={() => handleMarkServed(order.id)}
                                     onCashPayment={() => handleCashPayment(order.id)}
+                                    onCardPayment={handleCardPayment}
                                 />
                             ))
                         )}

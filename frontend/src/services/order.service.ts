@@ -146,6 +146,18 @@ export const orderService = {
         return response.data
     },
 
+    /**
+     * Create Stripe checkout session for card payment
+     */
+    async createStripeCheckout(orderId: number): Promise<{ url: string; sessionId: string }> {
+        const baseUrl = window.location.origin
+        const response = await api.post(`/orders/${orderId}/checkout`, {
+            successUrl: `${baseUrl}/waiter/payment/success?order_id=${orderId}`,
+            cancelUrl: `${baseUrl}/waiter/payment/cancel?order_id=${orderId}`,
+        })
+        return response.data
+    },
+
     // ========================================================================
     // KITCHEN OPERATIONS
     // ========================================================================

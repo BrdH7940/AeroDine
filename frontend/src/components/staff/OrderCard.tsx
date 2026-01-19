@@ -1,5 +1,7 @@
 import { useState, useRef } from 'react'
 import { formatVND } from '../../utils/currency'
+import { orderService } from '../../services/order.service'
+import { getQRCodeImageUrl } from '../../utils/qrcode'
 
 /**
  * Order Card Component for Waiter Dashboard
@@ -36,6 +38,7 @@ interface OrderCardProps {
     onReject?: (reason?: string) => void
     onServe?: () => void
     onCashPayment?: () => void
+    onCardPayment?: () => void
     restaurantName?: string
 }
 
@@ -46,12 +49,17 @@ export default function OrderCard({
     onReject,
     onServe,
     onCashPayment,
+    onCardPayment,
     restaurantName = 'Smart Restaurant',
 }: OrderCardProps) {
     const [showRejectModal, setShowRejectModal] = useState(false)
     const [showPaymentModal, setShowPaymentModal] = useState(false)
+    const [showQRCodeModal, setShowQRCodeModal] = useState(false)
     const [rejectReason, setRejectReason] = useState('')
     const [isProcessing, setIsProcessing] = useState(false)
+    const [isCreatingCheckout, setIsCreatingCheckout] = useState(false)
+    const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null)
+    const [checkoutError, setCheckoutError] = useState<string | null>(null)
     const billRef = useRef<HTMLDivElement>(null)
 
     const formatTime = (dateString: string) => {
@@ -132,6 +140,34 @@ export default function OrderCard({
             setShowPaymentModal(false)
         } finally {
             setIsProcessing(false)
+        }
+    }
+
+    const handleCardPayment = async () => {
+        setIsCreatingCheckout(true)
+        setCheckoutError(null)
+        try {
+            const result = await orderService.createStripeCheckout(order.id)
+            setCheckoutUrl(result.url)
+            setShowQRCodeModal(true)
+            setShowPaymentModal(false)
+            // Notify parent component if callback provided
+            onCardPayment?.()
+        } catch (error: any) {
+            console.error('Failed to create checkout session:', error)
+            setCheckoutError(
+                error?.response?.data?.message || 
+                'Không thể tạo phiên thanh toán. Vui lòng thử lại.'
+            )
+        } finally {
+            setIsCreatingCheckout(false)
+        }
+    }
+
+    const copyCheckoutUrl = () => {
+        if (checkoutUrl) {
+            navigator.clipboard.writeText(checkoutUrl)
+            alert('Đã sao chép link thanh toán!')
         }
     }
 
@@ -558,15 +594,24 @@ export default function OrderCard({
                                     💵 {isProcessing ? 'Đang xử lý...' : 'Cash Payment'}
                                 </button>
 
+                                {/* Card Payment */}
+                                <button
+                                    onClick={handleCardPayment}
+                                    disabled={isProcessing || isCreatingCheckout}
+                                    className="w-full py-4 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg transition-colors"
+                                >
+                                    💳 {isCreatingCheckout ? 'Đang tạo...' : 'Card Payment'}
+                                </button>
+
+                                {checkoutError && (
+                                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                                        <p className="text-sm text-red-600">{checkoutError}</p>
+                                    </div>
+                                )}
+
                                 {/* Other Payment Methods - Coming Soon */}
                                 <div className="border-t pt-4 mt-4">
                                     <p className="text-sm text-gray-500 mb-3">Phương thức khác:</p>
-                                    <button
-                                        disabled
-                                        className="w-full py-3 bg-gray-100 text-gray-400 font-medium rounded-lg cursor-not-allowed flex items-center justify-center gap-2 mb-2"
-                                    >
-                                        💳 Card Payment (Coming soon)
-                                    </button>
                                     <button
                                         disabled
                                         className="w-full py-3 bg-gray-100 text-gray-400 font-medium rounded-lg cursor-not-allowed flex items-center justify-center gap-2 mb-2"
@@ -589,6 +634,72 @@ export default function OrderCard({
                             >
                                 Hủy
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* QR Code Modal for Card Payment */}
+            {showQRCodeModal && checkoutUrl && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-gray-900">
+                                Quét QR để thanh toán
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    setShowQRCodeModal(false)
+                                    setCheckoutUrl(null)
+                                    setCheckoutError(null)
+                                }}
+                                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="text-center mb-4">
+                            <p className="text-sm text-gray-600 mb-4">
+                                Khách hàng quét QR code này để thanh toán bằng thẻ
+                            </p>
+                            <div className="bg-white p-4 rounded-lg border-2 border-gray-200 inline-block">
+                                <img
+                                    src={getQRCodeImageUrl(checkoutUrl, 300)}
+                                    alt="Payment QR Code"
+                                    className="w-64 h-64"
+                                />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-4">
+                                Order #{order.id} - {order.tableName}
+                            </p>
+                            <p className="text-lg font-bold text-gray-900 mt-2">
+                                {formatVND(order.totalAmount)}
+                            </p>
+                        </div>
+
+                        <div className="border-t pt-4">
+                            <p className="text-sm text-gray-600 mb-2">Hoặc chia sẻ link:</p>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={checkoutUrl}
+                                    readOnly
+                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50"
+                                />
+                                <button
+                                    onClick={copyCheckoutUrl}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                                >
+                                    Copy
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t">
+                            <p className="text-xs text-gray-500 text-center">
+                                Thông báo sẽ tự động hiển thị khi thanh toán hoàn tất
+                            </p>
                         </div>
                     </div>
                 </div>

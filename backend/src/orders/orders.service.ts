@@ -31,6 +31,7 @@ import {
     OrderStatusChangedEvent,
     OrderItemStatusChangedEvent,
     KitchenOrderEvent,
+    NotificationEvent,
     OrderSummary,
     OrderItemSummary,
     KitchenOrderView,
@@ -1396,6 +1397,35 @@ export class OrdersService {
             throw new BadRequestException('Order has already been paid')
         }
 
+        // Check if there's a pending payment
+        if (order.payment?.status === 'PENDING' && order.payment.method === 'CARD') {
+            // If there's already a pending card payment, we could return existing session
+            // For now, we'll create a new one (Stripe will handle duplicates)
+            this.logger.warn(`Order ${orderId} already has a pending card payment`)
+        }
+
+        // Create or update payment record with PENDING status
+        let payment = order.payment
+        if (!payment) {
+            payment = await this.prisma.payment.create({
+                data: {
+                    orderId: order.id,
+                    amount: order.totalAmount,
+                    method: 'CARD',
+                    status: 'PENDING',
+                },
+            })
+        } else if (payment.status !== 'PENDING' || payment.method !== 'CARD') {
+            // Update existing payment to CARD and PENDING
+            payment = await this.prisma.payment.update({
+                where: { id: payment.id },
+                data: {
+                    method: 'CARD',
+                    status: 'PENDING',
+                },
+            })
+        }
+
         // Create Stripe checkout session
         const session = await this.stripe.checkout.sessions.create({
             payment_method_types: ['card'],
@@ -1416,6 +1446,16 @@ export class OrdersService {
                 orderId: orderId.toString(),
             },
         })
+
+        // Update payment with session ID
+        if (session.id) {
+            await this.prisma.payment.update({
+                where: { id: payment.id },
+                data: {
+                    externalTransactionId: session.id,
+                },
+            })
+        }
 
         return {
             sessionId: session.id,
@@ -1459,16 +1499,98 @@ export class OrdersService {
             const session = event.data.object as Stripe.Checkout.Session
             const orderId = parseInt(session.metadata?.orderId || '0', 10)
 
-            if (orderId) {
-                await this.prisma.payment.update({
+            if (!orderId) {
+                this.logger.warn('Webhook received without orderId in metadata')
+                return { received: true }
+            }
+
+            // Get order with relations
+            const order = await this.prisma.order.findUnique({
+                where: { id: orderId },
+                include: {
+                    table: true,
+                    payment: true,
+                },
+            })
+
+            if (!order) {
+                this.logger.error(`Order ${orderId} not found for webhook`)
+                return { received: true }
+            }
+
+            // Check if payment already processed (idempotency)
+            if (order.payment?.status === 'SUCCESS') {
+                this.logger.log(`Payment for order ${orderId} already processed`)
+                return { received: true }
+            }
+
+            // Use transaction to ensure atomicity
+            await this.prisma.$transaction(async (tx) => {
+                // Update payment status
+                await tx.payment.upsert({
                     where: { orderId },
-                    data: {
+                    create: {
+                        orderId,
+                        amount: order.totalAmount,
+                        method: 'CARD',
                         status: 'SUCCESS',
+                        externalTransactionId: session.id,
+                    },
+                    update: {
+                        status: 'SUCCESS',
+                        externalTransactionId: session.id,
                     },
                 })
 
-                this.logger.log(`Payment successful for order ${orderId}`)
+                // Update order status to COMPLETED
+                await tx.order.update({
+                    where: { id: orderId },
+                    data: {
+                        status: OrderStatus.COMPLETED,
+                    },
+                })
+
+                // Reset table status to AVAILABLE
+                await tx.table.update({
+                    where: { id: order.tableId },
+                    data: {
+                        status: TableStatus.AVAILABLE,
+                    },
+                })
+            })
+
+            // Emit socket events for real-time updates
+            const statusEvent: OrderStatusChangedEvent = {
+                orderId,
+                previousStatus: order.status,
+                newStatus: OrderStatus.COMPLETED,
+                updatedAt: new Date().toISOString(),
             }
+
+            this.socketService.emitOrderStatusChanged(
+                order.restaurantId,
+                order.tableId,
+                statusEvent
+            )
+
+            // Emit notification to waiters
+            const notification: NotificationEvent = {
+                id: `payment-${orderId}-${Date.now()}`,
+                type: 'success',
+                title: 'Payment Completed',
+                message: `Order #${orderId} (${order.table.name}) has been paid successfully via card`,
+                orderId,
+                tableId: order.tableId,
+                timestamp: new Date().toISOString(),
+                sound: true,
+            }
+
+            this.socketService.emitWaiterNotification(
+                order.restaurantId,
+                notification
+            )
+
+            this.logger.log(`Payment successful for order ${orderId} - Order completed and table ${order.table.name} is now available`)
         }
 
         return { received: true }
