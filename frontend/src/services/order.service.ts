@@ -83,6 +83,31 @@ export const orderService = {
     },
 
     // ========================================================================
+    // CUSTOMER PUBLIC OPERATIONS (No authentication required)
+    // ========================================================================
+
+    /**
+     * Get orders by table ID (PUBLIC - for guest customers)
+     * No authentication required
+     */
+    async getOrdersByTable(tableId: number, excludeCancelled: boolean = true): Promise<Order[]> {
+        const response = await api.get(`/orders/table/${tableId}`, {
+            params: { excludeCancelled: excludeCancelled ? 'true' : 'false' }
+        })
+        // Backend returns { orders: [...], total, page, ... }
+        return Array.isArray(response.data) ? response.data : response.data?.orders || []
+    },
+
+    /**
+     * Get single order by ID (PUBLIC - for guest customers)
+     * No authentication required
+     */
+    async getPublicOrder(id: number): Promise<OrderWithDetails> {
+        const response = await api.get(`/orders/public/${id}`)
+        return response.data
+    },
+
+    // ========================================================================
     // WAITER OPERATIONS
     // ========================================================================
 

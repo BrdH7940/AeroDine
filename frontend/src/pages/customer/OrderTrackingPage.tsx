@@ -1,44 +1,22 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { apiClient } from '../../services/api';
+import { orderService } from '../../services/order.service';
 import { useSocket } from '../../hooks/useSocket';
 import { formatVND } from '../../utils/currency';
 import { BottomNavigation } from '../../components/customer';
 import { useCartStore } from '../../store/cartStore';
-
-interface OrderItem {
-  id: number;
-  name: string;
-  quantity: number;
-  pricePerUnit: number;
-  status: string;
-  note?: string;
-}
-
-interface Order {
-  id: number;
-  status: string;
-  totalAmount: number;
-  guestCount: number;
-  note?: string;
-  items: OrderItem[];
-  createdAt: string;
-  updatedAt: string;
-  table?: {
-    id: number;
-    name: string;
-  };
-}
+import type { Order } from '@aerodine/shared-types';
+import { OrderItemStatus } from '@aerodine/shared-types';
 
 const statusLabels: Record<string, string> = {
-  PENDING: 'Received',
+  PENDING_REVIEW: 'Waiting for Confirmation',
+  PENDING: 'Confirmed',
   IN_PROGRESS: 'Preparing',
   COMPLETED: 'Ready',
   CANCELLED: 'Cancelled',
-  SERVED: 'Served',
 };
 
-const orderStatusFlow = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'SERVED'];
+const orderStatusFlow = ['PENDING_REVIEW', 'PENDING', 'IN_PROGRESS', 'COMPLETED'];
 
 export const OrderTrackingPage: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
@@ -56,54 +34,30 @@ export const OrderTrackingPage: React.FC = () => {
       
       // Always prioritize tableId from cart store
       if (tableId) {
-        // Load all orders for the current table
-        const allOrdersResponse = await apiClient.get('/orders');
-        // Backend returns { orders: [...], total, page, ... }
-        const allOrders = Array.isArray(allOrdersResponse.data) 
-          ? allOrdersResponse.data 
-          : allOrdersResponse.data?.orders || [];
-        // Ensure both values are numbers for comparison
-        tableOrders = allOrders.filter(
-          (o: Order) => {
-            const orderTableId = o.table?.id ? Number(o.table.id) : null;
-            const currentTableId = Number(tableId);
-            return orderTableId === currentTableId && !['CANCELLED'].includes(o.status);
-          }
-        );
+        // Load all orders for the current table using PUBLIC endpoint
+        tableOrders = await orderService.getOrdersByTable(tableId, true);
       } else if (orderId) {
-        // If no tableId, try to get from orderId
-        const response = await apiClient.get(`/orders/${orderId}`);
-        const order = response.data;
+        // If no tableId, try to get from orderId using PUBLIC endpoint
+        const order = await orderService.getPublicOrder(parseInt(orderId));
         
         // Load all orders for the same table
-        const allOrdersResponse = await apiClient.get('/orders');
-        const allOrders = Array.isArray(allOrdersResponse.data) 
-          ? allOrdersResponse.data 
-          : allOrdersResponse.data?.orders || [];
-        tableOrders = allOrders.filter(
-          (o: Order) => {
-            const orderTableId = o.table?.id ? Number(o.table.id) : null;
-            const targetTableId = order.table?.id ? Number(order.table.id) : null;
-            return orderTableId === targetTableId && !['CANCELLED'].includes(o.status);
-          }
-        );
+        if (order.table?.id) {
+          tableOrders = await orderService.getOrdersByTable(order.table.id, true);
+        } else {
+          tableOrders = [order];
+        }
       } else {
         // Try to get last order from localStorage
         const lastOrderId = localStorage.getItem('lastOrderId');
         if (lastOrderId) {
-          const response = await apiClient.get(`/orders/${lastOrderId}`);
-          const order = response.data;
-          const allOrdersResponse = await apiClient.get('/orders');
-          const allOrders = Array.isArray(allOrdersResponse.data) 
-            ? allOrdersResponse.data 
-            : allOrdersResponse.data?.orders || [];
-          tableOrders = allOrders.filter(
-            (o: Order) => {
-              const orderTableId = o.table?.id ? Number(o.table.id) : null;
-              const targetTableId = order.table?.id ? Number(order.table.id) : null;
-              return orderTableId === targetTableId && !['CANCELLED'].includes(o.status);
-            }
-          );
+          const order = await orderService.getPublicOrder(parseInt(lastOrderId));
+          
+          // Load all orders for the same table
+          if (order.table?.id) {
+            tableOrders = await orderService.getOrdersByTable(order.table.id, true);
+          } else {
+            tableOrders = [order];
+          }
         }
       }
 
@@ -289,10 +243,10 @@ export const OrderTrackingPage: React.FC = () => {
                 <div className="mt-4 pt-4 border-t border-[#8A9A5B]/20">
                   <p className="text-sm font-medium text-[#36454F] mb-2">Items:</p>
                   <div className="space-y-1">
-                    {order.items.map((item) => (
+                    {order.items?.map((item) => (
                       <div key={item.id} className="flex items-center gap-2 text-sm text-[#36454F]/70">
                         <span>• {item.name} x{item.quantity}</span>
-                        {item.status === 'READY' || item.status === 'COMPLETED' ? (
+                        {item.status === OrderItemStatus.READY || item.status === OrderItemStatus.SERVED ? (
                           <svg className="w-4 h-4 text-[#8A9A5B]" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                           </svg>

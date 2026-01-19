@@ -13,6 +13,7 @@ import {
     Req,
     UseGuards,
     ForbiddenException,
+    Logger,
 } from '@nestjs/common'
 import type { RawBodyRequest } from '@nestjs/common'
 import { Throttle, SkipThrottle } from '@nestjs/throttler'
@@ -47,6 +48,8 @@ import {
 @ApiTags('orders')
 @Controller('orders')
 export class OrdersController {
+    private readonly logger = new Logger(OrdersController.name)
+
     constructor(private readonly ordersService: OrdersService) {}
 
     // ========================================================================
@@ -90,13 +93,21 @@ export class OrdersController {
      * Case 3: Rate limiting to prevent spam orders
      * - Limit: 5 requests per minute per IP
      * - This prevents DDoS attacks and spam order creation
+     * 
+     * Note: This endpoint is accessible without authentication (for guest orders),
+     * but if a customer is logged in and sends a valid JWT token, their userId
+     * will be automatically captured and associated with the order.
+     * 
+     * TODO: Implement optional JWT authentication guard to populate user context
+     * without requiring authentication.
      */
     @Throttle({ short: { ttl: 60000, limit: 5 } }) // 5 orders per minute
     @Post()
     @ApiOperation({
         summary: 'Create a new order',
         description:
-            'Creates a new order. Rate limited to 5 requests per minute per IP to prevent spam attacks.',
+            'Creates a new order. Rate limited to 5 requests per minute per IP to prevent spam attacks. ' +
+            'Optionally captures userId if customer is authenticated.',
     })
     @ApiResponse({
         status: 201,
@@ -106,7 +117,17 @@ export class OrdersController {
         status: 429,
         description: 'Too many requests. Please try again later.',
     })
-    create(@Body() createOrderDto: CreateOrderDto) {
+    create(
+        @Body() createOrderDto: CreateOrderDto,
+        @CurrentUser() user?: any
+    ) {
+        // Automatically set userId if customer is authenticated
+        // This allows customers to view their order history after logging in
+        if (user?.id && !createOrderDto.userId) {
+            createOrderDto.userId = user.id
+            this.logger.log(`Order creation: Auto-assigned userId ${user.id} from authenticated user`)
+        }
+        
         return this.ordersService.create(createOrderDto)
     }
 
@@ -152,10 +173,108 @@ export class OrdersController {
         return this.ordersService.findAll(filters)
     }
 
+    // ========================================================================
+    // WAITER OPERATIONS - Specific routes (must be before :id route)
+    // ========================================================================
+
+    /**
+     * Get pending orders for waiter dashboard
+     * GET /orders/waiter/pending?restaurantId=1
+     */
+    @ApiBearerAuth('JWT-auth')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.WAITER, UserRole.ADMIN)
+    @Get('waiter/pending')
+    @ApiOperation({
+        summary: 'Get pending orders for waiter (WAITER/ADMIN only)',
+        description: 'Returns pending orders for waiter dashboard.',
+    })
+    getPendingOrders(
+        @Query('restaurantId', ParseIntPipe) restaurantId: number
+    ) {
+        return this.ordersService.getPendingOrders(restaurantId)
+    }
+
+    // ========================================================================
+    // CUSTOMER OPERATIONS - Public routes for guest customers
+    // ========================================================================
+
+    /**
+     * Get orders by table ID (PUBLIC - for customer order tracking)
+     * GET /orders/table/:tableId
+     * No authentication required - guests can track their orders by table
+     */
+    @Get('table/:tableId')
+    @ApiOperation({
+        summary: 'Get orders by table ID (PUBLIC)',
+        description: 'Public endpoint for customers to track their orders without authentication.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Returns all active orders for the specified table',
+    })
+    getOrdersByTable(
+        @Param('tableId', ParseIntPipe) tableId: number,
+        @Query('excludeCancelled') excludeCancelled?: string
+    ) {
+        return this.ordersService.findAll({
+            tableId,
+            status: excludeCancelled === 'true' 
+                ? [
+                    OrderStatus.PENDING_REVIEW,
+                    OrderStatus.PENDING,
+                    OrderStatus.IN_PROGRESS,
+                    OrderStatus.COMPLETED
+                  ]
+                : undefined,
+        })
+    }
+
+    /**
+     * Get single order by ID (PUBLIC - for customer order tracking)
+     * GET /orders/public/:id
+     * No authentication required - guests can view their order details
+     */
+    @Get('public/:id')
+    @ApiOperation({
+        summary: 'Get order by ID (PUBLIC)',
+        description: 'Public endpoint for customers to view order details without authentication.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Returns order details',
+    })
+    getPublicOrder(@Param('id', ParseIntPipe) id: number) {
+        return this.ordersService.findOne(id)
+    }
+
+    // ========================================================================
+    // KITCHEN OPERATIONS - Specific routes (must be before :id route)
+    // ========================================================================
+
+    /**
+     * Get orders for Kitchen Display System
+     * GET /orders/kitchen/display?restaurantId=1
+     */
+    @ApiBearerAuth('JWT-auth')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.KITCHEN, UserRole.ADMIN)
+    @Get('kitchen/display')
+    @ApiOperation({
+        summary: 'Get kitchen orders (KITCHEN/ADMIN only)',
+        description: 'Returns orders for Kitchen Display System.',
+    })
+    getKitchenOrders(
+        @Query('restaurantId', ParseIntPipe) restaurantId: number
+    ) {
+        return this.ordersService.getKitchenOrders(restaurantId)
+    }
+
     /**
      * Get one order by ID
      * GET /orders/:id
      * ADMIN/WAITER can see any order, CUSTOMER can only see their own orders
+     * NOTE: This dynamic route must be after all specific routes (waiter/pending, kitchen/display)
      */
     @ApiBearerAuth('JWT-auth')
     @UseGuards(JwtAuthGuard)
@@ -258,26 +377,8 @@ export class OrdersController {
     }
 
     // ========================================================================
-    // WAITER OPERATIONS
+    // WAITER OPERATIONS (continued)
     // ========================================================================
-
-    /**
-     * Get pending orders for waiter dashboard
-     * GET /orders/waiter/pending?restaurantId=1
-     */
-    @ApiBearerAuth('JWT-auth')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.WAITER, UserRole.ADMIN)
-    @Get('waiter/pending')
-    @ApiOperation({
-        summary: 'Get pending orders for waiter (WAITER/ADMIN only)',
-        description: 'Returns pending orders for waiter dashboard.',
-    })
-    getPendingOrders(
-        @Query('restaurantId', ParseIntPipe) restaurantId: number
-    ) {
-        return this.ordersService.getPendingOrders(restaurantId)
-    }
 
     /**
      * Assign waiter to order
@@ -375,26 +476,8 @@ export class OrdersController {
     }
 
     // ========================================================================
-    // KITCHEN OPERATIONS
+    // KITCHEN OPERATIONS (continued)
     // ========================================================================
-
-    /**
-     * Get orders for Kitchen Display System
-     * GET /orders/kitchen?restaurantId=1
-     */
-    @ApiBearerAuth('JWT-auth')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.KITCHEN, UserRole.ADMIN)
-    @Get('kitchen/display')
-    @ApiOperation({
-        summary: 'Get kitchen orders (KITCHEN/ADMIN only)',
-        description: 'Returns orders for Kitchen Display System.',
-    })
-    getKitchenOrders(
-        @Query('restaurantId', ParseIntPipe) restaurantId: number
-    ) {
-        return this.ordersService.getKitchenOrders(restaurantId)
-    }
 
     /**
      * Update order item status (Kitchen)
