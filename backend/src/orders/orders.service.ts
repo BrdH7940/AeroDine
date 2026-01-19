@@ -386,6 +386,7 @@ export class OrdersService {
         restaurantId?: number
         tableId?: number
         waiterId?: number
+        customerId?: number
         status?: OrderStatus | OrderStatus[]
         fromDate?: Date
         toDate?: Date
@@ -396,6 +397,7 @@ export class OrdersService {
             restaurantId,
             tableId,
             waiterId,
+            customerId,
             status,
             fromDate,
             toDate,
@@ -408,6 +410,7 @@ export class OrdersService {
         if (restaurantId) where.restaurantId = restaurantId
         if (tableId) where.tableId = tableId
         if (waiterId) where.waiterId = waiterId
+        if (customerId) where.userId = customerId
         if (status) {
             where.status = Array.isArray(status) ? { in: status } : status
         }

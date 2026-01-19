@@ -15,10 +15,35 @@ async function bootstrap() {
     app.use(express.json({ limit: '10mb' }))
     app.use(express.urlencoded({ limit: '10mb', extended: true }))
 
-    // Enable CORS - allow any origin for development
+    // Enable CORS - use configured origin or allow localhost in development
+    const nodeEnv = configService.get<string>('nodeEnv') || 'development'
+    const corsOrigin = configService.get<string>('cors.origin')
+    
+    // In production, only allow configured origin
+    // In development, allow localhost and configured origin
+    const allowedOrigins = nodeEnv === 'production' 
+        ? [corsOrigin].filter(Boolean)
+        : [
+            'http://localhost:5173',
+            'http://localhost:3000',
+            'http://127.0.0.1:5173',
+            corsOrigin
+          ].filter(Boolean)
+    
     app.enableCors({
-        origin: '*',
+        origin: (origin, callback) => {
+            // Allow requests with no origin (like mobile apps or curl requests)
+            if (!origin) return callback(null, true)
+            
+            if (allowedOrigins.includes(origin)) {
+                callback(null, true)
+            } else {
+                callback(new Error('Not allowed by CORS'))
+            }
+        },
         credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
     })
 
     // Enable global validation pipe
@@ -58,6 +83,7 @@ async function bootstrap() {
     })
 
     // Setup Swagger with full path (excluded from global prefix)
+    const port = configService.get<number>('port') || 3000
     try {
         const document = SwaggerModule.createDocument(app, swaggerConfig)
         SwaggerModule.setup('api/docs', app, document, {
@@ -65,7 +91,6 @@ async function bootstrap() {
                 persistAuthorization: true,
             },
         })
-        const port = configService.get<number>('port') || 3000
         console.log(
             `✅ Swagger UI will be available at: http://localhost:${port}/api/docs`
         )
@@ -73,9 +98,6 @@ async function bootstrap() {
         console.error('❌ Error setting up Swagger:', error)
         console.error('Error details:', error)
     }
-
-    const port = configService.get<number>('port') || 3000
-    const nodeEnv = configService.get<string>('nodeEnv') || 'development'
 
     await app.listen(port)
     console.log(`🚀 Server is running on: http://localhost:${port}`)

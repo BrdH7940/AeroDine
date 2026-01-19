@@ -14,12 +14,22 @@ import { LoginDto } from './dto/update-auth.dto'
 import { ForgotPasswordDto } from './dto/forgot-password.dto'
 import { ResetPasswordDto } from './dto/reset-password.dto'
 import { UsersService } from '../users/users.service'
+import { CreateUserDto } from '../users/dto/create-user.dto'
 import { MailService } from '../mail/mail.service'
-import { UserRole } from '@prisma/client'
+import { UserRole } from '@aerodine/shared-types'
+import { UserRole as PrismaUserRole } from '@prisma/client'
 
 @Injectable()
 export class AuthService {
     private readonly logger = new Logger(AuthService.name)
+
+    /**
+     * Convert Prisma UserRole to shared-types UserRole
+     * Both enums have the same string values, so we can safely convert
+     */
+    private toSharedUserRole(role: PrismaUserRole | UserRole): UserRole {
+        return role as UserRole
+    }
 
     constructor(
         private readonly usersService: UsersService,
@@ -34,11 +44,19 @@ export class AuthService {
             throw new ConflictException('Email already registered')
         }
 
-        const user = await this.usersService.create(registerDto)
+        // Force CUSTOMER role for all registrations - role selection removed for security
+        // Only ADMIN can create users with other roles via /users endpoint
+        const createUserDto: CreateUserDto = {
+            email: registerDto.email,
+            password: registerDto.password,
+            fullName: registerDto.fullName,
+            role: UserRole.CUSTOMER,
+        }
+        const user = await this.usersService.create(createUserDto)
         const { accessToken, refreshToken } = await this.generateTokens(
             user.id,
             user.email,
-            user.role
+            this.toSharedUserRole(user.role)
         )
         // Store refresh token in database
         await this.usersService.updateRefreshToken(user.id, refreshToken)
@@ -60,7 +78,9 @@ export class AuthService {
         }
 
         // If user is inactive, downgrade role to CUSTOMER
-        const effectiveRole = user.isActive ? user.role : UserRole.CUSTOMER
+        const effectiveRole = user.isActive 
+            ? this.toSharedUserRole(user.role) 
+            : UserRole.CUSTOMER
 
         const { accessToken, refreshToken } = await this.generateTokens(
             user.id,
@@ -93,7 +113,9 @@ export class AuthService {
         }
 
         // If user is inactive, downgrade role to CUSTOMER
-        const effectiveRole = fullUser.isActive ? fullUser.role : UserRole.CUSTOMER
+        const effectiveRole = fullUser.isActive 
+            ? this.toSharedUserRole(fullUser.role) 
+            : UserRole.CUSTOMER
 
         const { accessToken, refreshToken } = await this.generateTokens(
             fullUser.id,
@@ -302,7 +324,9 @@ export class AuthService {
         }
 
         // If user is inactive, downgrade role to CUSTOMER
-        const effectiveRole = user.isActive ? user.role : UserRole.CUSTOMER
+        const effectiveRole = user.isActive 
+            ? this.toSharedUserRole(user.role) 
+            : UserRole.CUSTOMER
 
         // Generate new access token with effective role
         const accessToken = await this.signAccessToken(user.id, user.email, effectiveRole)

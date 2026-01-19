@@ -9,6 +9,7 @@ import {
     HttpStatus,
 } from '@nestjs/common'
 import { Request, Response } from 'express'
+import { Throttle } from '@nestjs/throttler'
 import { AuthService } from './auth.service'
 import { RegisterDto } from './dto/create-auth.dto'
 import { LoginDto } from './dto/update-auth.dto'
@@ -34,17 +35,26 @@ export class AuthController {
         private readonly configService: ConfigService
     ) {}
 
+    @Throttle({ short: { ttl: 60000, limit: 5 } }) // 5 requests per minute
     @Post('register')
     @ApiOperation({
         summary: 'Register a new user',
-        description: 'Register with role (ADMIN, WAITER, KITCHEN, CUSTOMER)',
+        description: 'Register a new user account. Rate limited to 5 requests per minute. All new users are created with CUSTOMER role.',
+    })
+    @ApiResponse({
+        status: 429,
+        description: 'Too many registration attempts. Please try again later.',
     })
     register(@Body() registerDto: RegisterDto) {
         return this.authService.register(registerDto)
     }
 
+    @Throttle({ short: { ttl: 60000, limit: 5 } }) // 5 requests per minute
     @Post('login')
-    @ApiOperation({ summary: 'Login and receive JWT access token and refresh token' })
+    @ApiOperation({ 
+        summary: 'Login and receive JWT access token and refresh token',
+        description: 'Rate limited to 5 requests per minute to prevent brute force attacks.',
+    })
     @ApiResponse({
         status: 200,
         description: 'Login successful',
@@ -60,6 +70,10 @@ export class AuthController {
                 },
             },
         },
+    })
+    @ApiResponse({
+        status: 429,
+        description: 'Too many login attempts. Please try again later.',
     })
     login(@Body() loginDto: LoginDto) {
         return this.authService.login(loginDto)
@@ -116,11 +130,12 @@ export class AuthController {
         return user
     }
 
+    @Throttle({ short: { ttl: 60000, limit: 3 } }) // 3 requests per minute
     @Post('forgot-password')
     @ApiOperation({
         summary: 'Request password reset',
         description:
-            'Sends a password reset email to the user. Always returns success to prevent email enumeration.',
+            'Sends a password reset email to the user. Always returns success to prevent email enumeration. Rate limited to 3 requests per minute.',
     })
     @ApiResponse({
         status: 200,
@@ -131,6 +146,10 @@ export class AuthController {
                     'If an account with that email exists, a password reset link has been sent.',
             },
         },
+    })
+    @ApiResponse({
+        status: 429,
+        description: 'Too many password reset requests. Please try again later.',
     })
     async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
         return this.authService.forgotPassword(forgotPasswordDto)
