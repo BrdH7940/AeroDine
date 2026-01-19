@@ -7,6 +7,7 @@ import { useCartStore, type CartItemModifier } from '../../store/cartStore';
 import { useUserStore } from '../../store/userStore';
 import { authService } from '../../services/auth.service';
 import type { ModifierGroup } from '@aerodine/shared-types';
+import { UserRole } from '@aerodine/shared-types';
 import { formatVND } from '../../utils/currency';
 
 // Menu item type matching backend response
@@ -335,6 +336,39 @@ export const MenuPage: React.FC = () => {
                         <p className="text-sm font-medium text-[#36454F]">{user.fullName}</p>
                         <p className="text-xs text-[#36454F]/70">{user.email}</p>
                       </div>
+                      {/* Admin Navigation Buttons */}
+                      {(typeof user.role === 'string' ? user.role.toUpperCase() : user.role) === UserRole.ADMIN && (
+                        <>
+                          <button
+                            onClick={() => {
+                              setIsMenuOpen(false);
+                              navigate('/admin/dashboard');
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-[#36454F] hover:bg-[#F9F7F2] transition-colors border-b border-[#8A9A5B]/10"
+                          >
+                            <div className="flex items-center gap-2 hover:text-[#8A9A5B]">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                              </svg>
+                              <span className="hover:text-[#8A9A5B]">Admin Dashboard</span>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setIsMenuOpen(false);
+                              navigate('/staff/waiter/orders');
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-[#36454F] hover:bg-[#F9F7F2] transition-colors border-b border-[#8A9A5B]/10"
+                          >
+                            <div className="flex items-center gap-2 hover:text-[#8A9A5B]">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                              </svg>
+                              <span className="hover:text-[#8A9A5B]">Waiter Dashboard</span>
+                            </div>
+                          </button>
+                        </>
+                      )}
                       <button
                         onClick={handleLogout}
                         className="w-full text-left px-4 py-2 text-sm text-[#36454F] hover:bg-[#F9F7F2] transition-colors"

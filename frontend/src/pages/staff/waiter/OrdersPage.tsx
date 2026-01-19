@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useWaiterEvents, useBillRequested, useOrderStatusChanged, useNotification } from '../../../hooks/useSocket'
 import { orderService } from '../../../services/order.service'
 import OrderCard from '../../../components/staff/OrderCard'
@@ -40,6 +41,7 @@ interface OrderItem {
 }
 
 export default function WaiterOrdersPage() {
+    const navigate = useNavigate()
     // TODO: Get from auth context
     const restaurantId = 4 // AeroDine Signature restaurant
     const userId = 12 // Waiter User ID (waiter@aerodine.com)
@@ -503,9 +505,20 @@ export default function WaiterOrdersPage() {
             <header className="bg-white shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-between">
-                        <h1 className="text-2xl font-bold text-gray-900">
-                            Waiter Dashboard
-                        </h1>
+                        <div className="flex items-center gap-4">
+                            <h1 className="text-2xl font-bold text-gray-900">
+                                Waiter Dashboard
+                            </h1>
+                            <button
+                                onClick={() => navigate('/customer/menu')}
+                                className="px-4 py-2 bg-[#8A9A5B] text-white rounded-lg hover:bg-[#6B7A4A] transition-colors flex items-center gap-2 text-sm font-medium"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                </svg>
+                                Return menu
+                            </button>
+                        </div>
                         <div className="flex items-center space-x-4">
                             <span className="text-sm text-gray-500">
                                 {new Date().toLocaleDateString()}
