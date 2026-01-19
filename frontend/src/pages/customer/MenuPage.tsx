@@ -395,6 +395,35 @@ export const MenuPage: React.FC = () => {
             className="w-full bg-white text-[#36454F] pl-12 pr-4 py-3.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#8A9A5B]/30 transition-all duration-200 border border-[#8A9A5B]/20 focus:border-[#8A9A5B] placeholder:text-[#36454F]/50 shadow-sm"
           />
         </div>
+
+        {/* Categories */}
+        <div className="bg-white px-4 py-4 border-b border-[#8A9A5B]/20 overflow-x-auto mt-4 -mx-5 -mb-5">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSelectedCategoryId(undefined)}
+              className={`px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 ${
+                selectedCategoryId === undefined
+                  ? 'bg-[#8A9A5B] text-white'
+                  : 'bg-white text-[#36454F] hover:bg-[#F9F7F2] border border-[#8A9A5B]/30'
+              }`}
+            >
+              [All]
+            </button>
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => setSelectedCategoryId(category.id)}
+                className={`px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 ${
+                  selectedCategoryId === category.id
+                    ? 'bg-[#8A9A5B] text-white'
+                    : 'bg-white text-[#36454F] hover:bg-[#F9F7F2] border border-[#8A9A5B]/30'
+                }`}
+              >
+                [{category.name}]
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Overlay to close menu when clicking outside */}
@@ -410,7 +439,7 @@ export const MenuPage: React.FC = () => {
         <div className="px-5 py-3 bg-white border-b border-[#8A9A5B]/20">
           <button
             onClick={() => setIsAiModalOpen(true)}
-            className="w-full py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-medium hover:from-purple-700 hover:to-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg"
+            className="w-full py-3 bg-[#D4AF37] hover:bg-[#b8962e] text-white rounded-xl font-medium transition-all flex items-center justify-center gap-2 shadow-lg"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -419,35 +448,6 @@ export const MenuPage: React.FC = () => {
           </button>
         </div>
       )}
-
-      {/* Categories */}
-      <div className={`bg-white px-4 py-4 border-b border-[#8A9A5B]/20 overflow-x-auto backdrop-blur-xl sticky z-30 shadow-sm ${currentRestaurantId ? 'top-[220px]' : 'top-[140px]'}`}>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setSelectedCategoryId(undefined)}
-            className={`px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 ${
-              selectedCategoryId === undefined
-                ? 'bg-[#8A9A5B] text-white'
-                : 'bg-white text-[#36454F] hover:bg-[#F9F7F2] border border-[#8A9A5B]/30'
-            }`}
-          >
-            [All]
-          </button>
-          {categories.map((category) => (
-            <button
-              key={category.id}
-              onClick={() => setSelectedCategoryId(category.id)}
-              className={`px-5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 ${
-                selectedCategoryId === category.id
-                  ? 'bg-[#8A9A5B] text-white'
-                  : 'bg-white text-[#36454F] hover:bg-[#F9F7F2] border border-[#8A9A5B]/30'
-              }`}
-            >
-              [{category.name}]
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* Menu Items */}
       <div className="p-5 space-y-3">
@@ -536,7 +536,7 @@ export const MenuPage: React.FC = () => {
                             }}
                             className="px-4 py-1.5 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 text-sm font-medium"
                           >
-                            [+ Add]
+                            + Add
                           </button>
                         )}
                       </div>
