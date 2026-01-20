@@ -18,14 +18,27 @@ export interface CartItemModifier {
   priceAdjustment: number;
 }
 
+// Helper function to normalize note (treat undefined, null, and empty string as equivalent)
+const normalizeNote = (note?: string | null): string | undefined => {
+  if (!note || note.trim() === '') return undefined;
+  return note.trim();
+};
+
+// Helper function to normalize modifiers (treat undefined as empty array)
+const normalizeModifiers = (mods?: CartItemModifier[]): CartItemModifier[] => {
+  return mods || [];
+};
+
 // Helper function to compare modifiers
 const areModifiersEqual = (mods1?: CartItemModifier[], mods2?: CartItemModifier[]): boolean => {
-  if (!mods1 && !mods2) return true;
-  if (!mods1 || !mods2) return false;
-  if (mods1.length !== mods2.length) return false;
+  const normalized1 = normalizeModifiers(mods1);
+  const normalized2 = normalizeModifiers(mods2);
+  
+  if (normalized1.length !== normalized2.length) return false;
+  if (normalized1.length === 0) return true;
 
-  const sorted1 = [...mods1].sort((a, b) => a.modifierGroupId - b.modifierGroupId);
-  const sorted2 = [...mods2].sort((a, b) => a.modifierGroupId - b.modifierGroupId);
+  const sorted1 = [...normalized1].sort((a, b) => a.modifierGroupId - b.modifierGroupId);
+  const sorted2 = [...normalized2].sort((a, b) => a.modifierGroupId - b.modifierGroupId);
 
   return sorted1.every((mod1, index) => {
     const mod2 = sorted2[index];
@@ -94,11 +107,21 @@ export const cartStore = {
   },
 
   addItem: (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => {
+    // Normalize the incoming item's modifiers and note for comparison
+    const normalizedItemModifiers = normalizeModifiers(item.modifiers);
+    const normalizedItemNote = normalizeNote(item.note);
+    
     const existingIndex = cartState.items.findIndex(
-      (existing) =>
-        existing.menuItemId === item.menuItemId && 
-        areModifiersEqual(existing.modifiers, item.modifiers) &&
-        existing.note === item.note
+      (existing) => {
+        const normalizedExistingModifiers = normalizeModifiers(existing.modifiers);
+        const normalizedExistingNote = normalizeNote(existing.note);
+        
+        return (
+          existing.menuItemId === item.menuItemId && 
+          areModifiersEqual(normalizedExistingModifiers, normalizedItemModifiers) &&
+          normalizedExistingNote === normalizedItemNote
+        );
+      }
     );
 
     if (existingIndex >= 0) {
@@ -107,8 +130,8 @@ export const cartStore = {
       cartState.items.push({
         ...item,
         quantity: item.quantity || 1,
-        modifiers: item.modifiers || [],
-        note: item.note,
+        modifiers: normalizedItemModifiers,
+        note: normalizedItemNote,
       });
     }
 
@@ -117,8 +140,12 @@ export const cartStore = {
   },
 
   removeItem: (menuItemId: number, modifiers?: CartItemModifier[]) => {
+    const normalizedModifiers = normalizeModifiers(modifiers);
     const index = cartState.items.findIndex(
-      (item) => item.menuItemId === menuItemId && areModifiersEqual(item.modifiers, modifiers)
+      (item) => {
+        const normalizedItemModifiers = normalizeModifiers(item.modifiers);
+        return item.menuItemId === menuItemId && areModifiersEqual(normalizedItemModifiers, normalizedModifiers);
+      }
     );
 
     if (index >= 0) {
@@ -134,8 +161,12 @@ export const cartStore = {
       return;
     }
 
+    const normalizedModifiers = normalizeModifiers(modifiers);
     const item = cartState.items.find(
-      (item) => item.menuItemId === menuItemId && areModifiersEqual(item.modifiers, modifiers)
+      (item) => {
+        const normalizedItemModifiers = normalizeModifiers(item.modifiers);
+        return item.menuItemId === menuItemId && areModifiersEqual(normalizedItemModifiers, normalizedModifiers);
+      }
     );
 
     if (item) {
@@ -176,8 +207,12 @@ export const cartStore = {
   },
 
   getItem: (menuItemId: number, modifiers?: CartItemModifier[]): CartItem | undefined => {
+    const normalizedModifiers = normalizeModifiers(modifiers);
     return cartState.items.find(
-      (item) => item.menuItemId === menuItemId && areModifiersEqual(item.modifiers, modifiers)
+      (item) => {
+        const normalizedItemModifiers = normalizeModifiers(item.modifiers);
+        return item.menuItemId === menuItemId && areModifiersEqual(normalizedItemModifiers, normalizedModifiers);
+      }
     );
   },
 };

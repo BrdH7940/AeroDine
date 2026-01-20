@@ -6,6 +6,7 @@ import { formatVND } from '../../utils/currency';
 import { BottomNavigation } from '../../components/customer';
 import { useCartStore } from '../../store/cartStore';
 import { useUserStore } from '../../store/userStore';
+import { useModal } from '../../contexts/ModalContext';
 import type { Order } from '@aerodine/shared-types';
 import { OrderItemStatus } from '@aerodine/shared-types';
 
@@ -40,12 +41,30 @@ export const OrderTrackingPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { tableId } = useCartStore();
-  const { isAuthenticated } = useUserStore();
+  const { isAuthenticated, user } = useUserStore();
+  const { alert } = useModal();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [orderHistory, setOrderHistory] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
   const [isOrderHistory, setIsOrderHistory] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const socket = useSocket();
+
+  // Helper function to check if order is fully served (all items are SERVED)
+  const isOrderFullyServed = (order: Order): boolean => {
+    if (!order.items || order.items.length === 0) return false;
+    return order.items.every(item => item.status === OrderItemStatus.SERVED);
+  };
+
+  // Helper function to check if order can request bill
+  const canRequestBill = (order: Order): boolean => {
+    // Can request bill if order is not cancelled and has at least one item served
+    if (order.status === 'CANCELLED') return false;
+    if (!order.items || order.items.length === 0) return false;
+    return order.items.some(item => item.status === OrderItemStatus.SERVED || item.status === OrderItemStatus.READY);
+  };
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -96,9 +115,14 @@ export const OrderTrackingPage: React.FC = () => {
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       
+      // Filter to only show orders that are not fully served (for active orders view)
+      const filteredOrders = isHistoryPage 
+        ? sortedOrders 
+        : sortedOrders.filter(order => !isOrderFullyServed(order));
+      
       // Use requestAnimationFrame to ensure smooth transition
       requestAnimationFrame(() => {
-        setOrders(sortedOrders);
+        setOrders(filteredOrders);
         setLoading(false);
         setInitialLoad(false);
       });
@@ -162,6 +186,47 @@ export const OrderTrackingPage: React.FC = () => {
     return orders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
   };
 
+  const handleRequestBill = async (orderId: number) => {
+    try {
+      await orderService.requestBill(orderId);
+      await alert({
+        title: 'Thành công',
+        message: 'Bill request has been sent to the waiter',
+        type: 'success',
+      });
+    } catch (error: any) {
+      console.error('Failed to request bill:', error);
+      await alert({
+        title: 'Lỗi',
+        message: error.response?.data?.message || 'Failed to request bill. Please try again.',
+        type: 'error',
+      });
+    }
+  };
+
+  const handleToggleHistory = async () => {
+    if (!showHistory && isAuthenticated && user) {
+      // Load order history
+      setLoadingHistory(true);
+      try {
+        const response = await orderService.getOrders({ page: 1, pageSize: 50 });
+        setOrderHistory(response.orders || []);
+        setShowHistory(true);
+      } catch (error) {
+        console.error('Failed to load order history:', error);
+        await alert({
+          title: 'Lỗi',
+          message: 'Failed to load order history. Please try again.',
+          type: 'error',
+        });
+      } finally {
+        setLoadingHistory(false);
+      }
+    } else {
+      setShowHistory(false);
+    }
+  };
+
   if (loading && initialLoad) {
     return (
       <div className="min-h-screen bg-[#F9F7F2] pb-20">
@@ -214,10 +279,73 @@ export const OrderTrackingPage: React.FC = () => {
       </div>
 
       <div className="p-5">
-        <h2 className="text-xl font-bold text-[#36454F] mb-4">
-          {isOrderHistory ? 'Order History' : 'Your Orders'}
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-[#36454F]">
+            {isOrderHistory ? 'Order History' : 'Your Orders'}
+          </h2>
+          {isAuthenticated && !isOrderHistory && (
+            <button
+              onClick={handleToggleHistory}
+              disabled={loadingHistory}
+              className="px-4 py-2 bg-white border border-[#8A9A5B]/30 text-[#36454F] rounded-xl hover:bg-[#F9F7F2] transition-all duration-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loadingHistory ? 'Loading...' : showHistory ? 'Hide History' : 'Show History'}
+            </button>
+          )}
+        </div>
 
+        {/* Order History Section */}
+        {showHistory && isAuthenticated && orderHistory.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-[#36454F] mb-3">Order History</h3>
+            <div className="space-y-4">
+              {orderHistory.map((order) => {
+                const orderTime = new Date(order.createdAt).toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
+                const orderDate = new Date(order.createdAt).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                });
+
+                return (
+                  <div key={order.id} className="bg-white rounded-xl p-4 border border-[#8A9A5B]/20 shadow-sm opacity-75">
+                    <div className="mb-3">
+                      <h3 className="font-semibold text-[#36454F]">
+                        Order #{order.id} - {orderDate} {orderTime}
+                      </h3>
+                      <p className="text-sm text-[#36454F]/70 mt-1">
+                        Table: {order.table?.name || 'N/A'} • Total: {formatVND(Number(order.totalAmount))}
+                      </p>
+                    </div>
+
+                    {/* Status */}
+                    <div className="mb-2">
+                      <span className={`text-sm font-medium ${
+                        order.status === 'COMPLETED' ? 'text-[#8A9A5B]' :
+                        order.status === 'CANCELLED' ? 'text-red-500' :
+                        'text-[#36454F]/70'
+                      }`}>
+                        {statusLabels[order.status] || order.status}
+                      </span>
+                    </div>
+
+                    {/* Order Items Summary */}
+                    <div className="mt-2 pt-2 border-t border-[#8A9A5B]/20">
+                      <p className="text-sm text-[#36454F]/70">
+                        {order.items?.length || 0} item(s)
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Active Orders Section */}
         <div className="space-y-4 mb-6">
           {orders.map((order) => {
             const currentStatusIndex = getCurrentStatusIndex(order.status);
@@ -307,10 +435,28 @@ export const OrderTrackingPage: React.FC = () => {
                     })}
                   </div>
                 </div>
+
+                {/* Request Bill Button for each order */}
+                {!isOrderHistory && canRequestBill(order) && (
+                  <div className="mt-4 pt-4 border-t border-[#8A9A5B]/20">
+                    <button
+                      onClick={() => handleRequestBill(order.id)}
+                      className="w-full px-4 py-2 bg-[#8A9A5B] text-white rounded-xl hover:bg-[#6B7A4A] transition-all duration-200 text-sm font-medium"
+                    >
+                      Request Bill for Order #{order.id}
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
+
+        {!isOrderHistory && orders.length === 0 && (
+          <div className="text-center py-8">
+            <p className="text-[#36454F]/70">No active orders. All items have been served.</p>
+          </div>
+        )}
 
         {/* Total - Only show for active orders (not history) */}
         {!isOrderHistory && orders.length > 0 && (
@@ -322,7 +468,7 @@ export const OrderTrackingPage: React.FC = () => {
           </div>
         )}
 
-        {/* Request Bill Button - Only show for active orders */}
+        {/* Back to Menu Button */}
         {!isOrderHistory && (
           <button
             onClick={() => {
@@ -330,7 +476,7 @@ export const OrderTrackingPage: React.FC = () => {
             }}
             className="w-full px-6 py-3 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 font-medium"
           >
-            Request Bill
+            Back to Menu
           </button>
         )}
       </div>

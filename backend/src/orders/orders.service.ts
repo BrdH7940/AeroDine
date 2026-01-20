@@ -137,9 +137,10 @@ export class OrdersService {
             throw new NotFoundException('Table not found')
         }
 
-        // Case 3: Single Active Order - Prevent spam orders
-        // Check if table has an active order (not COMPLETED or CANCELLED)
-        const activeOrder = await this.prisma.order.findFirst({
+        // Case 3: Limit Active Orders - Prevent spam orders
+        // Check if table has 5 or more active orders (not COMPLETED or CANCELLED)
+        // Allow up to 5 active orders per table
+        const activeOrderCount = await this.prisma.order.count({
             where: {
                 tableId,
                 restaurantId,
@@ -147,12 +148,11 @@ export class OrdersService {
                     notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
                 },
             },
-            orderBy: { createdAt: 'desc' },
         })
 
-        if (activeOrder) {
+        if (activeOrderCount >= 5) {
             throw new BadRequestException(
-                `Table ${table.name} already has an active order (ID: ${activeOrder.id}). Please add items to the existing order instead of creating a new one.`
+                `Table ${table.name} already has ${activeOrderCount} active orders (maximum 5 allowed). Please wait for some orders to be completed or cancelled before placing a new order.`
             )
         }
 
