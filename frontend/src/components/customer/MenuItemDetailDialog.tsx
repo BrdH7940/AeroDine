@@ -3,6 +3,7 @@ import type { ModifierGroup } from '@aerodine/shared-types';
 import type { CartItemModifier } from '../../store/cartStore';
 import { formatVND } from '../../utils/currency';
 import { menusApi } from '../../services/api';
+import { useModal } from '../../contexts/ModalContext';
 
 interface MenuItemDetailDialogProps {
   isOpen: boolean;
@@ -35,6 +36,7 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
   menuItem,
   onAddToCart,
 }) => {
+  const { alert } = useModal();
   const [selectedModifiers, setSelectedModifiers] = useState<Map<number, number[]>>(new Map());
   const [note, setNote] = useState('');
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
@@ -170,9 +172,13 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
     return true;
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (modifierGroups.length > 0 && !validateSelection()) {
-      alert('Please select the required modifiers');
+      await alert({
+        title: 'Thiếu thông tin',
+        message: 'Please select the required modifiers',
+        type: 'warning',
+      });
       return;
     }
 

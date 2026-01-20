@@ -5,6 +5,7 @@ import { orderService } from '../../../services/order.service'
 import { authService } from '../../../services/auth.service'
 import { OrderItemStatus } from '@aerodine/shared-types'
 import { useKitchenEvents } from '../../../hooks/useSocket'
+import { useModal } from '../../../contexts/ModalContext'
 import type { KitchenOrderEvent, OrderItemStatusChangedEvent } from '@aerodine/shared-types'
 
 interface OrderItem {
@@ -161,6 +162,7 @@ function TicketCard({ order, onStatusChange }: TicketCardProps) {
 }
 
 export default function KDSPage() {
+    const { alert } = useModal()
     // TODO: Get from auth context
     const restaurantId = 4 // AeroDine Signature restaurant
     const userId = 13 // Kitchen Staff ID (kitchen@aerodine.com)
@@ -301,7 +303,11 @@ export default function KDSPage() {
             await fetchOrders()
         } catch (err: any) {
             console.error('Error updating order item status:', err)
-            alert('Unable to update status. Please try again.')
+            await alert({
+                title: 'Lỗi',
+                message: 'Unable to update status. Please try again.',
+                type: 'error',
+            })
         }
     }
 

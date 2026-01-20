@@ -4,9 +4,11 @@ import { useCartStore } from '../../store/cartStore';
 import { CartItem, BottomNavigation } from '../../components/customer';
 import { apiClient } from '../../services/api';
 import { formatVND } from '../../utils/currency';
+import { useModal } from '../../contexts/ModalContext';
 
 export const CartPage: React.FC = () => {
   const navigate = useNavigate();
+  const { alert } = useModal();
   const {
     items,
     tableId,
@@ -34,12 +36,20 @@ export const CartPage: React.FC = () => {
 
   const handlePlaceOrder = async () => {
     if (!tableId) {
-      alert('Please set a table number');
+      await alert({
+        title: 'Thiếu thông tin',
+        message: 'Please set a table number',
+        type: 'warning',
+      });
       return;
     }
 
     if (items.length === 0) {
-      alert('Your cart is empty');
+      await alert({
+        title: 'Giỏ hàng trống',
+        message: 'Your cart is empty',
+        type: 'warning',
+      });
       return;
     }
 
@@ -48,7 +58,11 @@ export const CartPage: React.FC = () => {
       // Ensure tableId is a number
       const numericTableId = Number(tableId);
       if (isNaN(numericTableId) || numericTableId <= 0) {
-        alert('Invalid table number');
+        await alert({
+          title: 'Lỗi',
+          message: 'Invalid table number',
+          type: 'error',
+        });
         setIsPlacingOrder(false);
         return;
       }
@@ -98,7 +112,11 @@ export const CartPage: React.FC = () => {
       }, 300);
     } catch (error: any) {
       console.error('Failed to place order:', error);
-      alert(error.response?.data?.message || 'Failed to place order. Please try again.');
+      await alert({
+        title: 'Lỗi',
+        message: error.response?.data?.message || 'Failed to place order. Please try again.',
+        type: 'error',
+      });
       setIsPlacingOrder(false);
     }
   };

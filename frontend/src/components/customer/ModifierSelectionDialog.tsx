@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { ModifierGroup } from '@aerodine/shared-types';
 import type { CartItemModifier } from '../../store/cartStore';
 import { formatVND } from '../../utils/currency';
+import { useModal } from '../../contexts/ModalContext';
 
 interface ModifierSelectionDialogProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const ModifierSelectionDialog: React.FC<ModifierSelectionDialogProps> = (
   modifierGroups,
   onConfirm,
 }) => {
+  const { alert } = useModal();
   const [selectedModifiers, setSelectedModifiers] = useState<Map<number, number[]>>(new Map());
 
   useEffect(() => {
@@ -108,9 +110,13 @@ export const ModifierSelectionDialog: React.FC<ModifierSelectionDialogProps> = (
     return true;
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!validateSelection()) {
-      alert('Please select the required modifiers');
+      await alert({
+        title: 'Thiếu thông tin',
+        message: 'Please select the required modifiers',
+        type: 'warning',
+      });
       return;
     }
 

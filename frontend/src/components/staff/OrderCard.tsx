@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { formatVND } from '../../utils/currency'
 import { orderService } from '../../services/order.service'
 import { getQRCodeImageUrl } from '../../utils/qrcode'
+import { useModal } from '../../contexts/ModalContext'
 
 /**
  * Order Card Component for Waiter Dashboard
@@ -52,6 +53,7 @@ export default function OrderCard({
     onCardPayment,
     restaurantName = 'Smart Restaurant',
 }: OrderCardProps) {
+    const { alert, confirm } = useModal()
     const [showRejectModal, setShowRejectModal] = useState(false)
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [showQRCodeModal, setShowQRCodeModal] = useState(false)
@@ -131,7 +133,14 @@ export default function OrderCard({
     }
 
     const handleCashPayment = async () => {
-        if (!window.confirm(`Xác nhận thanh toán tiền mặt ${formatVND(order.totalAmount)} cho ${order.tableName}?`)) {
+        const confirmed = await confirm({
+            title: 'Xác nhận thanh toán',
+            message: `Xác nhận thanh toán tiền mặt ${formatVND(order.totalAmount)} cho ${order.tableName}?`,
+            type: 'warning',
+            confirmText: 'Xác nhận',
+            cancelText: 'Hủy',
+        })
+        if (!confirmed) {
             return
         }
         setIsProcessing(true)
@@ -164,10 +173,14 @@ export default function OrderCard({
         }
     }
 
-    const copyCheckoutUrl = () => {
+    const copyCheckoutUrl = async () => {
         if (checkoutUrl) {
             navigator.clipboard.writeText(checkoutUrl)
-            alert('Đã sao chép link thanh toán!')
+            await alert({
+                title: 'Thành công',
+                message: 'Đã sao chép link thanh toán!',
+                type: 'success',
+            })
         }
     }
 
@@ -304,7 +317,11 @@ export default function OrderCard({
             doc.save(`bill-${order.tableName}-${order.id}-${Date.now()}.pdf`)
         } catch (error) {
             console.error('Failed to download bill as PDF:', error)
-            alert('Không thể tải hóa đơn. Vui lòng thử lại.')
+            await alert({
+                title: 'Lỗi',
+                message: 'Không thể tải hóa đơn. Vui lòng thử lại.',
+                type: 'error',
+            })
         }
     }
 
@@ -479,7 +496,13 @@ export default function OrderCard({
                             {/* Action buttons */}
                             <div className="flex justify-end gap-2 mb-4">
                                 <button
-                                    onClick={() => alert('Đang phát triển tính năng in...')}
+                                    onClick={async () => {
+                                        await alert({
+                                            title: 'Thông báo',
+                                            message: 'Đang phát triển tính năng in...',
+                                            type: 'info',
+                                        })
+                                    }}
                                     className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                                     title="In hóa đơn"
                                 >

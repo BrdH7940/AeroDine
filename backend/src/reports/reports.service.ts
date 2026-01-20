@@ -1,10 +1,54 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../database/prisma.service'
 import { TableStatus, OrderStatus, PaymentMethod, OrderItemStatus } from '@aerodine/shared-types'
 
 @Injectable()
 export class ReportsService {
+    private readonly logger = new Logger(ReportsService.name)
+    
     constructor(private readonly prisma: PrismaService) {}
+
+    /**
+     * Helper method to execute Prisma queries with retry logic for connection errors
+     */
+    private async executeWithRetry<T>(
+        queryFn: () => Promise<T>,
+        maxRetries: number = 2
+    ): Promise<T> {
+        let lastError: any = null
+
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                return await queryFn()
+            } catch (error: any) {
+                lastError = error
+                
+                // Check if it's a connection error (P1017)
+                if (error.code === 'P1017' && attempt < maxRetries - 1) {
+                    this.logger.warn(`Database connection error (attempt ${attempt + 1}/${maxRetries}), retrying...`)
+                    
+                    // Wait before retry
+                    await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)))
+                    
+                    // Try to reconnect
+                    try {
+                        await this.prisma.$disconnect()
+                        await this.prisma.$connect()
+                    } catch (reconnectError) {
+                        this.logger.warn('Reconnection attempt failed, will retry query')
+                    }
+                    
+                    continue // Retry
+                }
+                
+                // If not a connection error or max retries reached, throw
+                throw error
+            }
+        }
+        
+        // If all retries failed, throw last error
+        throw lastError || new Error('Query failed after retries')
+    }
 
     /**
      * Get dashboard statistics for today
@@ -637,79 +681,113 @@ export class ReportsService {
      * Calculates from OrderItem timestamps (createdAt to updatedAt when status = READY)
      */
     async getPrepTimeTrends() {
-        // Get order items that have been prepared (status = READY or SERVED)
-        const orderItems = await this.prisma.orderItem.findMany({
-            where: {
-                status: {
-                    in: ['READY', 'SERVED'],
-                },
-                order: {
-                    status: OrderStatus.COMPLETED,
-                },
-            },
-            select: {
-                createdAt: true,
-                updatedAt: true,
-                order: {
+        // Retry logic for connection errors
+        const maxRetries = 3
+        let lastError: any = null
+
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                // Get order items that have been prepared (status = READY or SERVED)
+                // Limit to last 1000 items to avoid query timeout
+                const orderItems = await this.prisma.orderItem.findMany({
+                    where: {
+                        status: {
+                            in: ['READY', 'SERVED'],
+                        },
+                        order: {
+                            status: OrderStatus.COMPLETED,
+                        },
+                    },
                     select: {
                         createdAt: true,
+                        updatedAt: true,
+                        order: {
+                            select: {
+                                createdAt: true,
+                            },
+                        },
                     },
-                },
-            },
-            orderBy: {
-                createdAt: 'desc',
-            },
-        })
-
-        // Calculate prep time for each item (time from created to updated)
-        const prepTimes: Array<{ date: Date; prepTime: number }> = []
-        orderItems.forEach((item) => {
-            const prepTimeMs =
-                new Date(item.updatedAt).getTime() -
-                new Date(item.createdAt).getTime()
-            const prepTimeMinutes = prepTimeMs / (1000 * 60)
-            if (prepTimeMinutes > 0 && prepTimeMinutes < 120) {
-                // Filter out unreasonable values
-                prepTimes.push({
-                    date: new Date(item.order.createdAt),
-                    prepTime: prepTimeMinutes,
+                    orderBy: {
+                        createdAt: 'desc',
+                    },
+                    take: 1000, // Limit to prevent timeout
                 })
+
+                // Calculate prep time for each item (time from created to updated)
+                const prepTimes: Array<{ date: Date; prepTime: number }> = []
+                orderItems.forEach((item) => {
+                    const prepTimeMs =
+                        new Date(item.updatedAt).getTime() -
+                        new Date(item.createdAt).getTime()
+                    const prepTimeMinutes = prepTimeMs / (1000 * 60)
+                    if (prepTimeMinutes > 0 && prepTimeMinutes < 120) {
+                        // Filter out unreasonable values
+                        prepTimes.push({
+                            date: new Date(item.order.createdAt),
+                            prepTime: prepTimeMinutes,
+                        })
+                    }
+                })
+
+                // Group by week (last 12 weeks)
+                const now = new Date()
+                const weeksData: Array<{ week: string; avgPrepTime: number }> = []
+                
+                for (let i = 11; i >= 0; i--) {
+                    const weekStart = new Date(now)
+                    weekStart.setDate(weekStart.getDate() - (i * 7 + 6))
+                    weekStart.setHours(0, 0, 0, 0)
+                    
+                    const weekEnd = new Date(weekStart)
+                    weekEnd.setDate(weekEnd.getDate() + 7)
+                    
+                    // Filter prep times for this week
+                    const weekPrepTimes = prepTimes
+                        .filter(
+                            (pt) =>
+                                pt.date >= weekStart &&
+                                pt.date < weekEnd
+                        )
+                        .map((pt) => pt.prepTime)
+                    
+                    const avgPrepTime =
+                        weekPrepTimes.length > 0
+                            ? weekPrepTimes.reduce((a, b) => a + b, 0) /
+                              weekPrepTimes.length
+                            : 0 // Return 0 if no data for this week
+                    
+                    weeksData.push({
+                        week: `Week ${12 - i}`,
+                        avgPrepTime: Number(avgPrepTime.toFixed(1)),
+                    })
+                }
+
+                return weeksData
+            } catch (error: any) {
+                lastError = error
+                
+                // Check if it's a connection error (P1017)
+                if (error.code === 'P1017' && attempt < maxRetries - 1) {
+                    // Wait before retry
+                    await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)))
+                    
+                    // Try to reconnect
+                    try {
+                        await this.prisma.$disconnect()
+                        await this.prisma.$connect()
+                    } catch (reconnectError) {
+                        // Ignore reconnect errors, will retry query
+                    }
+                    
+                    continue // Retry
+                }
+                
+                // If not a connection error or max retries reached, throw
+                throw error
             }
-        })
-
-        // Group by week (last 12 weeks)
-        const now = new Date()
-        const weeksData: Array<{ week: string; avgPrepTime: number }> = []
-        
-        for (let i = 11; i >= 0; i--) {
-            const weekStart = new Date(now)
-            weekStart.setDate(weekStart.getDate() - (i * 7 + 6))
-            weekStart.setHours(0, 0, 0, 0)
-            
-            const weekEnd = new Date(weekStart)
-            weekEnd.setDate(weekEnd.getDate() + 7)
-            
-            // Filter prep times for this week
-            const weekPrepTimes = prepTimes
-                .filter(
-                    (pt) =>
-                        pt.date >= weekStart &&
-                        pt.date < weekEnd
-                )
-                .map((pt) => pt.prepTime)
-            
-            const avgPrepTime =
-                weekPrepTimes.length > 0
-                    ? weekPrepTimes.reduce((a, b) => a + b, 0) /
-                      weekPrepTimes.length
-                    : 0 // Return 0 if no data for this week
-            
-            weeksData.push({
-                week: `Week ${12 - i}`,
-                avgPrepTime: Number(avgPrepTime.toFixed(1)),
-            })
         }
-
-        return weeksData
+        
+        // If all retries failed, throw last error
+        throw lastError || new Error('Failed to fetch prep time trends after retries')
     }
 }

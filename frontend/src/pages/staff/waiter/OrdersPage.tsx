@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useWaiterEvents, useBillRequested, useOrderStatusChanged, useNotification } from '../../../hooks/useSocket'
 import { orderService } from '../../../services/order.service'
 import OrderCard from '../../../components/staff/OrderCard'
+import { useModal } from '../../../contexts/ModalContext'
 import type {
     OrderCreatedEvent,
     OrderItemStatusChangedEvent,
@@ -42,6 +43,7 @@ interface OrderItem {
 
 export default function WaiterOrdersPage() {
     const navigate = useNavigate()
+    const { alert, confirm } = useModal()
     // TODO: Get from auth context
     const restaurantId = 4 // AeroDine Signature restaurant
     const userId = 12 // Waiter User ID (waiter@aerodine.com)
@@ -278,17 +280,21 @@ export default function WaiterOrdersPage() {
 
     // Handle bill requested
     const handleBillRequested = useCallback(
-        (event: { orderId: number; tableId: number; tableName: string }) => {
+        async (event: { orderId: number; tableId: number; tableName: string }) => {
             // Show notification or modal
-            alert(`Bill requested for ${event.tableName}`)
+            await alert({
+                title: 'Bill Requested',
+                message: `Bill requested for ${event.tableName}`,
+                type: 'info',
+            })
             playNotificationSound()
         },
-        [playNotificationSound]
+        [alert, playNotificationSound]
     )
 
     // Handle order status changed (for payment completed)
     const handleOrderStatusChanged = useCallback(
-        (event: OrderStatusChangedEvent) => {
+        async (event: OrderStatusChangedEvent) => {
             console.log('🔔 Order status changed:', event)
             
             // If order is completed, remove it from active orders
@@ -304,20 +310,28 @@ export default function WaiterOrdersPage() {
                     prev.filter((item) => item.orderId !== event.orderId)
                 )
                 playNotificationSound()
-                alert(`Order #${event.orderId} has been completed and removed from active orders`)
+                await alert({
+                    title: 'Order Completed',
+                    message: `Order #${event.orderId} has been completed and removed from active orders`,
+                    type: 'success',
+                })
             }
         },
-        [playNotificationSound]
+        [alert, playNotificationSound]
     )
 
     // Handle notifications (for payment completed notifications)
     const handleNotification = useCallback(
-        (event: NotificationEvent) => {
+        async (event: NotificationEvent) => {
             console.log('🔔 Notification received:', event)
             
             // Show notification for payment completed
             if (event.type === 'success' && event.message.includes('paid')) {
-                alert(event.message)
+                await alert({
+                    title: 'Payment Completed',
+                    message: event.message,
+                    type: 'success',
+                })
                 playNotificationSound()
                 
                 // If notification has orderId, ensure it's removed from active orders
@@ -329,7 +343,7 @@ export default function WaiterOrdersPage() {
                 }
             }
         },
-        [playNotificationSound]
+        [alert, playNotificationSound]
     )
 
     // Handle card payment initiated (callback from OrderCard)
@@ -360,13 +374,17 @@ export default function WaiterOrdersPage() {
             // Check if needs confirmation (table has existing active order)
             if (result.needsConfirmation) {
                 console.log('⚠️ Table has existing order, showing confirmation dialog')
-                const confirmed = window.confirm(
-                    `Bàn ${result.existingOrder.tableName} đã có đơn hàng #${result.existingOrder.id} đang hoạt động.\n` +
-                    `Đơn hiện tại: ${result.existingOrder.itemCount} món - ${Number(result.existingOrder.totalAmount).toLocaleString()}đ\n` +
-                    `Đơn mới: ${result.newOrder.itemCount} món\n\n` +
-                    `Bạn có muốn gộp đơn mới vào đơn cũ không?\n` +
-                    `(Các món mới sẽ được thêm vào đơn hàng hiện tại)`
-                )
+                const confirmed = await confirm({
+                    title: 'Gộp đơn hàng',
+                    message: `Bàn ${result.existingOrder.tableName} đã có đơn hàng #${result.existingOrder.id} đang hoạt động.\n\n` +
+                        `Đơn hiện tại: ${result.existingOrder.itemCount} món - ${Number(result.existingOrder.totalAmount).toLocaleString()}đ\n` +
+                        `Đơn mới: ${result.newOrder.itemCount} món\n\n` +
+                        `Bạn có muốn gộp đơn mới vào đơn cũ không?\n` +
+                        `(Các món mới sẽ được thêm vào đơn hàng hiện tại)`,
+                    type: 'warning',
+                    confirmText: 'Gộp đơn',
+                    cancelText: 'Hủy',
+                })
                 
                 if (confirmed) {
                     console.log('✅ User confirmed merge, calling API again...')
@@ -403,7 +421,11 @@ export default function WaiterOrdersPage() {
                             )
                         )
                         
-                        alert('Đã gộp đơn hàng thành công!')
+                        await alert({
+                            title: 'Thành công',
+                            message: 'Đã gộp đơn hàng thành công!',
+                            type: 'success',
+                        })
                     }
                 } else {
                     console.log('❌ User declined merge')
@@ -425,7 +447,11 @@ export default function WaiterOrdersPage() {
             }
         } catch (error: any) {
             console.error('❌ Accept order error:', error)
-            alert(error?.response?.data?.message || 'Failed to accept order')
+            await alert({
+                title: 'Lỗi',
+                message: error?.response?.data?.message || 'Failed to accept order',
+                type: 'error',
+            })
         }
     }
 
@@ -435,7 +461,11 @@ export default function WaiterOrdersPage() {
             await orderService.rejectOrder(orderId, userId, reason)
             setPendingOrders((prev) => prev.filter((o) => o.id !== orderId))
         } catch {
-            alert('Failed to reject order')
+            await alert({
+                title: 'Lỗi',
+                message: 'Failed to reject order',
+                type: 'error',
+            })
         }
     }
 
@@ -463,7 +493,11 @@ export default function WaiterOrdersPage() {
                 )
             )
         } catch {
-            alert('Failed to mark as served')
+            await alert({
+                title: 'Lỗi',
+                message: 'Failed to mark as served',
+                type: 'error',
+            })
         }
     }
 
@@ -477,9 +511,17 @@ export default function WaiterOrdersPage() {
             setReadyItems((prev) =>
                 prev.filter((item) => item.orderId !== orderId)
             )
-            alert('Payment successful! Order completed.')
+            await alert({
+                title: 'Thành công',
+                message: 'Payment successful! Order completed.',
+                type: 'success',
+            })
         } catch (err: any) {
-            alert(err?.response?.data?.message || 'Failed to process payment')
+            await alert({
+                title: 'Lỗi',
+                message: err?.response?.data?.message || 'Failed to process payment',
+                type: 'error',
+            })
         }
     }
 

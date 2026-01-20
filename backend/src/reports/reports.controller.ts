@@ -4,6 +4,9 @@ import {
     Query,
     UseGuards,
     ParseEnumPipe,
+    HttpException,
+    HttpStatus,
+    Logger,
 } from '@nestjs/common'
 import { ReportsService } from './reports.service'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
@@ -24,7 +27,38 @@ import {
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
 export class ReportsController {
+    private readonly logger = new Logger(ReportsController.name)
+    
     constructor(private readonly reportsService: ReportsService) {}
+
+    /**
+     * Helper method to handle errors from service methods
+     */
+    private handleError(error: any, methodName: string) {
+        this.logger.error(`Error in ${methodName}:`, error)
+        
+        // Handle Prisma connection errors
+        if (error.code === 'P1017') {
+            throw new HttpException(
+                {
+                    statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+                    message: 'Database connection error. Please try again later.',
+                    error: 'Service Unavailable',
+                },
+                HttpStatus.SERVICE_UNAVAILABLE
+            )
+        }
+        
+        // Handle other errors
+        throw new HttpException(
+            {
+                statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+                message: error.message || `Failed to fetch ${methodName}`,
+                error: 'Internal Server Error',
+            },
+            HttpStatus.INTERNAL_SERVER_ERROR
+        )
+    }
 
     @Get('stats')
     @ApiOperation({
@@ -44,7 +78,11 @@ export class ReportsController {
         },
     })
     async getDashboardStats() {
-        return this.reportsService.getDashboardStats()
+        try {
+            return await this.reportsService.getDashboardStats()
+        } catch (error: any) {
+            this.handleError(error, 'dashboard stats')
+        }
     }
 
     @Get('revenue')
@@ -73,7 +111,11 @@ export class ReportsController {
     async getRevenueChart(
         @Query('range') range?: string
     ) {
-        return this.reportsService.getRevenueChart(range || 'week')
+        try {
+            return await this.reportsService.getRevenueChart(range || 'week')
+        } catch (error: any) {
+            this.handleError(error, 'revenue chart')
+        }
     }
 
     @Get('top-items')
@@ -95,7 +137,11 @@ export class ReportsController {
         },
     })
     async getTopSellingItems() {
-        return this.reportsService.getTopSellingItems()
+        try {
+            return await this.reportsService.getTopSellingItems()
+        } catch (error: any) {
+            this.handleError(error, 'top selling items')
+        }
     }
 
     @Get('payment-methods')
@@ -108,7 +154,11 @@ export class ReportsController {
         description: 'Payment methods breakdown',
     })
     async getPaymentMethodsBreakdown() {
-        return this.reportsService.getPaymentMethodsBreakdown()
+        try {
+            return await this.reportsService.getPaymentMethodsBreakdown()
+        } catch (error: any) {
+            this.handleError(error, 'payment methods breakdown')
+        }
     }
 
     @Get('category-sales')
@@ -121,7 +171,11 @@ export class ReportsController {
         description: 'Category sales data',
     })
     async getCategorySales() {
-        return this.reportsService.getCategorySales()
+        try {
+            return await this.reportsService.getCategorySales()
+        } catch (error: any) {
+            this.handleError(error, 'category sales')
+        }
     }
 
     @Get('voided-items')
@@ -134,7 +188,11 @@ export class ReportsController {
         description: 'Voided items data',
     })
     async getVoidedItems() {
-        return this.reportsService.getVoidedItems()
+        try {
+            return await this.reportsService.getVoidedItems()
+        } catch (error: any) {
+            this.handleError(error, 'voided items')
+        }
     }
 
     @Get('peak-hours')
@@ -147,7 +205,11 @@ export class ReportsController {
         description: 'Peak hours data',
     })
     async getPeakHours() {
-        return this.reportsService.getPeakHours()
+        try {
+            return await this.reportsService.getPeakHours()
+        } catch (error: any) {
+            this.handleError(error, 'peak hours')
+        }
     }
 
     @Get('day-of-week-revenue')
@@ -160,7 +222,11 @@ export class ReportsController {
         description: 'Day of week revenue data',
     })
     async getDayOfWeekRevenue() {
-        return this.reportsService.getDayOfWeekRevenue()
+        try {
+            return await this.reportsService.getDayOfWeekRevenue()
+        } catch (error: any) {
+            this.handleError(error, 'day of week revenue')
+        }
     }
 
     @Get('menu-performance')
@@ -173,7 +239,11 @@ export class ReportsController {
         description: 'Menu performance data',
     })
     async getMenuPerformance() {
-        return this.reportsService.getMenuPerformance()
+        try {
+            return await this.reportsService.getMenuPerformance()
+        } catch (error: any) {
+            this.handleError(error, 'menu performance')
+        }
     }
 
     @Get('top-modifiers')
@@ -186,7 +256,11 @@ export class ReportsController {
         description: 'Top modifiers data',
     })
     async getTopModifiers() {
-        return this.reportsService.getTopModifiers()
+        try {
+            return await this.reportsService.getTopModifiers()
+        } catch (error: any) {
+            this.handleError(error, 'top modifiers')
+        }
     }
 
     @Get('rating-volume')
@@ -199,7 +273,11 @@ export class ReportsController {
         description: 'Rating vs volume data',
     })
     async getRatingVolume() {
-        return this.reportsService.getRatingVolume()
+        try {
+            return await this.reportsService.getRatingVolume()
+        } catch (error: any) {
+            this.handleError(error, 'rating volume')
+        }
     }
 
     @Get('prep-time-trends')
@@ -211,7 +289,15 @@ export class ReportsController {
         status: 200,
         description: 'Prep time trends data',
     })
+    @ApiResponse({
+        status: 500,
+        description: 'Database connection error',
+    })
     async getPrepTimeTrends() {
-        return this.reportsService.getPrepTimeTrends()
+        try {
+            return await this.reportsService.getPrepTimeTrends()
+        } catch (error: any) {
+            this.handleError(error, 'prep time trends')
+        }
     }
 }
