@@ -98,6 +98,17 @@ export const CartPage: React.FC = () => {
 
       // Store orderId for later use
       localStorage.setItem('lastOrderId', createdOrderId.toString());
+      
+      // Also store in guestOrderIds array for guest users
+      try {
+        const existing = JSON.parse(localStorage.getItem('guestOrderIds') || '[]');
+        if (!existing.includes(createdOrderId)) {
+          existing.push(createdOrderId);
+          localStorage.setItem('guestOrderIds', JSON.stringify(existing));
+        }
+      } catch (error) {
+        console.error('Failed to save guest order ID:', error);
+      }
 
       // Store order info for success dialog BEFORE clearing cart
       setOrderId(createdOrderId);

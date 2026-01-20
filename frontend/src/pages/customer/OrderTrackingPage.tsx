@@ -1,13 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { orderService } from '../../services/order.service';
 import { useSocket } from '../../hooks/useSocket';
 import { formatVND } from '../../utils/currency';
 import { BottomNavigation } from '../../components/customer';
-import { useCartStore } from '../../store/cartStore';
 import { useUserStore } from '../../store/userStore';
 import { useModal } from '../../contexts/ModalContext';
-import type { Order } from '@aerodine/shared-types';
+import type { Order, OrderWithDetails } from '@aerodine/shared-types';
 import { OrderItemStatus } from '@aerodine/shared-types';
 
 const statusLabels: Record<string, string> = {
@@ -37,88 +36,93 @@ const itemStatusColors: Record<string, string> = {
 const orderStatusFlow = ['PENDING_REVIEW', 'PENDING', 'IN_PROGRESS', 'COMPLETED'];
 
 export const OrderTrackingPage: React.FC = () => {
-  const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
-  const { tableId } = useCartStore();
   const { isAuthenticated, user } = useUserStore();
   const { alert } = useModal();
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
-  const [isOrderHistory, setIsOrderHistory] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const socket = useSocket();
 
-  // Helper function to check if order is fully served (all items are SERVED)
-  const isOrderFullyServed = (order: Order): boolean => {
-    if (!order.items || order.items.length === 0) return false;
-    return order.items.every(item => item.status === OrderItemStatus.SERVED);
+  // Helper function to check if order is paid (payment status is SUCCESS)
+  const isOrderPaid = (order: Order): boolean => {
+    return order.payment?.status === 'SUCCESS';
   };
+
 
   // Helper function to check if order can request bill
   const canRequestBill = (order: Order): boolean => {
-    // Can request bill if order is not cancelled and has at least one item served
+    // Can request bill if order is not cancelled and has at least one item ready or served
     if (order.status === 'CANCELLED') return false;
     if (!order.items || order.items.length === 0) return false;
+    // Can request bill if order status is COMPLETED or has items that are READY or SERVED
+    if (order.status === 'COMPLETED') return true;
     return order.items.some(item => item.status === OrderItemStatus.SERVED || item.status === OrderItemStatus.READY);
   };
+
+  // Helper function to get guest order IDs from localStorage
+  const getGuestOrderIds = (): number[] => {
+    try {
+      const stored = localStorage.getItem('guestOrderIds');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+      // Fallback to lastOrderId for backward compatibility
+      const lastOrderId = localStorage.getItem('lastOrderId');
+      if (lastOrderId) {
+        return [parseInt(lastOrderId)];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  };
+
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
     try {
       let loadedOrders: Order[] = [];
       
-      // Check if this is order history page (no orderId, no tableId, and user is logged in)
-      const isHistoryPage = !orderId && !tableId && isAuthenticated && location.pathname === '/customer/orders';
-      
-      if (isHistoryPage) {
-        // Load order history for logged-in user
-        setIsOrderHistory(true);
+      if (isAuthenticated && user) {
+        // For authenticated users: load all orders of this user (based on userId, not tableId)
         const response = await orderService.getOrders({ page: 1, pageSize: 50 });
         loadedOrders = response.orders || [];
-      } else if (tableId) {
-        // Load all orders for the current table using PUBLIC endpoint
-        setIsOrderHistory(false);
-        loadedOrders = await orderService.getOrdersByTable(tableId, true);
-      } else if (orderId) {
-        // If no tableId, try to get from orderId using PUBLIC endpoint
-        setIsOrderHistory(false);
-        const order = await orderService.getPublicOrder(parseInt(orderId));
-        
-        // Load all orders for the same table
-        if (order.table?.id) {
-          loadedOrders = await orderService.getOrdersByTable(order.table.id, true);
-        } else {
-          loadedOrders = [order];
-        }
       } else {
-        // Try to get last order from localStorage
-        setIsOrderHistory(false);
-        const lastOrderId = localStorage.getItem('lastOrderId');
-        if (lastOrderId) {
-          const order = await orderService.getPublicOrder(parseInt(lastOrderId));
-          
-          // Load all orders for the same table
-          if (order.table?.id) {
-            loadedOrders = await orderService.getOrdersByTable(order.table.id, true);
-          } else {
-            loadedOrders = [order];
-          }
+        // For guest users: load orders from localStorage
+        const guestOrderIds = getGuestOrderIds();
+        if (guestOrderIds.length > 0) {
+          // Load all orders for guest user
+          const orderPromises = guestOrderIds.map(id => 
+            orderService.getPublicOrder(id).catch(() => null)
+          );
+          const orders = await Promise.all(orderPromises);
+          // Filter out nulls and convert OrderWithDetails to Order
+          loadedOrders = orders
+            .filter((order): order is OrderWithDetails => order !== null)
+            .map(order => ({
+              ...order,
+              table: order.table, // OrderWithDetails has required table, Order has optional
+            })) as Order[];
         }
       }
 
-      // Sort orders and update state together to avoid glitch
+      // Sort orders by creation date (newest first)
       const sortedOrders = loadedOrders.sort((a: Order, b: Order) => 
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       
-      // Filter to only show orders that are not fully served (for active orders view)
-      const filteredOrders = isHistoryPage 
-        ? sortedOrders 
-        : sortedOrders.filter(order => !isOrderFullyServed(order));
+      // Filter to show only active orders (not paid) by default
+      // Active orders = orders that haven't been paid yet (payment status is not SUCCESS)
+      const filteredOrders = sortedOrders.filter(order => {
+        // Exclude cancelled orders
+        if (order.status === 'CANCELLED') return false;
+        // Only show orders that are not paid (payment status is not SUCCESS)
+        return !isOrderPaid(order);
+      });
       
       // Use requestAnimationFrame to ensure smooth transition
       requestAnimationFrame(() => {
@@ -131,7 +135,7 @@ export const OrderTrackingPage: React.FC = () => {
       setLoading(false);
       setInitialLoad(false);
     }
-  }, [tableId, orderId, isAuthenticated, location.pathname]);
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
     loadOrders();
@@ -141,37 +145,52 @@ export const OrderTrackingPage: React.FC = () => {
     // Subscribe to order updates via WebSocket (only after initial load)
     if (socket && !initialLoad) {
       const handleOrderUpdate = (updatedOrder: Order) => {
-        // Only update if the order belongs to current table
-        if (tableId) {
-          const orderTableId = updatedOrder.table?.id ? Number(updatedOrder.table.id) : null;
-          const currentTableId = Number(tableId);
-          if (orderTableId === currentTableId) {
-            setOrders((prev) => {
-              const index = prev.findIndex((o) => o.id === updatedOrder.id);
-              if (index >= 0) {
-                const newOrders = [...prev];
-                newOrders[index] = updatedOrder;
-                return newOrders;
-              } else if (!['CANCELLED'].includes(updatedOrder.status)) {
-                // Add new order if it belongs to current table
-                return [...prev, updatedOrder].sort((a, b) => 
-                  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                );
-              }
-              return prev;
-            });
-          }
+        // Check if this order should be updated
+        let shouldUpdate = false;
+        
+        if (isAuthenticated && user) {
+          // If user is logged in, update orders that belong to this user
+          shouldUpdate = updatedOrder.userId === user.id;
+        } else {
+          // For guest users, check if order is in localStorage
+          const guestOrderIds = getGuestOrderIds();
+          shouldUpdate = guestOrderIds.includes(updatedOrder.id);
+        }
+        
+        if (shouldUpdate) {
+          setOrders((prev) => {
+            const index = prev.findIndex((o) => o.id === updatedOrder.id);
+            if (index >= 0) {
+              const newOrders = [...prev];
+              newOrders[index] = updatedOrder;
+              // Filter out orders that are now paid (moved to history)
+              return newOrders.filter(order => {
+                if (order.status === 'CANCELLED') return false;
+                // Remove if order is now paid
+                return !isOrderPaid(order);
+              }).sort((a, b) => 
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              );
+            } else if (!['CANCELLED'].includes(updatedOrder.status) && !isOrderPaid(updatedOrder)) {
+              // Add new order if it's not paid and not cancelled
+              return [...prev, updatedOrder].sort((a, b) => 
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              );
+            }
+            // Remove order if it's now paid
+            return prev.filter(order => order.id !== updatedOrder.id || !isOrderPaid(updatedOrder));
+          });
         }
       };
 
-      // Subscribe to all order updates for this table
+      // Subscribe to all order updates
       socket.socket?.on('order:update', handleOrderUpdate);
 
       return () => {
         socket.socket?.off('order:update', handleOrderUpdate);
       };
     }
-  }, [socket, tableId, initialLoad]);
+  }, [socket, isAuthenticated, user, initialLoad]);
 
   const getCurrentStatusIndex = (status: string) => {
     return orderStatusFlow.indexOf(status);
@@ -206,11 +225,15 @@ export const OrderTrackingPage: React.FC = () => {
 
   const handleToggleHistory = async () => {
     if (!showHistory && isAuthenticated && user) {
-      // Load order history
+      // Load order history - only paid orders (payment status is SUCCESS)
       setLoadingHistory(true);
       try {
         const response = await orderService.getOrders({ page: 1, pageSize: 50 });
-        setOrderHistory(response.orders || []);
+        // Filter to only show paid orders (payment status is SUCCESS)
+        const historyOrders = (response.orders || []).filter(order => 
+          isOrderPaid(order)
+        );
+        setOrderHistory(historyOrders);
         setShowHistory(true);
       } catch (error) {
         console.error('Failed to load order history:', error);
@@ -260,7 +283,7 @@ export const OrderTrackingPage: React.FC = () => {
     );
   }
 
-  const currentTable = orders[0]?.table || (tableId ? { id: tableId, name: tableId.toString() } : null);
+  const currentTable = orders[0]?.table || null;
 
   return (
     <div className="min-h-screen bg-[#F9F7F2] pb-20">
@@ -281,9 +304,9 @@ export const OrderTrackingPage: React.FC = () => {
       <div className="p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-[#36454F]">
-            {isOrderHistory ? 'Order History' : 'Your Orders'}
+            Your Orders
           </h2>
-          {isAuthenticated && !isOrderHistory && (
+          {isAuthenticated && (
             <button
               onClick={handleToggleHistory}
               disabled={loadingHistory}
@@ -437,7 +460,7 @@ export const OrderTrackingPage: React.FC = () => {
                 </div>
 
                 {/* Request Bill Button for each order */}
-                {!isOrderHistory && canRequestBill(order) && (
+                {canRequestBill(order) && (
                   <div className="mt-4 pt-4 border-t border-[#8A9A5B]/20">
                     <button
                       onClick={() => handleRequestBill(order.id)}
@@ -452,14 +475,14 @@ export const OrderTrackingPage: React.FC = () => {
           })}
         </div>
 
-        {!isOrderHistory && orders.length === 0 && (
+        {orders.length === 0 && !showHistory && (
           <div className="text-center py-8">
-            <p className="text-[#36454F]/70">No active orders. All items have been served.</p>
+            <p className="text-[#36454F]/70">No active orders. All orders have been paid.</p>
           </div>
         )}
 
-        {/* Total - Only show for active orders (not history) */}
-        {!isOrderHistory && orders.length > 0 && (
+        {/* Total - Only show for active orders */}
+        {orders.length > 0 && (
           <div className="mb-6 border-t border-[#8A9A5B]/20 pt-4">
             <div className="flex justify-between items-center">
               <span className="text-lg font-semibold text-[#36454F]">Total so far:</span>
@@ -469,16 +492,14 @@ export const OrderTrackingPage: React.FC = () => {
         )}
 
         {/* Back to Menu Button */}
-        {!isOrderHistory && (
-          <button
-            onClick={() => {
-              navigate('/customer/menu');
-            }}
-            className="w-full px-6 py-3 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 font-medium"
-          >
-            Back to Menu
-          </button>
-        )}
+        <button
+          onClick={() => {
+            navigate('/customer/menu');
+          }}
+          className="w-full px-6 py-3 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 font-medium"
+        >
+          Back to Menu
+        </button>
       </div>
 
       <BottomNavigation />
