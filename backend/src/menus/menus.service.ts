@@ -35,6 +35,25 @@ export class MenusService {
         }
     }
 
+    /**
+     * Helper method to upload image to Cloudinary
+     */
+    private async uploadMenuItemImage(image: string): Promise<string> {
+        try {
+            this.logger.log('Uploading image to Cloudinary...')
+            const result = await this.cloudinary.uploadImage(image)
+            this.logger.log('Image uploaded successfully')
+            return result.secure_url
+        } catch (error) {
+            this.logger.error('Failed to upload image to Cloudinary', error)
+            throw new InternalServerErrorException(
+                `Failed to upload image: ${
+                    error instanceof Error ? error.message : 'Unknown error'
+                }`
+            )
+        }
+    }
+
     // Categories
     async createCategory(dto: CreateCategoryDto) {
         await this.validateRestaurant(dto.restaurantId)
@@ -142,19 +161,7 @@ export class MenusService {
 
         let uploadedImageUrl: string | undefined
         if (image) {
-            try {
-                this.logger.log('Uploading image to Cloudinary...')
-                const result = await this.cloudinary.uploadImage(image)
-                uploadedImageUrl = result.secure_url
-                this.logger.log('Image uploaded successfully')
-            } catch (error) {
-                this.logger.error('Failed to upload image to Cloudinary', error)
-                throw new InternalServerErrorException(
-                    `Failed to upload image: ${
-                        error instanceof Error ? error.message : 'Unknown error'
-                    }`
-                )
-            }
+            uploadedImageUrl = await this.uploadMenuItemImage(image)
         }
 
         try {
@@ -404,19 +411,7 @@ export class MenusService {
         // Handle image upload if provided
         let uploadedImageUrl: string | undefined
         if (image) {
-            try {
-                this.logger.log('Uploading image to Cloudinary for update...')
-                const result = await this.cloudinary.uploadImage(image)
-                uploadedImageUrl = result.secure_url
-                this.logger.log('Image uploaded successfully')
-            } catch (error) {
-                this.logger.error('Failed to upload image to Cloudinary', error)
-                throw new InternalServerErrorException(
-                    `Failed to upload image: ${
-                        error instanceof Error ? error.message : 'Unknown error'
-                    }`
-                )
-            }
+            uploadedImageUrl = await this.uploadMenuItemImage(image)
         }
 
         // Get current menu item to delete old images if needed

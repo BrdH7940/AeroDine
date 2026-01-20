@@ -35,6 +35,15 @@ export class AuthService {
         return role as UserRole
     }
 
+    /**
+     * Get effective role for user (downgrade to CUSTOMER if inactive)
+     */
+    private getEffectiveRole(user: { isActive: boolean; role: PrismaUserRole | UserRole }): UserRole {
+        return user.isActive 
+            ? this.toSharedUserRole(user.role) 
+            : UserRole.CUSTOMER
+    }
+
     constructor(
         private readonly usersService: UsersService,
         private readonly jwtService: JwtService,
@@ -82,10 +91,8 @@ export class AuthService {
             throw new UnauthorizedException('Invalid credentials')
         }
 
-        // If user is inactive, downgrade role to CUSTOMER
-        const effectiveRole = user.isActive 
-            ? this.toSharedUserRole(user.role) 
-            : UserRole.CUSTOMER
+        // Get effective role (downgrade to CUSTOMER if inactive)
+        const effectiveRole = this.getEffectiveRole(user)
 
         const { accessToken, refreshToken } = await this.generateTokens(
             user.id,
@@ -117,10 +124,8 @@ export class AuthService {
             throw new NotFoundException('User not found after Google authentication')
         }
 
-        // If user is inactive, downgrade role to CUSTOMER
-        const effectiveRole = fullUser.isActive 
-            ? this.toSharedUserRole(fullUser.role) 
-            : UserRole.CUSTOMER
+        // Get effective role (downgrade to CUSTOMER if inactive)
+        const effectiveRole = this.getEffectiveRole(fullUser)
 
         const { accessToken, refreshToken } = await this.generateTokens(
             fullUser.id,
@@ -182,14 +187,6 @@ export class AuthService {
             secret,
             expiresIn: expiresIn as any,
         })
-    }
-
-    /**
-     * Legacy method for backward compatibility
-     * @deprecated Use generateTokens instead
-     */
-    private async signToken(userId: number, email: string, role: UserRole) {
-        return this.signAccessToken(userId, email, role)
     }
 
     /**
@@ -397,10 +394,8 @@ export class AuthService {
             throw new UnauthorizedException('Token does not match user')
         }
 
-        // If user is inactive, downgrade role to CUSTOMER
-        const effectiveRole = user.isActive 
-            ? this.toSharedUserRole(user.role) 
-            : UserRole.CUSTOMER
+        // Get effective role (downgrade to CUSTOMER if inactive)
+        const effectiveRole = this.getEffectiveRole(user)
 
         // Generate new access token with effective role
         const accessToken = await this.signAccessToken(user.id, user.email, effectiveRole)

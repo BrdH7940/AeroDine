@@ -53,6 +53,80 @@ const itemStatusColors: Record<string, string> = {
 
 const orderStatusFlow = ['PENDING_REVIEW', 'PENDING', 'IN_PROGRESS', 'COMPLETED'];
 
+// Order History List Component
+const OrderHistoryList: React.FC<{ orders: Order[] }> = ({ orders }) => {
+  if (orders.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-[#36454F]/70">No order history found.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-6">
+      <h3 className="text-lg font-semibold text-[#36454F] mb-3">Order History</h3>
+      <div className="space-y-4">
+        {orders.map((order) => {
+          const orderTime = new Date(order.createdAt).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          const orderDate = new Date(order.createdAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          });
+
+          const isMergedOrder = order.status === 'CANCELLED' && order.note?.includes('Merged into order');
+          
+          return (
+            <div key={order.id} className="bg-white rounded-xl p-4 border border-[#8A9A5B]/20 shadow-sm opacity-75">
+              <div className="mb-3">
+                <h3 className="font-semibold text-[#36454F]">
+                  Order #{order.id} - {orderDate} {orderTime}
+                  {isMergedOrder && (
+                    <span className="ml-2 text-xs text-[#8A9A5B] font-normal">
+                      (Merged)
+                    </span>
+                  )}
+                </h3>
+                <p className="text-sm text-[#36454F]/70 mt-1">
+                  Table: {order.table?.name || 'N/A'} • Total: {formatVND(Number(order.totalAmount))}
+                </p>
+                {isMergedOrder && order.note && (
+                  <p className="text-xs text-[#8A9A5B] mt-1 italic">
+                    {order.note}
+                  </p>
+                )}
+              </div>
+
+              {/* Status */}
+              <div className="mb-2">
+                <span className={`text-sm font-medium ${
+                  order.status === 'COMPLETED' ? 'text-[#8A9A5B]' :
+                  isMergedOrder ? 'text-[#8A9A5B]' :
+                  order.status === 'CANCELLED' ? 'text-red-500' :
+                  'text-[#36454F]/70'
+                }`}>
+                  {isMergedOrder ? 'Merged into another order' : (statusLabels[order.status] || order.status)}
+                </span>
+              </div>
+
+              {/* Order Items Summary */}
+              <div className="mt-2 pt-2 border-t border-[#8A9A5B]/20">
+                <p className="text-sm text-[#36454F]/70">
+                  {order.items?.length || 0} item(s)
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 export const OrderTrackingPage: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user, setUser } = useUserStore();
@@ -517,73 +591,8 @@ export const OrderTrackingPage: React.FC = () => {
           </div>
 
           {/* Order History Section - Show even when no active orders */}
-          {showHistory && isAuthenticated && orderHistory.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-[#36454F] mb-3">Order History</h3>
-              <div className="space-y-4">
-                {orderHistory.map((order) => {
-                  const orderTime = new Date(order.createdAt).toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  });
-                  const orderDate = new Date(order.createdAt).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  });
-
-                  const isMergedOrder = order.status === 'CANCELLED' && order.note?.includes('Merged into order');
-                  
-                  return (
-                    <div key={order.id} className="bg-white rounded-xl p-4 border border-[#8A9A5B]/20 shadow-sm opacity-75">
-                      <div className="mb-3">
-                        <h3 className="font-semibold text-[#36454F]">
-                          Order #{order.id} - {orderDate} {orderTime}
-                          {isMergedOrder && (
-                            <span className="ml-2 text-xs text-[#8A9A5B] font-normal">
-                              (Merged)
-                            </span>
-                          )}
-                        </h3>
-                        <p className="text-sm text-[#36454F]/70 mt-1">
-                          Table: {order.table?.name || 'N/A'} • Total: {formatVND(Number(order.totalAmount))}
-                        </p>
-                        {isMergedOrder && order.note && (
-                          <p className="text-xs text-[#8A9A5B] mt-1 italic">
-                            {order.note}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Status */}
-                      <div className="mb-2">
-                        <span className={`text-sm font-medium ${
-                          order.status === 'COMPLETED' ? 'text-[#8A9A5B]' :
-                          isMergedOrder ? 'text-[#8A9A5B]' :
-                          order.status === 'CANCELLED' ? 'text-red-500' :
-                          'text-[#36454F]/70'
-                        }`}>
-                          {isMergedOrder ? 'Merged into another order' : (statusLabels[order.status] || order.status)}
-                        </span>
-                      </div>
-
-                      {/* Order Items Summary */}
-                      <div className="mt-2 pt-2 border-t border-[#8A9A5B]/20">
-                        <p className="text-sm text-[#36454F]/70">
-                          {order.items?.length || 0} item(s)
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {showHistory && isAuthenticated && orderHistory.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-[#36454F]/70">No order history found.</p>
-            </div>
+          {showHistory && isAuthenticated && (
+            <OrderHistoryList orders={orderHistory} />
           )}
         </div>
 
@@ -627,67 +636,8 @@ export const OrderTrackingPage: React.FC = () => {
         </div>
 
         {/* Order History Section */}
-        {showHistory && isAuthenticated && orderHistory.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-[#36454F] mb-3">Order History</h3>
-            <div className="space-y-4">
-              {orderHistory.map((order) => {
-                const orderTime = new Date(order.createdAt).toLocaleTimeString('en-US', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                });
-                const orderDate = new Date(order.createdAt).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                });
-
-                const isMergedOrder = order.status === 'CANCELLED' && order.note?.includes('Merged into order');
-                
-                return (
-                  <div key={order.id} className="bg-white rounded-xl p-4 border border-[#8A9A5B]/20 shadow-sm opacity-75">
-                    <div className="mb-3">
-                      <h3 className="font-semibold text-[#36454F]">
-                        Order #{order.id} - {orderDate} {orderTime}
-                        {isMergedOrder && (
-                          <span className="ml-2 text-xs text-[#8A9A5B] font-normal">
-                            (Merged)
-                          </span>
-                        )}
-                      </h3>
-                      <p className="text-sm text-[#36454F]/70 mt-1">
-                        Table: {order.table?.name || 'N/A'} • Total: {formatVND(Number(order.totalAmount))}
-                      </p>
-                      {isMergedOrder && order.note && (
-                        <p className="text-xs text-[#8A9A5B] mt-1 italic">
-                          {order.note}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Status */}
-                    <div className="mb-2">
-                      <span className={`text-sm font-medium ${
-                        order.status === 'COMPLETED' ? 'text-[#8A9A5B]' :
-                        isMergedOrder ? 'text-[#8A9A5B]' :
-                        order.status === 'CANCELLED' ? 'text-red-500' :
-                        'text-[#36454F]/70'
-                      }`}>
-                        {isMergedOrder ? 'Merged into another order' : (statusLabels[order.status] || order.status)}
-                      </span>
-                    </div>
-
-                    {/* Order Items Summary */}
-                    <div className="mt-2 pt-2 border-t border-[#8A9A5B]/20">
-                      <p className="text-sm text-[#36454F]/70">
-                        {order.items?.length || 0} item(s)
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+        {showHistory && isAuthenticated && (
+          <OrderHistoryList orders={orderHistory} />
         )}
 
         {/* Active Orders Section */}

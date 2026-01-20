@@ -652,39 +652,20 @@ export class OrdersService {
                 event
             )
 
-            // If order completed, check if table has other active orders
+            // If order completed, update table status if needed
             if (updateOrderDto.status === OrderStatus.COMPLETED) {
-                const hasOtherActiveOrders = await this.hasActiveOrdersOnTable(
+                const tableStatusEvent = await this.updateTableStatusIfNeeded(
+                    id,
                     order.tableId,
-                    order.restaurantId,
-                    id
+                    order.restaurantId
                 )
 
-                // Only reset table status if no other active orders
-                if (!hasOtherActiveOrders) {
-                    const currentTable = await this.prisma.table.findUnique({
-                        where: { id: order.tableId },
-                    })
-                    const previousTableStatus = currentTable?.status || TableStatus.OCCUPIED
-
-                    await this.prisma.table.update({
-                        where: { id: order.tableId },
-                        data: { status: TableStatus.AVAILABLE },
-                    })
-
-                    // Emit table status change
-                    if (previousTableStatus !== TableStatus.AVAILABLE) {
-                        const tableStatusEvent: TableStatusEvent = {
-                            tableId: order.tableId,
-                            previousStatus: previousTableStatus,
-                            newStatus: TableStatus.AVAILABLE,
-                            orderId: id,
-                        }
-                        this.socketService.emitTableStatusChanged(
-                            order.restaurantId,
-                            tableStatusEvent
-                        )
-                    }
+                // Emit table status change if status was updated
+                if (tableStatusEvent) {
+                    this.socketService.emitTableStatusChanged(
+                        order.restaurantId,
+                        tableStatusEvent
+                    )
                 }
             }
         }
@@ -726,38 +707,19 @@ export class OrdersService {
             data: { status: OrderItemStatus.CANCELLED },
         })
 
-        // Check if table has other active orders before setting AVAILABLE
-        const hasOtherActiveOrders = await this.hasActiveOrdersOnTable(
+        // Update table status if needed
+        const tableStatusEvent = await this.updateTableStatusIfNeeded(
+            id,
             order.tableId,
-            order.restaurantId,
-            id
+            order.restaurantId
         )
 
-        // Only reset table status if no other active orders
-        if (!hasOtherActiveOrders) {
-            const currentTable = await this.prisma.table.findUnique({
-                where: { id: order.tableId },
-            })
-            const previousTableStatus = currentTable?.status || TableStatus.OCCUPIED
-
-            await this.prisma.table.update({
-                where: { id: order.tableId },
-                data: { status: TableStatus.AVAILABLE },
-            })
-
-            // Emit table status change
-            if (previousTableStatus !== TableStatus.AVAILABLE) {
-                const tableStatusEvent: TableStatusEvent = {
-                    tableId: order.tableId,
-                    previousStatus: previousTableStatus,
-                    newStatus: TableStatus.AVAILABLE,
-                    orderId: id,
-                }
-                this.socketService.emitTableStatusChanged(
-                    order.restaurantId,
-                    tableStatusEvent
-                )
-            }
+        // Emit table status change if status was updated
+        if (tableStatusEvent) {
+            this.socketService.emitTableStatusChanged(
+                order.restaurantId,
+                tableStatusEvent
+            )
         }
 
         // Emit events
@@ -1115,38 +1077,19 @@ export class OrdersService {
             data: { status: OrderItemStatus.CANCELLED },
         })
 
-        // Check if table has other active orders before setting AVAILABLE
-        const hasOtherActiveOrders = await this.hasActiveOrdersOnTable(
+        // Update table status if needed
+        const tableStatusEvent = await this.updateTableStatusIfNeeded(
+            orderId,
             order.tableId,
-            order.restaurantId,
-            orderId
+            order.restaurantId
         )
 
-        // Only reset table status if no other active orders
-        if (!hasOtherActiveOrders) {
-            const currentTable = await this.prisma.table.findUnique({
-                where: { id: order.tableId },
-            })
-            const previousTableStatus = currentTable?.status || TableStatus.OCCUPIED
-
-            await this.prisma.table.update({
-                where: { id: order.tableId },
-                data: { status: TableStatus.AVAILABLE },
-            })
-
-            // Emit table status change
-            if (previousTableStatus !== TableStatus.AVAILABLE) {
-                const tableStatusEvent: TableStatusEvent = {
-                    tableId: order.tableId,
-                    previousStatus: previousTableStatus,
-                    newStatus: TableStatus.AVAILABLE,
-                    orderId,
-                }
-                this.socketService.emitTableStatusChanged(
-                    order.restaurantId,
-                    tableStatusEvent
-                )
-            }
+        // Emit table status change if status was updated
+        if (tableStatusEvent) {
+            this.socketService.emitTableStatusChanged(
+                order.restaurantId,
+                tableStatusEvent
+            )
         }
 
         // Emit rejected event
@@ -1295,37 +1238,13 @@ export class OrdersService {
                 tx
             )
 
-            // Check if table has other active orders before setting AVAILABLE
-            const hasOtherActiveOrders = await this.hasActiveOrdersOnTable(
+            // Update table status if needed
+            const tableStatusChanged = await this.updateTableStatusIfNeeded(
+                orderId,
                 order.tableId,
                 order.restaurantId,
-                orderId,
                 tx
             )
-
-            // Only reset table status if no other active orders
-            let tableStatusChanged: TableStatusEvent | null = null
-            if (!hasOtherActiveOrders) {
-                const currentTable = await tx.table.findUnique({
-                    where: { id: order.tableId },
-                })
-                const previousTableStatus = currentTable?.status || TableStatus.OCCUPIED
-
-                await tx.table.update({
-                    where: { id: order.tableId },
-                    data: { status: TableStatus.AVAILABLE },
-                })
-
-                // Store table status change info for emission after transaction
-                if (previousTableStatus !== TableStatus.AVAILABLE) {
-                    tableStatusChanged = {
-                        tableId: order.tableId,
-                        previousStatus: previousTableStatus,
-                        newStatus: TableStatus.AVAILABLE,
-                        orderId,
-                    }
-                }
-            }
 
             return { updatedOrder, tableStatusChanged }
         })
@@ -1351,11 +1270,9 @@ export class OrdersService {
             statusEvent
         )
 
-        return result.updatedOrder
-
         this.logger.log(`Order ${orderId} paid with cash and completed`)
 
-        return result
+        return result.updatedOrder
     }
 
     // ========================================================================
@@ -1692,6 +1609,52 @@ export class OrdersService {
         return activeOrderCount > 0
     }
 
+    /**
+     * Helper to update table status and emit socket event after order completion/cancellation
+     * Checks if table has other active orders before setting to AVAILABLE
+     */
+    private async updateTableStatusIfNeeded(
+        orderId: number,
+        tableId: number,
+        restaurantId: number,
+        tx?: Prisma.TransactionClient
+    ): Promise<TableStatusEvent | null> {
+        const prismaClient = tx || this.prisma
+
+        // Check if table has other active orders
+        const hasOtherActiveOrders = await this.hasActiveOrdersOnTable(
+            tableId,
+            restaurantId,
+            orderId,
+            tx
+        )
+
+        // Only reset table status if no other active orders
+        if (!hasOtherActiveOrders) {
+            const currentTable = await prismaClient.table.findUnique({
+                where: { id: tableId },
+            })
+            const previousTableStatus = currentTable?.status || TableStatus.OCCUPIED
+
+            await prismaClient.table.update({
+                where: { id: tableId },
+                data: { status: TableStatus.AVAILABLE },
+            })
+
+            // Return table status change info for emission after transaction
+            if (previousTableStatus !== TableStatus.AVAILABLE) {
+                return {
+                    tableId,
+                    previousStatus: previousTableStatus,
+                    newStatus: TableStatus.AVAILABLE,
+                    orderId,
+                }
+            }
+        }
+
+        return null
+    }
+
     private mapToOrderSummary(order: any): OrderSummary {
         return {
             id: order.id,
@@ -1983,7 +1946,7 @@ export class OrdersService {
             })
 
             // Use transaction to ensure atomicity
-            await this.prisma.$transaction(async (tx) => {
+            const tableStatusEvent = await this.prisma.$transaction(async (tx) => {
                 // Update payment status
                 await tx.payment.upsert({
                     where: { orderId },
@@ -2019,60 +1982,21 @@ export class OrdersService {
                     )
                 }
 
-                // Check if table has other active orders before setting AVAILABLE
-                const hasOtherActiveOrders = await this.hasActiveOrdersOnTable(
+                // Update table status if needed (within transaction)
+                return await this.updateTableStatusIfNeeded(
+                    orderId,
                     order.tableId,
                     order.restaurantId,
-                    orderId,
                     tx
                 )
-
-                // Only reset table status if no other active orders
-                if (!hasOtherActiveOrders) {
-                    const currentTable = await tx.table.findUnique({
-                        where: { id: order.tableId },
-                    })
-                    const previousTableStatus = currentTable?.status || TableStatus.OCCUPIED
-
-                    await tx.table.update({
-                        where: { id: order.tableId },
-                        data: {
-                            status: TableStatus.AVAILABLE,
-                        },
-                    })
-
-                    // Store table status change info for emission after transaction
-                    if (previousTableStatus !== TableStatus.AVAILABLE) {
-                        // This will be emitted after transaction commits
-                    }
-                }
             })
 
             // Emit table status change after transaction commits
-            // Get table to check if status changed
-            const updatedTable = await this.prisma.table.findUnique({
-                where: { id: order.tableId },
-            })
-            if (updatedTable) {
-                // Check if table was set to AVAILABLE (meaning no other active orders)
-                const hasOtherActiveOrders = await this.hasActiveOrdersOnTable(
-                    order.tableId,
+            if (tableStatusEvent) {
+                this.socketService.emitTableStatusChanged(
                     order.restaurantId,
-                    orderId
+                    tableStatusEvent
                 )
-                if (!hasOtherActiveOrders && updatedTable.status === TableStatus.AVAILABLE) {
-                    // Table status was changed to AVAILABLE, emit event
-                    const tableStatusEvent: TableStatusEvent = {
-                        tableId: order.tableId,
-                        previousStatus: TableStatus.OCCUPIED, // Was OCCUPIED before payment
-                        newStatus: TableStatus.AVAILABLE,
-                        orderId,
-                    }
-                    this.socketService.emitTableStatusChanged(
-                        order.restaurantId,
-                        tableStatusEvent
-                    )
-                }
             }
 
             // Emit socket events for real-time updates (with retry logic)
