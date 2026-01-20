@@ -15,6 +15,7 @@ interface MenuItemDetailDialogProps {
     description?: string;
     basePrice: number;
     status: string;
+    stockQuantity?: number | null; // null = unlimited stock
     images?: Array<{
       id: number;
       url: string;
@@ -243,6 +244,28 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
   };
 
   const handleAddToCart = async () => {
+    // Check if item is available
+    if (menuItem.status !== 'AVAILABLE') {
+      await alert({
+        title: 'Không thể thêm',
+        message: `${menuItem.name} hiện không có sẵn`,
+        type: 'warning',
+      });
+      return;
+    }
+
+    // Check stock quantity if item has stock tracking
+    if ((menuItem as any).stockQuantity !== null && (menuItem as any).stockQuantity !== undefined) {
+      if ((menuItem as any).stockQuantity <= 0) {
+        await alert({
+          title: 'Hết hàng',
+          message: `${menuItem.name} đã hết hàng`,
+          type: 'warning',
+        });
+        return;
+      }
+    }
+
     if (modifierGroups.length > 0 && !validateSelection()) {
       await alert({
         title: 'Thiếu thông tin',

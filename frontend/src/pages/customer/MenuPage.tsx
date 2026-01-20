@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient, tablesApi, menusApi } from '../../services/api';
 import { ModifierSelectionDialog, MenuItemDetailDialog, BottomNavigation, AiOrderModal } from '../../components/customer';
@@ -6,6 +6,9 @@ import type { Category } from '../../components/customer';
 import { useCartStore, type CartItemModifier } from '../../store/cartStore';
 import { useUserStore } from '../../store/userStore';
 import { authService } from '../../services/auth.service';
+import { useMenuItemStatusChanges } from '../../hooks/useSocket';
+import { useModal } from '../../contexts/ModalContext';
+import type { MenuItemStatusChangedEvent } from '@aerodine/shared-types';
 import type { ModifierGroup } from '@aerodine/shared-types';
 import { UserRole } from '@aerodine/shared-types';
 import { formatVND } from '../../utils/currency';
@@ -17,6 +20,7 @@ interface MenuItem {
   description?: string;
   basePrice: number;
   status: string;
+  stockQuantity?: number | null; // null = unlimited stock
   isChefRecommendation?: boolean;
   category?: {
     id: number;
@@ -37,6 +41,7 @@ export const MenuPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { addItem, tableId, restaurantId: cartRestaurantId, setRestaurantId, setTableId } = useCartStore();
   const { user, isAuthenticated, clearUser, setUser } = useUserStore();
+  const { alert } = useModal();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | undefined>(undefined);
@@ -168,6 +173,25 @@ export const MenuPage: React.FC = () => {
     return () => clearTimeout(timeoutId);
   }, [selectedCategoryId, searchQuery, currentRestaurantId, sortBy]);
 
+  // Listen for menu item status changes (real-time updates when items become sold out)
+  const handleMenuItemStatusChanged = useCallback((event: MenuItemStatusChangedEvent) => {
+    console.log('🔔 Menu item status changed:', event);
+    setMenuItems((prev) =>
+      prev.map((item) => {
+        if (item.id === event.menuItemId) {
+          return {
+            ...item,
+            status: event.newStatus,
+            stockQuantity: event.stockQuantity,
+          };
+        }
+        return item;
+      })
+    );
+  }, []);
+
+  useMenuItemStatusChanges(currentRestaurantId || 0, handleMenuItemStatusChanged);
+
   const loadCategories = async () => {
     if (!currentRestaurantId) return;
     try {
@@ -212,6 +236,28 @@ export const MenuPage: React.FC = () => {
   const handleAddToCart = (item: any) => {
     const menuItem = menuItems.find((mi) => mi.id.toString() === item.id);
     if (!menuItem) return;
+
+    // Check if item is available
+    if (menuItem.status !== 'AVAILABLE') {
+      alert({
+        title: 'Không thể thêm',
+        message: `${menuItem.name} hiện không có sẵn`,
+        type: 'warning',
+      });
+      return;
+    }
+
+    // Check stock quantity if item has stock tracking
+    if (menuItem.stockQuantity !== null && menuItem.stockQuantity !== undefined) {
+      if (menuItem.stockQuantity <= 0) {
+        alert({
+          title: 'Hết hàng',
+          message: `${menuItem.name} đã hết hàng`,
+          type: 'warning',
+        });
+        return;
+      }
+    }
 
     // Check if item has modifier groups
     const modifierGroups = menuItem.modifierGroups?.map((mg) => mg.modifierGroup).filter((mg) => mg && mg.options && mg.options.length > 0) || [];

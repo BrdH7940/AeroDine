@@ -14,6 +14,7 @@ import type {
     KitchenOrderEvent,
     NotificationEvent,
     TableStatusEvent,
+    MenuItemStatusChangedEvent,
 } from '@aerodine/shared-types'
 
 /**

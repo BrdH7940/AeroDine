@@ -57,6 +57,10 @@ export const SocketEvents = {
     TABLE_SESSION_STARTED: 'table_session_started',
     TABLE_SESSION_ENDED: 'table_session_ended',
 
+    // Menu item events
+    MENU_ITEM_STATUS_CHANGED: 'menu_item_status_changed',
+    MENU_ITEM_STOCK_UPDATED: 'menu_item_stock_updated',
+
     // Notification events
     NOTIFICATION: 'notification',
     ALERT: 'alert',
@@ -206,6 +210,15 @@ export interface TableStatusEvent {
     orderId?: number
 }
 
+export interface MenuItemStatusChangedEvent {
+    menuItemId: number
+    restaurantId: number
+    previousStatus: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN'
+    newStatus: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN'
+    stockQuantity?: number | null
+    updatedAt: string
+}
+
 // ============================================================================
 // VIEW TYPES (For real-time display)
 // ============================================================================
@@ -300,6 +313,8 @@ export interface ServerToClientEvents {
     [SocketEvents.KITCHEN_ORDER_READY]: (event: { orderId: number; tableName: string }) => void
     [SocketEvents.TABLE_STATUS_CHANGED]: (event: TableStatusEvent) => void
     [SocketEvents.BILL_REQUESTED]: (event: { orderId: number; tableId: number; tableName: string }) => void
+    [SocketEvents.MENU_ITEM_STATUS_CHANGED]: (event: MenuItemStatusChangedEvent) => void
+    [SocketEvents.MENU_ITEM_STOCK_UPDATED]: (event: MenuItemStatusChangedEvent) => void
     [SocketEvents.NOTIFICATION]: (event: NotificationEvent) => void
     [SocketEvents.ERROR]: (error: { code: string; message: string }) => void
 }

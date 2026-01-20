@@ -9,6 +9,7 @@ import {
     KitchenOrderEvent,
     NotificationEvent,
     TableStatusEvent,
+    MenuItemStatusChangedEvent,
 } from '@aerodine/shared-types'
 
 /**
@@ -412,6 +413,27 @@ export class SocketService {
         this.server
             .to(this.getRestaurantRoom(restaurantId))
             .emit(SocketEvents.TABLE_STATUS_CHANGED, event)
+    }
+
+    /**
+     * Broadcast menu item status change (e.g., when stock runs out)
+     */
+    emitMenuItemStatusChanged(restaurantId: number, event: MenuItemStatusChangedEvent) {
+        if (!this.server) return
+
+        this.logger.log(
+            `Menu item ${event.menuItemId} status: ${event.previousStatus} -> ${event.newStatus}`,
+        )
+
+        // Notify all customers in restaurant (so they see updated menu)
+        this.server
+            .to(this.getRestaurantRoom(restaurantId))
+            .emit(SocketEvents.MENU_ITEM_STATUS_CHANGED, event)
+
+        // Also emit stock update event
+        this.server
+            .to(this.getRestaurantRoom(restaurantId))
+            .emit(SocketEvents.MENU_ITEM_STOCK_UPDATED, event)
     }
 
     /**
