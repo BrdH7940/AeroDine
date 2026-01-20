@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authService } from '../../services/auth.service';
 import { useUserStore } from '../../store/userStore';
+import { cartStore } from '../../store/cartStore';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -46,6 +47,11 @@ export const RegisterPage: React.FC = () => {
         fullName: formData.fullName,
       });
       setUser(response.user);
+      
+      // Clear cart when user registers
+      // This ensures new user starts with a fresh cart
+      cartStore.clearCart();
+      
       navigate('/customer/menu');
     } catch (err: any) {
       setError(

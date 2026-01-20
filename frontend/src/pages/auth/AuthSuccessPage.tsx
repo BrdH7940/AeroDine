@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useUserStore } from '../../store/userStore';
+import { cartStore } from '../../store/cartStore';
 import { authService } from '../../services/auth.service';
 
 /**
@@ -35,6 +36,10 @@ export const AuthSuccessPage: React.FC = () => {
         }
 
         setUser(user);
+
+        // Clear cart when user logs in via Google OAuth
+        // This ensures each user starts with a fresh cart
+        cartStore.clearCart();
 
         // Redirect based on user role
         if (user.role === 'admin') {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { authService } from '../../services/auth.service';
 import { useUserStore } from '../../store/userStore';
+import { cartStore } from '../../store/cartStore';
 import { apiConfig } from '../../config/api.config';
 
 export const LoginPage: React.FC = () => {
@@ -26,6 +27,10 @@ export const LoginPage: React.FC = () => {
     try {
       const response = await authService.login({ email, password });
       setUser(response.user);
+      
+      // Clear cart when user logs in
+      // This ensures each user starts with a fresh cart
+      cartStore.clearCart();
       
       // Check for returnUrl from query params
       const returnUrl = searchParams.get('returnUrl');
