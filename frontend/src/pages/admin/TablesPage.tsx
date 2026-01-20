@@ -643,7 +643,6 @@ export default function TablesPage() {
                     restaurantId,
                     name: formData.name,
                     capacity: formData.capacity,
-                    status: formData.status,
                 })
             }
 
@@ -1093,7 +1092,7 @@ function TableModal({
         onSave({
             name: trimmedName,
             capacity: capacityNum,
-            status,
+            status: table ? status : TableStatus.AVAILABLE, // Only used when editing
             isActive,
         })
     }
@@ -1148,21 +1147,23 @@ function TableModal({
                         />
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                            Status <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                            value={status}
-                            onChange={(e) => setStatus(e.target.value as TableStatus)}
-                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-                            required
-                        >
-                            <option value="AVAILABLE">Available</option>
-                            <option value="OCCUPIED">Occupied</option>
-                            <option value="RESERVED">Reserved</option>
-                        </select>
-                    </div>
+                    {table && (
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Status <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                                value={status}
+                                onChange={(e) => setStatus(e.target.value as TableStatus)}
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                required
+                            >
+                                <option value="AVAILABLE">Available</option>
+                                <option value="OCCUPIED">Occupied</option>
+                                <option value="RESERVED">Reserved</option>
+                            </select>
+                        </div>
+                    )}
 
                     {table && (
                         <div className="flex items-center gap-2">
