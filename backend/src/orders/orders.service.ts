@@ -9,6 +9,7 @@ import { PrismaService } from '../database/prisma.service'
 import { SocketService } from '../socket/socket.service'
 import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
+import { randomUUID } from 'crypto'
 import {
     CreateOrderDto,
     CreateOrderItemDto,
@@ -124,9 +125,12 @@ export class OrdersService {
     /**
      * Create a new order
      */
-    async create(createOrderDto: CreateOrderDto) {
+    async create(createOrderDto: CreateOrderDto, guestSessionId?: string) {
         const { restaurantId, tableId, userId, guestCount, note, items } =
             createOrderDto
+
+        // Generate guest session ID if user is not authenticated
+        const sessionId = userId ? undefined : (guestSessionId || randomUUID())
 
         // Verify table exists and belongs to restaurant
         const table = await this.prisma.table.findFirst({
@@ -223,6 +227,15 @@ export class OrdersService {
                 )
             }
 
+            // Check stock quantity if item has stock tracking (stockQuantity is not null)
+            if (menuItem.stockQuantity !== null) {
+                if (menuItem.stockQuantity < item.quantity) {
+                    throw new BadRequestException(
+                        `Insufficient stock for ${menuItem.name}. Available: ${menuItem.stockQuantity}, Requested: ${item.quantity}`
+                    )
+                }
+            }
+
             const itemPrice = Number(menuItem.basePrice)
             let modifiersPrice = 0
             const modifiers: Prisma.OrderItemModifierCreateWithoutOrderItemInput[] =
@@ -264,6 +277,7 @@ export class OrdersService {
                 restaurantId,
                 tableId,
                 userId,
+                guestSessionId: sessionId, // Store guest session ID for tracking
                 guestCount: guestCount || 1,
                 note,
                 totalAmount,
@@ -297,9 +311,13 @@ export class OrdersService {
         }
         this.socketService.emitOrderCreated(restaurantId, event)
 
-        this.logger.log(`Order ${order.id} created for table ${table.name}`)
+        this.logger.log(`Order ${order.id} created for table ${table.name}${sessionId ? ` (guest session: ${sessionId})` : ''}`)
 
-        return order
+        // Return order with guestSessionId for client to store
+        return {
+            ...order,
+            guestSessionId: sessionId,
+        }
     }
 
     /**
@@ -431,9 +449,9 @@ export class OrdersService {
     /**
      * Get orders by table for customer (with userId and payment status filtering)
      * - If userId provided (logged in): show only their unpaid/uncompleted orders at table
-     * - If userId is null (guest): show ALL unpaid/uncompleted orders at table (not just guest orders)
+     * - If userId is null (guest): show orders matching guestSessionId
      */
-    async getOrdersByTableForCustomer(tableId: number, userId?: number) {
+    async getOrdersByTableForCustomer(tableId: number, userId?: number, guestSessionId?: string) {
         const where: Prisma.OrderWhereInput = {
             tableId,
             // Show only orders that are not completed
@@ -448,10 +466,11 @@ export class OrdersService {
             ],
         }
 
-        // Filter by userId only if logged in
-        // If guest (userId is undefined), show all unpaid/uncompleted orders at table
+        // Filter by userId if logged in, or by guestSessionId if guest
         if (userId) {
             where.userId = userId
+        } else if (guestSessionId) {
+            where.guestSessionId = guestSessionId
         }
 
         const orders = await this.prisma.order.findMany({
@@ -460,6 +479,34 @@ export class OrdersService {
                 table: true,
                 customer: { select: { id: true, fullName: true, email: true } },
                 waiter: { select: { id: true, fullName: true } },
+                items: {
+                    include: {
+                        modifiers: true,
+                        menuItem: true,
+                    },
+                },
+                payment: true,
+            },
+            orderBy: { createdAt: 'desc' },
+        })
+
+        return {
+            orders,
+            total: orders.length,
+        }
+    }
+
+    /**
+     * Get orders by guest session ID (for guest order tracking)
+     * Returns all orders (including completed) for the guest session
+     */
+    async getOrdersByGuestSession(guestSessionId: string) {
+        const orders = await this.prisma.order.findMany({
+            where: {
+                guestSessionId,
+            },
+            include: {
+                table: true,
                 items: {
                     include: {
                         modifiers: true,
@@ -621,12 +668,21 @@ export class OrdersService {
                 event
             )
 
-            // If order completed, update table status
+            // If order completed, check if table has other active orders
             if (updateOrderDto.status === OrderStatus.COMPLETED) {
-                await this.prisma.table.update({
-                    where: { id: order.tableId },
-                    data: { status: TableStatus.AVAILABLE },
-                })
+                const hasOtherActiveOrders = await this.hasActiveOrdersOnTable(
+                    order.tableId,
+                    order.restaurantId,
+                    id
+                )
+
+                // Only reset table status if no other active orders
+                if (!hasOtherActiveOrders) {
+                    await this.prisma.table.update({
+                        where: { id: order.tableId },
+                        data: { status: TableStatus.AVAILABLE },
+                    })
+                }
             }
         }
 
@@ -667,11 +723,20 @@ export class OrdersService {
             data: { status: OrderItemStatus.CANCELLED },
         })
 
-        // Update table status
-        await this.prisma.table.update({
-            where: { id: order.tableId },
-            data: { status: TableStatus.AVAILABLE },
-        })
+        // Check if table has other active orders before setting AVAILABLE
+        const hasOtherActiveOrders = await this.hasActiveOrdersOnTable(
+            order.tableId,
+            order.restaurantId,
+            id
+        )
+
+        // Only reset table status if no other active orders
+        if (!hasOtherActiveOrders) {
+            await this.prisma.table.update({
+                where: { id: order.tableId },
+                data: { status: TableStatus.AVAILABLE },
+            })
+        }
 
         // Emit events
         const event: OrderStatusChangedEvent = {
@@ -1028,11 +1093,20 @@ export class OrdersService {
             data: { status: OrderItemStatus.CANCELLED },
         })
 
-        // Update table status
-        await this.prisma.table.update({
-            where: { id: order.tableId },
-            data: { status: TableStatus.AVAILABLE },
-        })
+        // Check if table has other active orders before setting AVAILABLE
+        const hasOtherActiveOrders = await this.hasActiveOrdersOnTable(
+            order.tableId,
+            order.restaurantId,
+            orderId
+        )
+
+        // Only reset table status if no other active orders
+        if (!hasOtherActiveOrders) {
+            await this.prisma.table.update({
+                where: { id: order.tableId },
+                data: { status: TableStatus.AVAILABLE },
+            })
+        }
 
         // Emit rejected event
         this.socketService.emitOrderRejected(
@@ -1171,23 +1245,42 @@ export class OrdersService {
                 },
             })
 
-            // Reset table status to AVAILABLE
-            await tx.table.update({
-                where: { id: order.tableId },
-                data: { status: TableStatus.AVAILABLE },
-            })
+            // Update inventory (decrease stock quantity)
+            await this.updateInventoryForCompletedOrder(
+                order.items.map((item) => ({
+                    menuItemId: item.menuItemId,
+                    quantity: item.quantity,
+                })),
+                tx
+            )
+
+            // Check if table has other active orders before setting AVAILABLE
+            const hasOtherActiveOrders = await this.hasActiveOrdersOnTable(
+                order.tableId,
+                order.restaurantId,
+                orderId,
+                tx
+            )
+
+            // Only reset table status if no other active orders
+            if (!hasOtherActiveOrders) {
+                await tx.table.update({
+                    where: { id: order.tableId },
+                    data: { status: TableStatus.AVAILABLE },
+                })
+            }
 
             return updatedOrder
         })
 
-        // Emit order completed event
+        // Emit order completed event (with retry logic)
         const statusEvent: OrderStatusChangedEvent = {
             orderId,
             previousStatus: order.status,
             newStatus: OrderStatus.COMPLETED,
             updatedAt: new Date().toISOString(),
         }
-        this.socketService.emitOrderStatusChanged(
+        await this.socketService.emitOrderStatusChanged(
             order.restaurantId,
             order.tableId,
             statusEvent
@@ -1391,6 +1484,113 @@ export class OrdersService {
     // ========================================================================
     // HELPER METHODS
     // ========================================================================
+
+    /**
+     * Update inventory (stock quantity) when order is completed
+     * Decreases stockQuantity for each menu item in the order
+     * Auto-updates status to SOLD_OUT if stock reaches 0
+     */
+    private async updateInventoryForCompletedOrder(
+        orderItems: Array<{ menuItemId: number; quantity: number }>,
+        tx?: Prisma.TransactionClient
+    ) {
+        const prismaClient = tx || this.prisma
+
+        for (const item of orderItems) {
+            const menuItem = await prismaClient.menuItem.findUnique({
+                where: { id: item.menuItemId },
+            })
+
+            if (!menuItem) {
+                this.logger.warn(
+                    `Menu item ${item.menuItemId} not found, skipping inventory update`
+                )
+                continue
+            }
+
+            // Only update if stockQuantity is not null (null = unlimited stock)
+            if (menuItem.stockQuantity !== null) {
+                const newStock = menuItem.stockQuantity - item.quantity
+                const updatedStock = Math.max(0, newStock) // Prevent negative stock
+
+                // Update stock and status
+                await prismaClient.menuItem.update({
+                    where: { id: item.menuItemId },
+                    data: {
+                        stockQuantity: updatedStock,
+                        // Auto-update status to SOLD_OUT if stock reaches 0
+                        status:
+                            updatedStock === 0
+                                ? ('SOLD_OUT' as any)
+                                : menuItem.status,
+                    },
+                })
+
+                this.logger.log(
+                    `Updated inventory for menu item ${item.menuItemId}: ${menuItem.stockQuantity} -> ${updatedStock}`
+                )
+
+                // Emit notification if stock is low (<= 5)
+                if (updatedStock > 0 && updatedStock <= 5) {
+                    const notification: NotificationEvent = {
+                        id: `low-stock-${item.menuItemId}-${Date.now()}`,
+                        type: 'warning',
+                        title: 'Low Stock Alert',
+                        message: `${menuItem.name} is running low (${updatedStock} remaining)`,
+                        timestamp: new Date().toISOString(),
+                        sound: true,
+                    }
+                    // Emit to kitchen and admin (with retry logic)
+                    await this.socketService.emitKitchenNotification(
+                        menuItem.restaurantId,
+                        notification
+                    )
+                }
+
+                // Emit notification if stock is out
+                if (updatedStock === 0) {
+                    const notification: NotificationEvent = {
+                        id: `out-of-stock-${item.menuItemId}-${Date.now()}`,
+                        type: 'error',
+                        title: 'Out of Stock',
+                        message: `${menuItem.name} is now out of stock`,
+                        timestamp: new Date().toISOString(),
+                        sound: true,
+                    }
+                    await this.socketService.emitKitchenNotification(
+                        menuItem.restaurantId,
+                        notification
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Check if table has any active orders (not COMPLETED or CANCELLED)
+     * Returns true if table should remain OCCUPIED
+     */
+    private async hasActiveOrdersOnTable(
+        tableId: number,
+        restaurantId: number,
+        excludeOrderId?: number,
+        tx?: Prisma.TransactionClient
+    ): Promise<boolean> {
+        const prismaClient = tx || this.prisma
+
+        const activeOrderCount = await prismaClient.order.count({
+            where: {
+                tableId,
+                restaurantId,
+                id: excludeOrderId ? { not: excludeOrderId } : undefined,
+                status: {
+                    notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
+                },
+            },
+        })
+
+        return activeOrderCount > 0
+    }
 
     private mapToOrderSummary(order: any): OrderSummary {
         return {
@@ -1676,6 +1876,12 @@ export class OrdersService {
                 return { received: true }
             }
 
+            // Get order items for inventory update
+            const orderWithItems = await this.prisma.order.findUnique({
+                where: { id: orderId },
+                include: { items: true },
+            })
+
             // Use transaction to ensure atomicity
             await this.prisma.$transaction(async (tx) => {
                 // Update payment status
@@ -1702,16 +1908,37 @@ export class OrdersService {
                     },
                 })
 
-                // Reset table status to AVAILABLE
-                await tx.table.update({
-                    where: { id: order.tableId },
-                    data: {
-                        status: TableStatus.AVAILABLE,
-                    },
-                })
+                // Update inventory (decrease stock quantity)
+                if (orderWithItems) {
+                    await this.updateInventoryForCompletedOrder(
+                        orderWithItems.items.map((item) => ({
+                            menuItemId: item.menuItemId,
+                            quantity: item.quantity,
+                        })),
+                        tx
+                    )
+                }
+
+                // Check if table has other active orders before setting AVAILABLE
+                const hasOtherActiveOrders = await this.hasActiveOrdersOnTable(
+                    order.tableId,
+                    order.restaurantId,
+                    orderId,
+                    tx
+                )
+
+                // Only reset table status if no other active orders
+                if (!hasOtherActiveOrders) {
+                    await tx.table.update({
+                        where: { id: order.tableId },
+                        data: {
+                            status: TableStatus.AVAILABLE,
+                        },
+                    })
+                }
             })
 
-            // Emit socket events for real-time updates
+            // Emit socket events for real-time updates (with retry logic)
             const statusEvent: OrderStatusChangedEvent = {
                 orderId,
                 previousStatus: order.status,
@@ -1719,13 +1946,13 @@ export class OrdersService {
                 updatedAt: new Date().toISOString(),
             }
 
-            this.socketService.emitOrderStatusChanged(
+            await this.socketService.emitOrderStatusChanged(
                 order.restaurantId,
                 order.tableId,
                 statusEvent
             )
 
-            // Emit notification to waiters
+            // Emit notification to waiters (with retry logic)
             const notification: NotificationEvent = {
                 id: `payment-${orderId}-${Date.now()}`,
                 type: 'success',
@@ -1737,7 +1964,7 @@ export class OrdersService {
                 sound: true,
             }
 
-            this.socketService.emitWaiterNotification(
+            await this.socketService.emitWaiterNotification(
                 order.restaurantId,
                 notification
             )

@@ -5,6 +5,7 @@ import { BottomNavigation } from '../../components/customer';
 import { apiClient } from '../../services/api';
 import { formatVND } from '../../utils/currency';
 import { useModal } from '../../contexts/ModalContext';
+import { getOrCreateGuestSessionId, updateGuestSessionId } from '../../utils/guestSession';
 
 export const CartPage: React.FC = () => {
   const navigate = useNavigate();
@@ -88,18 +89,27 @@ export const CartPage: React.FC = () => {
 
       console.log('Creating order with tableId:', numericTableId, 'orderData:', orderData);
 
+      // Get or create guest session ID for guest users
+      // This will be sent automatically via API interceptor
+      const guestSessionId = getOrCreateGuestSessionId();
+
       // Create order
       // Note: apiClient automatically includes JWT token if user is logged in
       // Backend will capture userId from token for authenticated users
-      // Guest orders (no token) are also supported
+      // Guest orders (no token) are also supported and tracked via guestSessionId
       const response = await apiClient.post('/orders', orderData);
       console.log('Order created:', response.data);
       const createdOrderId = response.data.id;
 
-      // Store orderId for later use
+      // Update guest session ID if returned from server (for consistency)
+      if (response.data.guestSessionId) {
+        updateGuestSessionId(response.data.guestSessionId);
+      }
+
+      // Store orderId for later use (backward compatibility)
       localStorage.setItem('lastOrderId', createdOrderId.toString());
       
-      // Also store in guestOrderIds array for guest users
+      // Also store in guestOrderIds array for guest users (backward compatibility)
       try {
         const existing = JSON.parse(localStorage.getItem('guestOrderIds') || '[]');
         if (!existing.includes(createdOrderId)) {

@@ -98,6 +98,7 @@ export class OrdersController {
      * Authentication: Optional (OptionalJwtAuthGuard)
      * - Guest customers can place orders without authentication
      * - Authenticated customers automatically have their userId captured
+     * - Guest orders are tracked via guestSessionId (from header or cookie)
      * - This allows logged-in customers to track their order history
      */
     @UseGuards(OptionalJwtAuthGuard)
@@ -119,7 +120,8 @@ export class OrdersController {
     })
     create(
         @Body() createOrderDto: CreateOrderDto,
-        @CurrentUser() user?: any
+        @CurrentUser() user?: any,
+        @Req() req?: any
     ) {
         // Automatically set userId if customer is authenticated
         // This allows customers to view their order history after logging in
@@ -129,8 +131,13 @@ export class OrdersController {
         } else if (!user) {
             this.logger.log('Order creation: Guest order (no userId)')
         }
-        
-        return this.ordersService.create(createOrderDto)
+
+        // Get guest session ID from header or cookie for guest users
+        const guestSessionId = user 
+            ? undefined 
+            : (req?.headers?.['x-guest-session-id'] || req?.cookies?.['guestSessionId'])
+
+        return this.ordersService.create(createOrderDto, guestSessionId)
     }
 
     /**
@@ -206,7 +213,7 @@ export class OrdersController {
      * GET /orders/table/:tableId
      * Authentication optional - filters orders based on login status:
      * - Logged in: shows only unpaid/uncompleted orders of that user at table
-     * - Guest: shows only unpaid/uncompleted guest orders (userId=null) at table
+     * - Guest: shows only unpaid/uncompleted guest orders matching guestSessionId at table
      */
     @UseGuards(OptionalJwtAuthGuard)
     @Get('table/:tableId')
@@ -220,9 +227,39 @@ export class OrdersController {
     })
     getOrdersByTable(
         @Param('tableId', ParseIntPipe) tableId: number,
-        @CurrentUser() user?: any
+        @CurrentUser() user?: any,
+        @Req() req?: any
     ) {
-        return this.ordersService.getOrdersByTableForCustomer(tableId, user?.id)
+        // Get guest session ID from header or cookie for guest users
+        const guestSessionId = user 
+            ? undefined 
+            : (req?.headers?.['x-guest-session-id'] || req?.cookies?.['guestSessionId'])
+        
+        return this.ordersService.getOrdersByTableForCustomer(tableId, user?.id, guestSessionId)
+    }
+
+    /**
+     * Get orders by guest session ID (PUBLIC - for guest order tracking)
+     * GET /orders/guest
+     * No authentication required - returns all orders for the guest session
+     */
+    @Get('guest')
+    @ApiOperation({
+        summary: 'Get orders by guest session ID (PUBLIC)',
+        description: 'Returns all orders (including completed) for the guest session. Guest session ID is sent via x-guest-session-id header.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Returns all orders for the guest session',
+    })
+    getOrdersByGuestSession(@Req() req?: any) {
+        const guestSessionId = req?.headers?.['x-guest-session-id'] || req?.cookies?.['guestSessionId']
+        
+        if (!guestSessionId) {
+            return { orders: [], total: 0 }
+        }
+        
+        return this.ordersService.getOrdersByGuestSession(guestSessionId)
     }
 
     /**

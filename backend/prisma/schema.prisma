@@ -79,6 +79,7 @@ model MenuItem {
   description         String?             @db.Text
   basePrice           Decimal             @map("base_price") @db.Decimal(10, 2)
   status              ItemStatus          @default(AVAILABLE)
+  stockQuantity       Int?                @map("stock_quantity") // null = unlimited stock
   isChefRecommendation Boolean            @default(false) @map("is_chef_recommendation")
   createdAt           DateTime            @default(now()) @map("created_at")
   updatedAt           DateTime            @updatedAt @map("updated_at")
@@ -144,6 +145,7 @@ model Order {
   tableId      Int         @map("table_id")
   userId       Int?        @map("user_id")
   waiterId     Int?        @map("waiter_id")
+  guestSessionId String?  @map("guest_session_id") // For tracking guest orders across devices
   status       OrderStatus @default(PENDING)
   totalAmount  Decimal     @default(0) @map("total_amount") @db.Decimal(10, 2)
   guestCount   Int         @default(1) @map("guest_count")
@@ -160,6 +162,7 @@ model Order {
   @@index([restaurantId, status])
   @@index([tableId])
   @@index([createdAt])
+  @@index([guestSessionId])
   @@map("orders")
 }
 

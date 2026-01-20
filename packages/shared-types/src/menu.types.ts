@@ -8,6 +8,7 @@ export interface MenuItem {
     description?: string | null
     basePrice: number | string // Decimal from Prisma
     status: ItemStatus
+    stockQuantity?: number | null // null = unlimited stock
     createdAt: Date
     updatedAt: Date
     restaurant?: {

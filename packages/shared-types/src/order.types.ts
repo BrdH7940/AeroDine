@@ -48,6 +48,7 @@ export interface Order {
     tableId: number
     userId?: number | null
     waiterId?: number | null
+    guestSessionId?: string | null // For tracking guest orders across devices
     status: OrderStatus
     totalAmount: number
     guestCount: number

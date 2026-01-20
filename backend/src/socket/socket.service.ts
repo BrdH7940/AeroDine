@@ -21,9 +21,47 @@ import {
 export class SocketService {
     private readonly logger = new Logger(SocketService.name)
     private server: Server | null = null
+    private readonly MAX_RETRIES = 3
+    private readonly RETRY_DELAY_MS = 1000 // 1 second
 
     setServer(server: Server) {
         this.server = server
+    }
+
+    /**
+     * Emit event with retry logic for critical events
+     * Retries up to MAX_RETRIES times with exponential backoff
+     */
+    private async emitWithRetry(
+        room: string,
+        event: string,
+        data: any,
+        retries = this.MAX_RETRIES
+    ): Promise<void> {
+        if (!this.server) {
+            this.logger.warn(`Cannot emit ${event}: server not initialized`)
+            return
+        }
+
+        try {
+            this.server.to(room).emit(event, data)
+            this.logger.debug(`Emitted ${event} to ${room}`)
+        } catch (error) {
+            if (retries > 0) {
+                const delay = this.RETRY_DELAY_MS * (this.MAX_RETRIES - retries + 1)
+                this.logger.warn(
+                    `Failed to emit ${event} to ${room}, retrying in ${delay}ms (${retries} retries left)`,
+                    error
+                )
+                await new Promise((resolve) => setTimeout(resolve, delay))
+                return this.emitWithRetry(room, event, data, retries - 1)
+            } else {
+                this.logger.error(
+                    `Failed to emit ${event} to ${room} after ${this.MAX_RETRIES} retries`,
+                    error
+                )
+            }
+        }
     }
 
     // ========================================================================
@@ -95,8 +133,9 @@ export class SocketService {
 
     /**
      * Broadcast order status change
+     * Critical event - uses retry logic
      */
-    emitOrderStatusChanged(
+    async emitOrderStatusChanged(
         restaurantId: number,
         tableId: number,
         event: OrderStatusChangedEvent,
@@ -107,20 +146,42 @@ export class SocketService {
             `Order ${event.orderId} status: ${event.previousStatus} -> ${event.newStatus}`,
         )
 
-        // Notify kitchen
-        this.server
-            .to(this.getKitchenRoom(restaurantId))
-            .emit(SocketEvents.ORDER_STATUS_CHANGED, event)
+        // Use retry for critical status changes (especially COMPLETED)
+        const isCritical = event.newStatus === 'COMPLETED' || event.newStatus === 'CANCELLED'
+        
+        if (isCritical) {
+            // Critical events use retry logic
+            await Promise.all([
+                this.emitWithRetry(
+                    this.getKitchenRoom(restaurantId),
+                    SocketEvents.ORDER_STATUS_CHANGED,
+                    event
+                ),
+                this.emitWithRetry(
+                    this.getWaiterRoom(restaurantId),
+                    SocketEvents.ORDER_STATUS_CHANGED,
+                    event
+                ),
+                this.emitWithRetry(
+                    this.getTableRoom(tableId),
+                    SocketEvents.ORDER_STATUS_CHANGED,
+                    event
+                ),
+            ])
+        } else {
+            // Non-critical events emit normally
+            this.server
+                .to(this.getKitchenRoom(restaurantId))
+                .emit(SocketEvents.ORDER_STATUS_CHANGED, event)
 
-        // Notify waiters
-        this.server
-            .to(this.getWaiterRoom(restaurantId))
-            .emit(SocketEvents.ORDER_STATUS_CHANGED, event)
+            this.server
+                .to(this.getWaiterRoom(restaurantId))
+                .emit(SocketEvents.ORDER_STATUS_CHANGED, event)
 
-        // Notify customer at table
-        this.server
-            .to(this.getTableRoom(tableId))
-            .emit(SocketEvents.ORDER_STATUS_CHANGED, event)
+            this.server
+                .to(this.getTableRoom(tableId))
+                .emit(SocketEvents.ORDER_STATUS_CHANGED, event)
+        }
     }
 
     /**
@@ -394,16 +455,36 @@ export class SocketService {
 
     /**
      * Send notification to kitchen
+     * Critical notifications use retry logic
      */
-    emitKitchenNotification(restaurantId: number, notification: NotificationEvent) {
-        this.emitNotification(this.getKitchenRoom(restaurantId), notification)
+    async emitKitchenNotification(restaurantId: number, notification: NotificationEvent) {
+        const isCritical = notification.type === 'error' || notification.type === 'warning'
+        if (isCritical) {
+            await this.emitWithRetry(
+                this.getKitchenRoom(restaurantId),
+                SocketEvents.NOTIFICATION,
+                notification
+            )
+        } else {
+            this.emitNotification(this.getKitchenRoom(restaurantId), notification)
+        }
     }
 
     /**
      * Send notification to waiters
+     * Critical notifications use retry logic
      */
-    emitWaiterNotification(restaurantId: number, notification: NotificationEvent) {
-        this.emitNotification(this.getWaiterRoom(restaurantId), notification)
+    async emitWaiterNotification(restaurantId: number, notification: NotificationEvent) {
+        const isCritical = notification.type === 'error' || notification.type === 'success'
+        if (isCritical) {
+            await this.emitWithRetry(
+                this.getWaiterRoom(restaurantId),
+                SocketEvents.NOTIFICATION,
+                notification
+            )
+        } else {
+            this.emitNotification(this.getWaiterRoom(restaurantId), notification)
+        }
     }
 
     // ========================================================================

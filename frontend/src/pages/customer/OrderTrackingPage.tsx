@@ -7,6 +7,7 @@ import { BottomNavigation } from '../../components/customer';
 import { useUserStore } from '../../store/userStore';
 import { useModal } from '../../contexts/ModalContext';
 import { authService } from '../../services/auth.service';
+import { getGuestSessionId } from '../../utils/guestSession';
 import type { Order, OrderWithDetails } from '@aerodine/shared-types';
 import { OrderItemStatus } from '@aerodine/shared-types';
 
@@ -82,7 +83,7 @@ export const OrderTrackingPage: React.FC = () => {
     return order.items.some(item => item.status === OrderItemStatus.SERVED || item.status === OrderItemStatus.READY);
   };
 
-  // Helper function to get guest order IDs from localStorage
+  // Helper function to get guest order IDs from localStorage (backward compatibility)
   const getGuestOrderIds = (): number[] => {
     try {
       const stored = localStorage.getItem('guestOrderIds');
@@ -100,6 +101,17 @@ export const OrderTrackingPage: React.FC = () => {
     }
   };
 
+  // Helper function to check if order belongs to current guest session
+  const isOrderForCurrentGuest = (order: Order): boolean => {
+    if (isAuthenticated && user) {
+      return order.userId === user.id;
+    }
+    // For guest users, check if order has matching guestSessionId
+    // This is handled by backend, but we can also check locally
+    const guestSessionId = getGuestSessionId();
+    return !guestSessionId || order.guestSessionId === guestSessionId;
+  };
+
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -111,21 +123,45 @@ export const OrderTrackingPage: React.FC = () => {
         const response = await orderService.getOrders({ page: 1, pageSize: 50 });
         loadedOrders = response.orders || [];
       } else {
-        // For guest users: load orders from localStorage
-        const guestOrderIds = getGuestOrderIds();
-        if (guestOrderIds.length > 0) {
-          // Load all orders for guest user
-          const orderPromises = guestOrderIds.map(id => 
-            orderService.getPublicOrder(id).catch(() => null)
-          );
-          const orders = await Promise.all(orderPromises);
-          // Filter out nulls and convert OrderWithDetails to Order
-          loadedOrders = orders
-            .filter((order): order is OrderWithDetails => order !== null)
-            .map(order => ({
-              ...order,
-              table: order.table, // OrderWithDetails has required table, Order has optional
-            })) as Order[];
+        // For guest users: try to load orders by guestSessionId first (server-side tracking)
+        const guestSessionId = getGuestSessionId();
+        if (guestSessionId) {
+          try {
+            // Try to load orders from server using guestSessionId
+            const response = await orderService.getOrdersByGuestSession();
+            loadedOrders = response || [];
+          } catch (error) {
+            console.warn('Failed to load orders by guest session, falling back to localStorage:', error);
+            // Fallback to localStorage for backward compatibility
+            const guestOrderIds = getGuestOrderIds();
+            if (guestOrderIds.length > 0) {
+              const orderPromises = guestOrderIds.map(id => 
+                orderService.getPublicOrder(id).catch(() => null)
+              );
+              const orders = await Promise.all(orderPromises);
+              loadedOrders = orders
+                .filter((order): order is OrderWithDetails => order !== null)
+                .map(order => ({
+                  ...order,
+                  table: order.table,
+                })) as Order[];
+            }
+          }
+        } else {
+          // No guest session ID, fallback to localStorage
+          const guestOrderIds = getGuestOrderIds();
+          if (guestOrderIds.length > 0) {
+            const orderPromises = guestOrderIds.map(id => 
+              orderService.getPublicOrder(id).catch(() => null)
+            );
+            const orders = await Promise.all(orderPromises);
+            loadedOrders = orders
+              .filter((order): order is OrderWithDetails => order !== null)
+              .map(order => ({
+                ...order,
+                table: order.table,
+              })) as Order[];
+          }
         }
       }
 
@@ -137,8 +173,13 @@ export const OrderTrackingPage: React.FC = () => {
       // Filter to show only active orders (not paid) by default
       // Active orders = orders that haven't been paid yet (payment status is not SUCCESS)
       const filteredOrders = sortedOrders.filter(order => {
-        // Exclude cancelled orders
-        if (order.status === 'CANCELLED') return false;
+        // Exclude cancelled orders, but show merged orders in history if needed
+        if (order.status === 'CANCELLED') {
+          // Check if this is a merged order (has note indicating merge)
+          const isMergedOrder = order.note?.includes('Merged into order');
+          // Don't show merged orders in active list, they'll be in history if paid
+          return false;
+        }
         // Only show orders that are not paid (payment status is not SUCCESS)
         return !isOrderPaid(order);
       });
@@ -171,9 +212,11 @@ export const OrderTrackingPage: React.FC = () => {
           // If user is logged in, update orders that belong to this user
           shouldUpdate = updatedOrder.userId === user.id;
         } else {
-          // For guest users, check if order is in localStorage
-          const guestOrderIds = getGuestOrderIds();
-          shouldUpdate = guestOrderIds.includes(updatedOrder.id);
+          // For guest users, check if order matches guestSessionId or is in localStorage (backward compatibility)
+          const guestSessionId = getGuestSessionId();
+          shouldUpdate = guestSessionId 
+            ? updatedOrder.guestSessionId === guestSessionId
+            : getGuestOrderIds().includes(updatedOrder.id);
         }
         
         if (shouldUpdate) {
@@ -249,9 +292,12 @@ export const OrderTrackingPage: React.FC = () => {
       try {
         const response = await orderService.getOrders({ page: 1, pageSize: 50 });
         // Filter to only show paid orders (payment status is SUCCESS)
-        const historyOrders = (response.orders || []).filter(order => 
-          isOrderPaid(order)
-        );
+        // Also include merged orders (CANCELLED with merge note) for transparency
+        const historyOrders = (response.orders || []).filter(order => {
+          const isPaid = isOrderPaid(order);
+          const isMergedOrder = order.status === 'CANCELLED' && order.note?.includes('Merged into order');
+          return isPaid || isMergedOrder;
+        });
         setOrderHistory(historyOrders);
         setShowHistory(true);
       } catch (error) {
@@ -337,25 +383,38 @@ export const OrderTrackingPage: React.FC = () => {
                     day: 'numeric',
                   });
 
+                  const isMergedOrder = order.status === 'CANCELLED' && order.note?.includes('Merged into order');
+                  
                   return (
                     <div key={order.id} className="bg-white rounded-xl p-4 border border-[#8A9A5B]/20 shadow-sm opacity-75">
                       <div className="mb-3">
                         <h3 className="font-semibold text-[#36454F]">
                           Order #{order.id} - {orderDate} {orderTime}
+                          {isMergedOrder && (
+                            <span className="ml-2 text-xs text-[#8A9A5B] font-normal">
+                              (Merged)
+                            </span>
+                          )}
                         </h3>
                         <p className="text-sm text-[#36454F]/70 mt-1">
                           Table: {order.table?.name || 'N/A'} • Total: {formatVND(Number(order.totalAmount))}
                         </p>
+                        {isMergedOrder && order.note && (
+                          <p className="text-xs text-[#8A9A5B] mt-1 italic">
+                            {order.note}
+                          </p>
+                        )}
                       </div>
 
                       {/* Status */}
                       <div className="mb-2">
                         <span className={`text-sm font-medium ${
                           order.status === 'COMPLETED' ? 'text-[#8A9A5B]' :
+                          isMergedOrder ? 'text-[#8A9A5B]' :
                           order.status === 'CANCELLED' ? 'text-red-500' :
                           'text-[#36454F]/70'
                         }`}>
-                          {statusLabels[order.status] || order.status}
+                          {isMergedOrder ? 'Merged into another order' : (statusLabels[order.status] || order.status)}
                         </span>
                       </div>
 
@@ -434,25 +493,38 @@ export const OrderTrackingPage: React.FC = () => {
                   day: 'numeric',
                 });
 
+                const isMergedOrder = order.status === 'CANCELLED' && order.note?.includes('Merged into order');
+                
                 return (
                   <div key={order.id} className="bg-white rounded-xl p-4 border border-[#8A9A5B]/20 shadow-sm opacity-75">
                     <div className="mb-3">
                       <h3 className="font-semibold text-[#36454F]">
                         Order #{order.id} - {orderDate} {orderTime}
+                        {isMergedOrder && (
+                          <span className="ml-2 text-xs text-[#8A9A5B] font-normal">
+                            (Merged)
+                          </span>
+                        )}
                       </h3>
                       <p className="text-sm text-[#36454F]/70 mt-1">
                         Table: {order.table?.name || 'N/A'} • Total: {formatVND(Number(order.totalAmount))}
                       </p>
+                      {isMergedOrder && order.note && (
+                        <p className="text-xs text-[#8A9A5B] mt-1 italic">
+                          {order.note}
+                        </p>
+                      )}
                     </div>
 
                     {/* Status */}
                     <div className="mb-2">
                       <span className={`text-sm font-medium ${
                         order.status === 'COMPLETED' ? 'text-[#8A9A5B]' :
+                        isMergedOrder ? 'text-[#8A9A5B]' :
                         order.status === 'CANCELLED' ? 'text-red-500' :
                         'text-[#36454F]/70'
                       }`}>
-                        {statusLabels[order.status] || order.status}
+                        {isMergedOrder ? 'Merged into another order' : (statusLabels[order.status] || order.status)}
                       </span>
                     </div>
 

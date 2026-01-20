@@ -90,11 +90,24 @@ export const orderService = {
      * Get orders by table ID (PUBLIC - for guest customers)
      * No authentication required
      * Backend automatically filters unpaid/uncompleted orders
+     * Guest session ID is automatically sent via API interceptor
      */
     async getOrdersByTable(tableId: number, excludeCancelled: boolean = true): Promise<Order[]> {
         const response = await apiClient.get(`/orders/table/${tableId}`, {
             params: { excludeCancelled: excludeCancelled ? 'true' : 'false' }
         })
+        // Backend returns { orders: [...], total }
+        return response.data?.orders || []
+    },
+
+    /**
+     * Get orders by guest session ID (PUBLIC - for guest customers)
+     * No authentication required
+     * Returns all orders (including completed) for the guest session
+     * Guest session ID is automatically sent via API interceptor
+     */
+    async getOrdersByGuestSession(): Promise<Order[]> {
+        const response = await apiClient.get('/orders/guest')
         // Backend returns { orders: [...], total }
         return response.data?.orders || []
     },

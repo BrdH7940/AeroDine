@@ -1,6 +1,7 @@
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
 import { apiConfig } from '../config/api.config';
 import { authService } from './auth.service';
+import { getGuestSessionId } from '../utils/guestSession';
 import type { TableStatus } from '@aerodine/shared-types';
 
 /**
@@ -24,6 +25,12 @@ apiClient.interceptors.request.use(
     } else {
       // Remove Authorization header if no token to avoid sending stale/invalid tokens
       delete config.headers.Authorization;
+      
+      // Add guest session ID for guest users
+      const guestSessionId = getGuestSessionId();
+      if (guestSessionId) {
+        config.headers['x-guest-session-id'] = guestSessionId;
+      }
     }
     return config;
   },
