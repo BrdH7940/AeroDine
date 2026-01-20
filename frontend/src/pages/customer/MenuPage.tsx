@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { apiClient, tablesApi } from '../../services/api';
+import { apiClient, tablesApi, menusApi } from '../../services/api';
 import { ModifierSelectionDialog, MenuItemDetailDialog, BottomNavigation, AiOrderModal } from '../../components/customer';
 import type { Category } from '../../components/customer';
 import { useCartStore, type CartItemModifier } from '../../store/cartStore';
@@ -17,6 +17,7 @@ interface MenuItem {
   description?: string;
   basePrice: number;
   status: string;
+  isChefRecommendation?: boolean;
   category?: {
     id: number;
     name: string;
@@ -50,6 +51,7 @@ export const MenuPage: React.FC = () => {
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [sortBy, setSortBy] = useState<string>('name');
 
   // Validate token from URL and bind cart to table session
   useEffect(() => {
@@ -139,7 +141,7 @@ export const MenuPage: React.FC = () => {
       loadMenuItems();
     }, 300);
     return () => clearTimeout(timeoutId);
-  }, [selectedCategoryId, searchQuery, currentRestaurantId]);
+  }, [selectedCategoryId, searchQuery, currentRestaurantId, sortBy]);
 
   const loadCategories = async () => {
     if (!currentRestaurantId) return;
@@ -160,19 +162,13 @@ export const MenuPage: React.FC = () => {
     if (!currentRestaurantId) return;
     setLoading(true);
     try {
-      const params: any = {
-        restaurantId: currentRestaurantId
-      };
-      if (searchQuery) {
-        params.q = searchQuery;
-      }
-      console.log('Loading menu items with params:', params);
-      const response = await apiClient.get('/menu-items', { params });
-      console.log('Menu items response:', response.data);
-      console.log('Number of items received:', Array.isArray(response.data) ? response.data.length : 'Not an array');
+      console.log('Loading menu items with params:', { restaurantId: currentRestaurantId, q: searchQuery, sortBy });
+      const items = await menusApi.getMenuItems(currentRestaurantId, searchQuery || undefined, sortBy || undefined);
+      console.log('Menu items response:', items);
+      console.log('Number of items received:', Array.isArray(items) ? items.length : 'Not an array');
       
-      const items = Array.isArray(response.data) ? response.data : [];
-      setMenuItems(items);
+      const itemsArray = Array.isArray(items) ? items : [];
+      setMenuItems(itemsArray);
     } catch (error: any) {
       console.error('Failed to load menu items:', error);
       console.error('Error details:', {
@@ -280,6 +276,7 @@ export const MenuPage: React.FC = () => {
     category: item.category?.name,
     image: item.images?.[0]?.url,
     available: item.status === 'AVAILABLE',
+    isChefRecommendation: item.isChefRecommendation || false,
   });
 
   const filteredItems = useMemo(() => {
@@ -442,18 +439,33 @@ export const MenuPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Search */}
-        <div className="relative group">
-          <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#36454F]/50 group-focus-within:text-[#8A9A5B] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search menu items..."
-            className="w-full bg-white text-[#36454F] pl-12 pr-4 py-3.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#8A9A5B]/30 transition-all duration-200 border border-[#8A9A5B]/20 focus:border-[#8A9A5B] placeholder:text-[#36454F]/50 shadow-sm"
-          />
+        {/* Search and Sort */}
+        <div className="space-y-3">
+          <div className="relative group">
+            <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#36454F]/50 group-focus-within:text-[#8A9A5B] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search menu items..."
+              className="w-full bg-white text-[#36454F] pl-12 pr-4 py-3.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#8A9A5B]/30 transition-all duration-200 border border-[#8A9A5B]/20 focus:border-[#8A9A5B] placeholder:text-[#36454F]/50 shadow-sm"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-[#36454F] whitespace-nowrap">Sắp xếp:</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="flex-1 bg-white text-[#36454F] px-4 py-2 rounded-xl border border-[#8A9A5B]/20 focus:outline-none focus:ring-2 focus:ring-[#8A9A5B]/30 focus:border-[#8A9A5B] text-sm"
+            >
+              <option value="name">Tên A-Z</option>
+              <option value="popularity">Phổ biến nhất</option>
+              <option value="price-asc">Giá: Thấp → Cao</option>
+              <option value="price-desc">Giá: Cao → Thấp</option>
+            </select>
+          </div>
         </div>
 
         {/* Categories */}
@@ -559,7 +571,16 @@ export const MenuPage: React.FC = () => {
                     )}
                     <div className="flex-1">
                       <div className="flex items-start justify-between mb-1">
-                        <h3 className="text-lg font-semibold text-[#36454F]">{item.name}</h3>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="text-lg font-semibold text-[#36454F]">{item.name}</h3>
+                            {item.isChefRecommendation && (
+                              <span className="px-2 py-0.5 bg-[#D4AF37] text-white text-xs font-bold rounded-full">
+                                👨‍🍳 Chef's Pick
+                              </span>
+                            )}
+                          </div>
+                        </div>
                         <span className="text-lg font-bold text-[#8A9A5B]">
                           {formatVND(Number(item.basePrice))}
                         </span>

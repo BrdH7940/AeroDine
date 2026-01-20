@@ -20,6 +20,7 @@ import { CreateModifierOptionDto } from './dto/create-modifier-option.dto'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../auth/guards/roles.guard'
 import { Roles } from '../auth/decorators/roles.decorator'
+import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import { UserRole } from '@aerodine/shared-types'
 import { ApiBearerAuth, ApiQuery, ApiTags, ApiOperation } from '@nestjs/swagger'
 
@@ -141,11 +142,18 @@ export class MenusController {
         type: String,
         description: 'Search query for fuzzy name matching',
     })
+    @ApiQuery({
+        name: 'sortBy',
+        required: false,
+        type: String,
+        description: 'Sort by: popularity, name, price-asc, price-desc',
+    })
     getMenuItems(
         @Query('restaurantId') restaurantId: string,
-        @Query('q') q?: string
+        @Query('q') q?: string,
+        @Query('sortBy') sortBy?: string
     ) {
-        return this.menusService.findAllMenuItems(Number(restaurantId), q)
+        return this.menusService.findAllMenuItems(Number(restaurantId), q, sortBy)
     }
 
     @ApiBearerAuth('JWT-auth')
@@ -177,6 +185,21 @@ export class MenusController {
     })
     getMenuItemReviews(@Param('id') id: string) {
         return this.menusService.getMenuItemReviews(+id)
+    }
+
+    @ApiBearerAuth('JWT-auth')
+    @UseGuards(JwtAuthGuard)
+    @Post('menu-items/:id/reviews')
+    @ApiOperation({
+        summary: 'Create a review for a menu item (Authenticated users only)',
+        description: 'Logged-in customers can review items they have ordered',
+    })
+    createMenuItemReview(
+        @Param('id') id: string,
+        @Body() dto: { rating: number; comment?: string },
+        @CurrentUser() user: any
+    ) {
+        return this.menusService.createReview(+id, user.id, dto.rating, dto.comment)
     }
 }
 

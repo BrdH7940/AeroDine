@@ -2,6 +2,7 @@ import {
     Injectable,
     NotFoundException,
     InternalServerErrorException,
+    BadRequestException,
     Logger,
 } from '@nestjs/common'
 import { PrismaService } from '../database/prisma.service'
@@ -207,8 +208,8 @@ export class MenusService {
         }
     }
 
-    async findAllMenuItems(restaurantId: number, query?: string) {
-        // Get all menu items for the restaurant
+    async findAllMenuItems(restaurantId: number, query?: string, sortBy?: string) {
+        // Get all menu items for the restaurant with order count for popularity
         const allItems = await this.prisma.menuItem.findMany({
             where: {
                 restaurantId,
@@ -225,11 +226,47 @@ export class MenusService {
                         },
                     },
                 },
+                _count: {
+                    select: {
+                        orderItems: {
+                            where: {
+                                order: {
+                                    status: 'COMPLETED' as any, // Prisma enum
+                                },
+                            },
+                        },
+                    },
+                },
             },
         })
 
-        // If no query, return all items sorted by name
+        // If no query, apply sorting
         if (!query || query.trim() === '') {
+            if (sortBy === 'popularity') {
+                // Sort by popularity (order count) descending
+                return allItems.sort((a, b) => {
+                    const countA = a._count?.orderItems || 0
+                    const countB = b._count?.orderItems || 0
+                    if (countA !== countB) {
+                        return countB - countA // Descending
+                    }
+                    // If same popularity, sort by name
+                    return a.name.localeCompare(b.name)
+                })
+            } else if (sortBy === 'price-asc') {
+                return allItems.sort((a, b) => {
+                    const priceA = Number(a.basePrice)
+                    const priceB = Number(b.basePrice)
+                    return priceA - priceB
+                })
+            } else if (sortBy === 'price-desc') {
+                return allItems.sort((a, b) => {
+                    const priceA = Number(a.basePrice)
+                    const priceB = Number(b.basePrice)
+                    return priceB - priceA
+                })
+            }
+            // Default: sort by name
             return allItems.sort((a, b) => a.name.localeCompare(b.name))
         }
 
@@ -306,19 +343,43 @@ export class MenusService {
         )
 
         // Sort by: exact matches first, then by similarity score (highest first)
-        matchedItems.sort((a, b) => {
-            // Exact matches come first
-            if (a.exactMatch && !b.exactMatch) return -1
-            if (!a.exactMatch && b.exactMatch) return 1
+        // If sortBy is popularity, prioritize by order count
+        if (sortBy === 'popularity') {
+            matchedItems.sort((a, b) => {
+                // Exact matches come first
+                if (a.exactMatch && !b.exactMatch) return -1
+                if (!a.exactMatch && b.exactMatch) return 1
 
-            // Then sort by score (higher is better)
-            if (Math.abs(a.score - b.score) > 0.001) {
-                return b.score - a.score
-            }
+                // Then by popularity (order count)
+                const countA = a.item._count?.orderItems || 0
+                const countB = b.item._count?.orderItems || 0
+                if (countA !== countB) {
+                    return countB - countA // Descending
+                }
 
-            // Finally, sort by name alphabetically
-            return a.item.name.localeCompare(b.item.name)
-        })
+                // Then by score (higher is better)
+                if (Math.abs(a.score - b.score) > 0.001) {
+                    return b.score - a.score
+                }
+
+                // Finally, sort by name alphabetically
+                return a.item.name.localeCompare(b.item.name)
+            })
+        } else {
+            matchedItems.sort((a, b) => {
+                // Exact matches come first
+                if (a.exactMatch && !b.exactMatch) return -1
+                if (!a.exactMatch && b.exactMatch) return 1
+
+                // Then sort by score (higher is better)
+                if (Math.abs(a.score - b.score) > 0.001) {
+                    return b.score - a.score
+                }
+
+                // Finally, sort by name alphabetically
+                return a.item.name.localeCompare(b.item.name)
+            })
+        }
 
         // Return only the items (without score metadata)
         return matchedItems.map(({ item }) => item)
@@ -474,21 +535,109 @@ export class MenusService {
         const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0)
         const averageRating = reviews.length > 0 ? totalRating / reviews.length : 0
 
+        // Map reviews to response format
+        const mappedReviews = reviews.map((review) => ({
+            id: review.id,
+            rating: review.rating,
+            comment: review.comment,
+            createdAt: review.createdAt,
+            user: {
+                id: review.user.id,
+                fullName: review.user.fullName,
+                email: review.user.email,
+            },
+        }))
+
         return {
             menuItemId,
             averageRating: Math.round(averageRating * 10) / 10, // Round to 1 decimal place
             totalReviews: reviews.length,
-            reviews: reviews.map((review) => ({
-                id: review.id,
-                rating: review.rating,
-                comment: review.comment,
-                createdAt: review.createdAt,
-                user: {
-                    id: review.user.id,
-                    fullName: review.user.fullName,
-                    email: review.user.email,
-                },
-            })),
+            reviews: mappedReviews,
         }
+    }
+
+    async createReview(
+        menuItemId: number,
+        userId: number,
+        rating: number,
+        comment?: string
+    ) {
+        // Validate rating
+        if (rating < 1 || rating > 5) {
+            throw new BadRequestException('Rating must be between 1 and 5')
+        }
+
+        // Check if menu item exists
+        const menuItem = await this.prisma.menuItem.findUnique({
+            where: { id: menuItemId },
+        })
+
+        if (!menuItem) {
+            throw new NotFoundException(`Menu item with ID ${menuItemId} not found`)
+        }
+
+        // Check if user has ordered this item (at least once in a completed order)
+        const hasOrdered = await this.prisma.orderItem.findFirst({
+            where: {
+                menuItemId,
+                order: {
+                    userId,
+                    status: 'COMPLETED' as any, // Prisma enum
+                },
+            },
+        })
+
+        if (!hasOrdered) {
+            throw new BadRequestException(
+                'You can only review items you have ordered'
+            )
+        }
+
+        // Check if user already reviewed this item
+        const existingReview = await this.prisma.review.findFirst({
+            where: {
+                menuItemId,
+                userId,
+            },
+        })
+
+        if (existingReview) {
+            // Update existing review
+            return this.prisma.review.update({
+                where: { id: existingReview.id },
+                data: {
+                    rating,
+                    comment: comment || null,
+                },
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            fullName: true,
+                            email: true,
+                        },
+                    },
+                },
+            })
+        }
+
+        // Create new review
+        return this.prisma.review.create({
+            data: {
+                menuItemId,
+                userId,
+                rating,
+                comment: comment || null,
+            },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        email: true,
+                    },
+                },
+            },
+        })
     }
 }

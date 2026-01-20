@@ -1,5 +1,6 @@
 import {
     IsArray,
+    IsBoolean,
     IsEnum,
     IsInt,
     IsNotEmpty,
@@ -32,6 +33,10 @@ export class CreateMenuItemDto {
     @IsEnum(ItemStatus)
     @IsOptional()
     status?: ItemStatus
+
+    @IsBoolean()
+    @IsOptional()
+    isChefRecommendation?: boolean
 
     // image can be a remote URL or base64 data URI
     @IsString()

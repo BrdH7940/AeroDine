@@ -22,6 +22,7 @@ interface MenuItem {
     description?: string | null
     basePrice: string | number // Prisma Decimal is serialized as string
     status: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN' // ItemStatus enum from Prisma
+    isChefRecommendation?: boolean
     createdAt?: string | Date
     updatedAt?: string | Date
     images?: Array<{
@@ -314,6 +315,7 @@ export default function MenuPage() {
         status: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN'
         image?: string
         modifierGroupIds?: number[]
+        isChefRecommendation?: boolean
     }) => {
         try {
             if (!restaurantId) {
@@ -335,6 +337,7 @@ export default function MenuPage() {
                     status: formData.status,
                     image: formData.image,
                     modifierGroupIds: formData.modifierGroupIds,
+                    isChefRecommendation: formData.isChefRecommendation,
                 })
             } else {
                 // Create new item
@@ -347,6 +350,7 @@ export default function MenuPage() {
                     status: formData.status,
                     image: formData.image,
                     modifierGroupIds: formData.modifierGroupIds,
+                    isChefRecommendation: formData.isChefRecommendation,
                 })
             }
 
@@ -682,6 +686,7 @@ function MenuItemModal({
         status: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN'
         image?: string
         modifierGroupIds?: number[]
+        isChefRecommendation?: boolean
     }) => void
     item: MenuItem | null
     categories: Category[]
@@ -710,6 +715,9 @@ function MenuItemModal({
     const [selectedModifierGroups, setSelectedModifierGroups] = useState<number[]>(
         item?.modifierGroups?.map((mg) => mg.modifierGroup.id) || []
     )
+    const [isChefRecommendation, setIsChefRecommendation] = useState<boolean>(
+        (item as any)?.isChefRecommendation || false
+    )
 
     useEffect(() => {
         if (item) {
@@ -724,6 +732,7 @@ function MenuItemModal({
             setStatus(item.status)
             setImagePreview(item.images && item.images.length > 0 ? item.images[0].url : null)
             setSelectedModifierGroups(item.modifierGroups?.map((mg) => mg.modifierGroup.id) || [])
+            setIsChefRecommendation((item as any)?.isChefRecommendation || false)
         } else {
             setName('')
             setDescription('')
@@ -732,6 +741,7 @@ function MenuItemModal({
             setStatus('AVAILABLE')
             setImagePreview(null)
             setSelectedModifierGroups([])
+            setIsChefRecommendation(false)
         }
         setSelectedImage(null)
     }, [item, categories])
@@ -856,6 +866,7 @@ function MenuItemModal({
             status,
             image: imageBase64,
             modifierGroupIds: selectedModifierGroups.length > 0 ? selectedModifierGroups : undefined,
+            isChefRecommendation,
         })
     }
 
@@ -964,6 +975,20 @@ function MenuItemModal({
                             <option value="SOLD_OUT">Sold Out</option>
                             <option value="HIDDEN">Hidden</option>
                         </select>
+                    </div>
+
+                    {/* Chef Recommendation */}
+                    <div className="flex items-center gap-3">
+                        <input
+                            type="checkbox"
+                            id="chefRecommendation"
+                            checked={isChefRecommendation}
+                            onChange={(e) => setIsChefRecommendation(e.target.checked)}
+                            className="w-5 h-5 text-amber-500 border-slate-300 rounded focus:ring-2 focus:ring-amber-500"
+                        />
+                        <label htmlFor="chefRecommendation" className="text-sm font-medium text-slate-700 cursor-pointer">
+                            👨‍🍳 Chef's Recommendation
+                        </label>
                     </div>
 
                     {/* Image Upload */}

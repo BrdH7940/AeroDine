@@ -246,6 +246,7 @@ export interface CreateMenuItemDto {
   basePrice: number;
   image?: string;
   status?: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN';
+  isChefRecommendation?: boolean;
   modifierGroupIds?: number[];
 }
 
@@ -256,6 +257,7 @@ export interface UpdateMenuItemDto {
   basePrice?: number;
   image?: string;
   status?: 'AVAILABLE' | 'SOLD_OUT' | 'HIDDEN';
+  isChefRecommendation?: boolean;
   modifierGroupIds?: number[];
 }
 
@@ -271,15 +273,19 @@ export const menusApi = {
   },
 
   /**
-   * Get all menu items with optional search
+   * Get all menu items with optional search and sort
    */
-  getMenuItems: async (restaurantId: number, searchQuery?: string) => {
-    const response = await apiClient.get('/menu-items', {
-      params: {
-        restaurantId,
-        q: searchQuery,
-      },
-    });
+  getMenuItems: async (restaurantId: number, searchQuery?: string, sortBy?: string) => {
+    const params: any = {
+      restaurantId,
+    };
+    if (searchQuery) {
+      params.q = searchQuery;
+    }
+    if (sortBy) {
+      params.sortBy = sortBy;
+    }
+    const response = await apiClient.get('/menu-items', { params });
     return response.data;
   },
 
@@ -322,6 +328,14 @@ export const menusApi = {
    */
   getMenuItemReviews: async (menuItemId: number) => {
     const response = await apiClient.get(`/menu-items/${menuItemId}/reviews`);
+    return response.data;
+  },
+
+  /**
+   * Create a review for a menu item (authenticated users only)
+   */
+  createReview: async (menuItemId: number, data: { rating: number; comment?: string }) => {
+    const response = await apiClient.post(`/menu-items/${menuItemId}/reviews`, data);
     return response.data;
   },
 };

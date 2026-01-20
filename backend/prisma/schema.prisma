@@ -72,21 +72,22 @@ model Category {
 }
 
 model MenuItem {
-  id             Int                 @id @default(autoincrement())
-  restaurantId   Int                 @map("restaurant_id")
-  categoryId     Int                 @map("category_id")
-  name           String
-  description    String?             @db.Text
-  basePrice      Decimal             @map("base_price") @db.Decimal(10, 2)
-  status         ItemStatus          @default(AVAILABLE)
-  createdAt      DateTime            @default(now()) @map("created_at")
-  updatedAt      DateTime            @updatedAt @map("updated_at")
-  modifierGroups ItemModifierGroup[]
-  images         MenuItemImage[]
-  category       Category            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  restaurant     Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  orderItems     OrderItem[]
-  reviews        Review[]
+  id                  Int                 @id @default(autoincrement())
+  restaurantId        Int                 @map("restaurant_id")
+  categoryId          Int                 @map("category_id")
+  name                String
+  description         String?             @db.Text
+  basePrice           Decimal             @map("base_price") @db.Decimal(10, 2)
+  status              ItemStatus          @default(AVAILABLE)
+  isChefRecommendation Boolean            @default(false) @map("is_chef_recommendation")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+  modifierGroups      ItemModifierGroup[]
+  images              MenuItemImage[]
+  category            Category            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  restaurant          Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orderItems          OrderItem[]
+  reviews             Review[]
 
   @@index([restaurantId, categoryId])
   @@map("menu_items")

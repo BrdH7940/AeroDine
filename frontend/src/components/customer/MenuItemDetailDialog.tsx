@@ -4,6 +4,7 @@ import type { CartItemModifier } from '../../store/cartStore';
 import { formatVND } from '../../utils/currency';
 import { menusApi } from '../../services/api';
 import { useModal } from '../../contexts/ModalContext';
+import { useUserStore } from '../../store/userStore';
 
 interface MenuItemDetailDialogProps {
   isOpen: boolean;
@@ -28,6 +29,17 @@ interface MenuItemDetailDialogProps {
 interface ReviewData {
   averageRating: number;
   totalReviews: number;
+  reviews?: Array<{
+    id: number;
+    rating: number;
+    comment?: string;
+    createdAt: string;
+    user: {
+      id: number;
+      fullName: string;
+      email: string;
+    };
+  }>;
 }
 
 export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
@@ -37,10 +49,15 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
   onAddToCart,
 }) => {
   const { alert } = useModal();
+  const { user, isAuthenticated } = useUserStore();
   const [selectedModifiers, setSelectedModifiers] = useState<Map<number, number[]>>(new Map());
   const [note, setNote] = useState('');
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
   const [loadingReviews, setLoadingReviews] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   // Calculate modifierGroups using useMemo to ensure it updates when menuItem changes
   const modifierGroups = useMemo(() => {
@@ -99,15 +116,68 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
       setReviewData({
         averageRating: data.averageRating || 0,
         totalReviews: data.totalReviews || 0,
+        reviews: data.reviews || [],
       });
     } catch (error) {
       console.error('Failed to load reviews:', error);
       setReviewData({
         averageRating: 0,
         totalReviews: 0,
+        reviews: [],
       });
     } finally {
       setLoadingReviews(false);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!isAuthenticated) {
+      await alert({
+        title: 'Cần đăng nhập',
+        message: 'Vui lòng đăng nhập để đánh giá món ăn',
+        type: 'warning',
+      });
+      return;
+    }
+
+    if (reviewRating < 1 || reviewRating > 5) {
+      await alert({
+        title: 'Lỗi',
+        message: 'Vui lòng chọn điểm đánh giá từ 1 đến 5 sao',
+        type: 'error',
+      });
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      await menusApi.createReview(menuItem.id, {
+        rating: reviewRating,
+        comment: reviewComment.trim() || undefined,
+      });
+      
+      await alert({
+        title: 'Thành công',
+        message: 'Đánh giá của bạn đã được gửi',
+        type: 'success',
+      });
+
+      // Reload reviews
+      await loadReviews();
+      
+      // Reset form
+      setShowReviewForm(false);
+      setReviewRating(5);
+      setReviewComment('');
+    } catch (error: any) {
+      console.error('Failed to submit review:', error);
+      await alert({
+        title: 'Lỗi',
+        message: error.response?.data?.message || 'Không thể gửi đánh giá. Vui lòng thử lại.',
+        type: 'error',
+      });
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -431,6 +501,114 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
                 className="w-full px-4 py-3 border border-[#8A9A5B]/30 rounded-lg focus:ring-2 focus:ring-[#8A9A5B]/30 focus:border-[#8A9A5B] resize-none bg-white text-[#36454F] placeholder-[#36454F]/50 transition-all duration-200"
                 rows={3}
               />
+            </div>
+
+            {/* Reviews Section */}
+            <div className="border-t border-[#8A9A5B]/20 pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-[#36454F]">Đánh giá</h3>
+                {isAuthenticated && (
+                  <button
+                    onClick={() => setShowReviewForm(!showReviewForm)}
+                    className="text-sm text-[#8A9A5B] hover:text-[#6B7A4A] font-medium"
+                  >
+                    {showReviewForm ? 'Hủy' : 'Viết đánh giá'}
+                  </button>
+                )}
+              </div>
+
+              {/* Review Form */}
+              {showReviewForm && isAuthenticated && (
+                <div className="mb-6 p-4 bg-[#F9F7F2] rounded-lg border border-[#8A9A5B]/20">
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-[#36454F] mb-2">
+                      Đánh giá của bạn
+                    </label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setReviewRating(star)}
+                          className="focus:outline-none"
+                        >
+                          <svg
+                            className={`w-8 h-8 ${
+                              star <= reviewRating
+                                ? 'text-[#D4AF37] fill-current'
+                                : 'text-[#8A9A5B]/30'
+                            }`}
+                            viewBox="0 0 20 20"
+                          >
+                            <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                          </svg>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium text-[#36454F] mb-2">
+                      Nhận xét (tùy chọn)
+                    </label>
+                    <textarea
+                      value={reviewComment}
+                      onChange={(e) => setReviewComment(e.target.value)}
+                      placeholder="Chia sẻ trải nghiệm của bạn..."
+                      className="w-full px-4 py-3 border border-[#8A9A5B]/30 rounded-lg focus:ring-2 focus:ring-[#8A9A5B]/30 focus:border-[#8A9A5B] resize-none bg-white text-[#36454F] placeholder-[#36454F]/50"
+                      rows={3}
+                    />
+                  </div>
+                  <button
+                    onClick={handleSubmitReview}
+                    disabled={submittingReview}
+                    className="w-full py-2 px-4 bg-[#8A9A5B] text-white rounded-lg hover:bg-[#6B7A4A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {submittingReview ? 'Đang gửi...' : 'Gửi đánh giá'}
+                  </button>
+                </div>
+              )}
+
+              {/* Reviews List */}
+              {reviewData && reviewData.reviews && reviewData.reviews.length > 0 && (
+                <div className="space-y-4 max-h-64 overflow-y-auto">
+                  {reviewData.reviews.map((review) => (
+                    <div key={review.id} className="border-b border-[#8A9A5B]/20 pb-4 last:border-0">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="font-medium text-[#36454F]">{review.user.fullName}</p>
+                          <p className="text-xs text-[#36454F]/50">
+                            {new Date(review.createdAt).toLocaleDateString('vi-VN')}
+                          </p>
+                        </div>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <svg
+                              key={star}
+                              className={`w-4 h-4 ${
+                                star <= review.rating
+                                  ? 'text-[#D4AF37] fill-current'
+                                  : 'text-[#8A9A5B]/30'
+                              }`}
+                              viewBox="0 0 20 20"
+                            >
+                              <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+                            </svg>
+                          ))}
+                        </div>
+                      </div>
+                      {review.comment && (
+                        <p className="text-sm text-[#36454F]/70 mt-2">{review.comment}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {reviewData && reviewData.totalReviews === 0 && (
+                <p className="text-sm text-[#36454F]/50 text-center py-4">
+                  Chưa có đánh giá nào. Hãy là người đầu tiên đánh giá món này!
+                </p>
+              )}
             </div>
           </div>
         </div>
