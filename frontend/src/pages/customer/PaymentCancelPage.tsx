@@ -1,9 +1,11 @@
 import React from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useCartStore } from '../../store/cartStore';
 
 export const PaymentCancelPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { tableId } = useCartStore();
   const orderId = searchParams.get('order_id');
 
   return (
@@ -28,21 +30,32 @@ export const PaymentCancelPage: React.FC = () => {
             </div>
             <h1 className="text-2xl font-bold text-[#36454F] mb-2">Payment Cancelled</h1>
             <p className="text-[#36454F]/70">
-              Your payment was cancelled. Your order has been saved but not yet paid.
+              Your payment was cancelled. You can try again from your orders page.
             </p>
           </div>
 
           <div className="space-y-4">
             {orderId && (
-              <p className="text-sm text-[#36454F]/70">
-                Order ID: {orderId}
-              </p>
+              <div className="bg-[#D4AF37]/10 rounded-lg p-3 mb-4">
+                <p className="text-sm text-[#36454F]">Order ID: <span className="font-semibold">#{orderId}</span></p>
+              </div>
             )}
             <button
-              onClick={() => navigate('/customer/cart')}
+              onClick={() => {
+                if (orderId) {
+                  navigate(`/customer/orders/${orderId}`);
+                } else {
+                  const storedOrderId = localStorage.getItem('lastOrderId');
+                  if (storedOrderId) {
+                    navigate(`/customer/orders/${storedOrderId}`);
+                  } else {
+                    navigate('/customer/menu');
+                  }
+                }
+              }}
               className="w-full px-6 py-3 bg-[#D4AF37] text-white rounded-lg hover:bg-[#B8941F] transition-colors duration-200 font-medium"
             >
-              Return to Cart
+              {orderId ? 'Return to Orders' : 'View My Orders'}
             </button>
             <button
               onClick={() => navigate('/customer/menu')}

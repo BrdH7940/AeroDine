@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { orderService } from '../../services/order.service';
+import { paymentService } from '../../services/payment.service';
 import { useSocket } from '../../hooks/useSocket';
 import { formatVND } from '../../utils/currency';
 import { BottomNavigation } from '../../components/customer';
 import { useCartStore } from '../../store/cartStore';
 import type { Order } from '@aerodine/shared-types';
-import { OrderItemStatus } from '@aerodine/shared-types';
+import { OrderItemStatus, PaymentMethod } from '@aerodine/shared-types';
 
 const statusLabels: Record<string, string> = {
   PENDING_REVIEW: 'Waiting for Confirmation',
@@ -25,6 +26,8 @@ export const OrderTrackingPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
   const socket = useSocket();
 
   const loadOrders = useCallback(async () => {
@@ -130,6 +133,67 @@ export const OrderTrackingPage: React.FC = () => {
 
   const getTotalAmount = () => {
     return orders.reduce((sum, order) => sum + Number(order.totalAmount), 0);
+  };
+
+  const hasUnpaidOrders = () => {
+    return orders.some(order => 
+      !order.payment || order.payment.status !== 'SUCCESS'
+    );
+  };
+
+  const handlePayWithCard = async () => {
+    if (orders.length === 0) return;
+    
+    setPaymentLoading(true);
+    try {
+      // For multiple orders, we'll pay for the first unpaid order
+      // In production, you might want to combine all orders into one payment
+      const unpaidOrder = orders.find(order => 
+        !order.payment || order.payment.status !== 'SUCCESS'
+      );
+
+      if (!unpaidOrder) {
+        alert('All orders have been paid');
+        return;
+      }
+
+      // Create Stripe checkout session
+      const { url } = await paymentService.createStripeCheckout(unpaidOrder.id);
+      
+      // Redirect to Stripe checkout
+      window.location.href = url;
+    } catch (error) {
+      console.error('Failed to create payment:', error);
+      alert('Failed to create payment. Please try again.');
+      setPaymentLoading(false);
+    }
+  };
+
+  const handleRequestCashPayment = async () => {
+    if (orders.length === 0) return;
+    
+    setPaymentLoading(true);
+    try {
+      const unpaidOrder = orders.find(order => 
+        !order.payment || order.payment.status !== 'SUCCESS'
+      );
+
+      if (!unpaidOrder) {
+        alert('All orders have been paid');
+        return;
+      }
+
+      // Request cash payment (notify staff)
+      await paymentService.requestCashPayment(unpaidOrder.id);
+      
+      alert('Cash payment request sent! Please wait for staff to confirm your payment.');
+      setShowPaymentModal(false);
+    } catch (error) {
+      console.error('Failed to request cash payment:', error);
+      alert('Failed to request cash payment. Please try again.');
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   if (loading && initialLoad) {
@@ -272,19 +336,98 @@ export const OrderTrackingPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Request Bill Button */}
-        <button
-          onClick={() => {
-            // Navigate to payment/bill page
-            navigate('/customer/menu');
-          }}
-          className="w-full px-6 py-3 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 font-medium"
-        >
-          Request Bill
-        </button>
+        {/* Payment Button - Only show if there are unpaid orders */}
+        {hasUnpaidOrders() && (
+          <button
+            onClick={() => setShowPaymentModal(true)}
+            className="w-full px-6 py-3 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 font-medium shadow-md"
+          >
+            Pay Now
+          </button>
+        )}
+
+        {/* All Paid Message */}
+        {!hasUnpaidOrders() && orders.length > 0 && (
+          <div className="text-center py-4 bg-green-50 rounded-xl border border-green-200">
+            <div className="flex items-center justify-center gap-2 text-green-700">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span className="font-medium">All orders have been paid</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <BottomNavigation />
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <h3 className="text-xl font-bold text-[#36454F] mb-4">Choose Payment Method</h3>
+            
+            <div className="space-y-3 mb-6">
+              {/* Card Payment Option */}
+              <button
+                onClick={handlePayWithCard}
+                disabled={paymentLoading}
+                className="w-full p-4 bg-[#8A9A5B] text-white rounded-xl hover:bg-[#7A8A4B] transition-all duration-200 flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="flex items-center gap-3">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                  <div className="text-left">
+                    <div className="font-semibold">Pay with Card</div>
+                    <div className="text-sm opacity-90">Visa, Mastercard, etc.</div>
+                  </div>
+                </div>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              {/* Cash Payment Option */}
+              <button
+                onClick={handleRequestCashPayment}
+                disabled={paymentLoading}
+                className="w-full p-4 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="flex items-center gap-3">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  <div className="text-left">
+                    <div className="font-semibold">Request Cash Payment</div>
+                    <div className="text-sm opacity-90">Staff will confirm</div>
+                  </div>
+                </div>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Loading State */}
+            {paymentLoading && (
+              <div className="text-center py-2 mb-4">
+                <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-[#8A9A5B]"></div>
+                <p className="mt-2 text-sm text-[#36454F]">Processing...</p>
+              </div>
+            )}
+
+            {/* Cancel Button */}
+            <button
+              onClick={() => setShowPaymentModal(false)}
+              disabled={paymentLoading}
+              className="w-full px-6 py-3 bg-gray-100 text-[#36454F] rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

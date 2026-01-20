@@ -204,32 +204,25 @@ export class OrdersController {
     /**
      * Get orders by table ID (PUBLIC - for customer order tracking)
      * GET /orders/table/:tableId
-     * No authentication required - guests can track their orders by table
+     * Authentication optional - filters orders based on login status:
+     * - Logged in: shows only unpaid/uncompleted orders of that user at table
+     * - Guest: shows only unpaid/uncompleted guest orders (userId=null) at table
      */
+    @UseGuards(OptionalJwtAuthGuard)
     @Get('table/:tableId')
     @ApiOperation({
         summary: 'Get orders by table ID (PUBLIC)',
-        description: 'Public endpoint for customers to track their orders without authentication.',
+        description: 'Endpoint for customers to track their orders. Filters by login status and payment status.',
     })
     @ApiResponse({
         status: 200,
-        description: 'Returns all active orders for the specified table',
+        description: 'Returns unpaid/uncompleted orders for the specified table',
     })
     getOrdersByTable(
         @Param('tableId', ParseIntPipe) tableId: number,
-        @Query('excludeCancelled') excludeCancelled?: string
+        @CurrentUser() user?: any
     ) {
-        return this.ordersService.findAll({
-            tableId,
-            status: excludeCancelled === 'true' 
-                ? [
-                    OrderStatus.PENDING_REVIEW,
-                    OrderStatus.PENDING,
-                    OrderStatus.IN_PROGRESS,
-                    OrderStatus.COMPLETED
-                  ]
-                : undefined,
-        })
+        return this.ordersService.getOrdersByTableForCustomer(tableId, user?.id)
     }
 
     /**
