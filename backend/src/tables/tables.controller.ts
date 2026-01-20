@@ -115,16 +115,26 @@ export class TablesController {
                 valid: true,
             }
         } catch (error) {
+            // Log error for debugging
+            console.error('Error validating table token:', error)
+            
             if (error instanceof UnauthorizedException) {
                 throw error
             }
+            if (error instanceof BadRequestException) {
+                throw error
+            }
+            // For any other error, return 401
             throw new UnauthorizedException('Invalid or expired table token')
         }
     }
 
+    @ApiBearerAuth('JWT-auth')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.ADMIN)
     @Get(':id/qr')
     @ApiOperation({
-        summary: 'Get QR code URL for a table',
+        summary: 'Get QR code URL for a table (ADMIN only)',
         description:
             'Returns the full URL that should be used to generate the QR code. This URL includes the table token as a query parameter.',
     })
@@ -134,13 +144,14 @@ export class TablesController {
         description: 'QR code URL',
         schema: {
             example: {
-                qrUrl: 'http://localhost:5173/menu?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                qrUrl: 'http://localhost:5173/customer/menu?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
                 tableId: 1,
                 restaurantId: 1,
             },
         },
     })
     @ApiResponse({ status: 404, description: 'Table not found' })
+    @ApiResponse({ status: 401, description: 'Unauthorized' })
     async getQrUrl(@Param('id') id: string) {
         const table = await this.tablesService.findOne(+id)
         const qrUrl = this.tablesService.getQrUrl(table.token)

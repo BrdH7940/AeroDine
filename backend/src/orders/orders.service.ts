@@ -46,11 +46,6 @@ import {
 } from '@aerodine/shared-types'
 import Stripe from 'stripe'
 
-interface TableTokenPayload {
-    tableId: number
-    restaurantId: number
-}
-
 /**
  * Orders Service - Handles all order-related business logic
  * Includes order management, status transitions, and real-time notifications
@@ -87,36 +82,6 @@ export class OrdersService {
             this.logger.warn(
                 'STRIPE_SECRET_KEY is not set. Stripe features will be disabled.'
             )
-        }
-    }
-
-    /**
-     * Decode and verify table token
-     */
-    private async verifyTableToken(
-        token: string
-    ): Promise<{ tableId: number; restaurantId: number }> {
-        const secret = this.configService.get<string>('jwt.secret')
-        if (!secret) {
-            throw new Error('JWT secret not configured')
-        }
-
-        try {
-            const payload =
-                await this.jwtService.verifyAsync<TableTokenPayload>(token, {
-                    secret,
-                })
-
-            if (!payload.tableId || !payload.restaurantId) {
-                throw new UnauthorizedException('Invalid table token payload')
-            }
-
-            return {
-                tableId: payload.tableId,
-                restaurantId: payload.restaurantId,
-            }
-        } catch (error) {
-            throw new UnauthorizedException('Invalid or expired table token')
         }
     }
 

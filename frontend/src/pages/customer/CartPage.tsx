@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../../store/cartStore';
 import { BottomNavigation } from '../../components/customer';
@@ -28,6 +28,33 @@ export const CartPage: React.FC = () => {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [orderId, setOrderId] = useState<number | null>(null);
   const [orderTotal, setOrderTotal] = useState<number>(0);
+
+  // Sync tableInputValue with tableId from cart store (when set from QR code)
+  useEffect(() => {
+    console.log('CartPage: tableId changed to', tableId);
+    if (tableId && tableId > 0) {
+      setTableInputValue(tableId.toString());
+    } else {
+      // If tableId is cleared, also clear input
+      setTableInputValue('');
+    }
+  }, [tableId]);
+
+  // Debug: Log tableId on mount and check localStorage
+  useEffect(() => {
+    console.log('CartPage mounted, tableId from store:', tableId, 'restaurantId:', restaurantId);
+    // Also check localStorage directly
+    try {
+      const stored = localStorage.getItem('aerodine-cart');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        console.log('CartPage: localStorage cart data:', parsed);
+        console.log('CartPage: tableId from localStorage:', parsed.tableId);
+      }
+    } catch (error) {
+      console.error('Failed to read localStorage:', error);
+    }
+  }, []);
 
   // Calculate total before placing order
   const calculateOrderTotal = (): number => {
@@ -208,7 +235,7 @@ export const CartPage: React.FC = () => {
             <h2 className="text-lg font-semibold text-[#36454F]">
               {tableId ? `Table ${tableId}` : 'Table'} - Your Order
             </h2>
-            {tableId && (
+            {tableId && tableId > 0 && (
               <button
                 onClick={() => {
                   setTableId(0);
@@ -220,7 +247,18 @@ export const CartPage: React.FC = () => {
               </button>
             )}
           </div>
-          {(!tableId || tableId === 0) && (
+          {tableId && Number(tableId) > 0 ? (
+            <div className="mb-4 p-3 bg-[#8A9A5B]/10 border border-[#8A9A5B]/30 rounded-xl">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-[#8A9A5B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm text-[#36454F] font-medium">
+                  Table number <span className="font-bold">{tableId}</span> has been automatically set from QR code
+                </p>
+              </div>
+            </div>
+          ) : (
             <div className="mb-4">
               <label className="block text-sm font-medium text-[#36454F] mb-2">
                 Table Number <span className="text-red-400">*</span>
@@ -268,7 +306,7 @@ export const CartPage: React.FC = () => {
                 min="1"
                 required
               />
-              <p className="mt-1 text-xs text-[#36454F]/70">Please enter your table number to place an order</p>
+              <p className="mt-1 text-xs text-[#36454F]/70">Please enter your table number to place an order, or scan the QR code on your table</p>
             </div>
           )}
         </div>
@@ -388,7 +426,7 @@ export const CartPage: React.FC = () => {
 
         {/* Info Message */}
         <div className="flex items-start gap-2 text-sm text-[#36454F]/70">
-          <svg className="w-5 h-5 text-[#8A9A5B] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 text-[#8A9A5B] shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p>You can add more orders during your visit</p>

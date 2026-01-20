@@ -88,23 +88,36 @@ export const MenuPage: React.FC = () => {
     const validateTokenAndBindCart = async () => {
       const token = searchParams.get('token');
       
+      console.log('MenuPage: Checking for token in URL, token:', token ? 'exists' : 'not found');
+      console.log('MenuPage: Full URL:', window.location.href);
+      console.log('MenuPage: searchParams.toString():', searchParams.toString());
+      
       // If no token in URL, skip validation
       if (!token) {
+        console.log('MenuPage: No token found in URL, skipping validation');
         return;
       }
 
       // Use a ref or state to track if token has been processed to avoid re-validation
       // For now, we'll always validate if token exists (allows changing tables by scanning new QR)
       try {
-        console.log('Validating table token from URL...');
+        console.log('MenuPage: Validating table token from URL...', token.substring(0, 20) + '...');
         const result = await tablesApi.validateTableToken(token);
         
+        console.log('MenuPage: Token validation result:', result);
+        
         if (result.valid && result.tableId && result.restaurantId) {
-          console.log('Token validated successfully:', result);
+          console.log('MenuPage: Token validated successfully!', {
+            tableId: result.tableId,
+            restaurantId: result.restaurantId
+          });
           
           // Bind cart to table session (this will update cart even if tableId already exists)
+          console.log('MenuPage: Setting tableId to cart store:', result.tableId);
           setTableId(result.tableId);
           setRestaurantId(result.restaurantId);
+          
+          console.log('MenuPage: tableId set, restaurantId set:', result.restaurantId);
           
           // Update current restaurant ID
           setCurrentRestaurantId(result.restaurantId);
@@ -115,9 +128,13 @@ export const MenuPage: React.FC = () => {
           const newSearch = newSearchParams.toString();
           const newUrl = newSearch ? `${window.location.pathname}?${newSearch}` : window.location.pathname;
           window.history.replaceState({}, '', newUrl);
+          console.log('MenuPage: Token removed from URL, new URL:', newUrl);
+        } else {
+          console.warn('MenuPage: Token validation returned invalid result:', result);
         }
       } catch (error: any) {
-        console.error('Failed to validate table token:', error);
+        console.error('MenuPage: Failed to validate table token:', error);
+        console.error('MenuPage: Error details:', error.response?.data || error.message);
         // Don't show error to user, just log it
         // Token might be invalid or expired, user can still browse menu
       }
@@ -125,7 +142,7 @@ export const MenuPage: React.FC = () => {
 
     validateTokenAndBindCart();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams.get('token')]); // Only re-run when token changes
+  }, [searchParams.toString()]); // Re-run when any search param changes
 
   // Initialize restaurantId from cartStore or fetch from tables
   useEffect(() => {

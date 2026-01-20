@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { AdminLayout } from '../components/common/ProtectedRoute';
 import StaffRoutes from './StaffRoutes';
 import DashboardPage from '../pages/admin/DashboardPage';
@@ -9,6 +9,17 @@ import ReportsPage from '../pages/admin/ReportsPage';
 import KDSPage from '../pages/staff/kitchen/KDSPage';
 import { MenuPage, CartPage, OrderTrackingPage, PaymentSuccessPage, PaymentCancelPage, ProfilePage } from '../pages/customer';
 import { LoginPage, RegisterPage, AuthSuccessPage, AuthErrorPage, ForgotPasswordPage, ResetPasswordPage } from '../pages/auth';
+
+/**
+ * Redirect component for legacy /menu route
+ * Preserves query parameters (especially token) when redirecting to /customer/menu
+ */
+function MenuRedirect() {
+  const [searchParams] = useSearchParams();
+  const queryString = searchParams.toString();
+  const redirectUrl = queryString ? `/customer/menu?${queryString}` : '/customer/menu';
+  return <Navigate to={redirectUrl} replace />;
+}
 
 /**
  * Main Application Routes
@@ -36,6 +47,9 @@ export default function AppRoutes() {
         <Route path="/customer/payment/success" element={<PaymentSuccessPage />} />
         <Route path="/customer/payment/cancel" element={<PaymentCancelPage />} />
         <Route path="/customer" element={<Navigate to="/customer/menu" replace />} />
+        
+        {/* Legacy route redirect: /menu -> /customer/menu (preserve query params) */}
+        <Route path="/menu" element={<MenuRedirect />} />
 
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminLayout />}>

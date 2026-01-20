@@ -13,6 +13,8 @@ import {
     Download,
     RefreshCw,
     Printer,
+    Eye,
+    Copy,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Fuse from 'fuse.js'
@@ -23,6 +25,7 @@ import type { Table, TableStatusEvent } from '@aerodine/shared-types'
 import { useModal } from '../../contexts/ModalContext'
 import { useRestaurantRoom, useTableStatusChanged } from '../../hooks/useSocket'
 import { useUserStore } from '../../store/userStore'
+import { getQRCodeImageUrl } from '../../utils/qrcode'
 
 // Table status types
 type TableStatusType = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'UNAVAILABLE'
@@ -86,6 +89,7 @@ function TableCard({
     onDownloadQR,
     onPrintQR,
     onRegenerateQR,
+    onViewQRUrl,
 }: {
     table: TableWithRestaurant
     onEdit: (table: TableWithRestaurant) => void
@@ -93,6 +97,7 @@ function TableCard({
     onDownloadQR: (table: TableWithRestaurant) => void
     onPrintQR: (table: TableWithRestaurant) => void
     onRegenerateQR: (table: TableWithRestaurant) => void
+    onViewQRUrl: (table: TableWithRestaurant) => void
 }) {
     const statusKey = String(table.status)
     const config = statusConfig[statusKey] || statusConfig['AVAILABLE']
@@ -155,6 +160,17 @@ function TableCard({
                     <button
                         onClick={(e) => {
                             e.stopPropagation()
+                            onViewQRUrl(table)
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-cyan-100 text-slate-600 hover:text-cyan-600 rounded-lg transition-colors text-sm font-medium"
+                        title="View QR Code URL"
+                    >
+                        <Eye size={16} />
+                        View URL
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation()
                             onDownloadQR(table)
                         }}
                         className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-600 rounded-lg transition-colors text-sm font-medium"
@@ -174,6 +190,8 @@ function TableCard({
                         <Printer size={16} />
                         Print
                     </button>
+                </div>
+                <div className="flex gap-2">
                     <button
                         onClick={(e) => {
                             e.stopPropagation()
@@ -205,6 +223,7 @@ export default function TablesPage() {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
     const [selectedTable, setSelectedTable] = useState<TableWithRestaurant | null>(null)
     const [restaurantId, setRestaurantId] = useState<number | null>(null)
+    const [qrUrlModal, setQrUrlModal] = useState<{ isOpen: boolean; qrUrl: string; tableName: string; qrImageUrl: string } | null>(null)
     const { confirm, alert } = useModal()
     const { user } = useUserStore()
 
@@ -369,26 +388,36 @@ export default function TablesPage() {
         }
     }
 
-    const getQRCodeImageUrl = (qrUrl: string, size: number = 300) => {
-        return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(qrUrl)}`
-    }
-
     const handleDownloadQR = async (table: TableWithRestaurant) => {
         try {
             // Get QR URL from backend
             const qrData = await tablesApi.getTableQrUrl(table.id)
             const qrUrl = qrData.qrUrl
+            
+            console.log('TablesPage: QR URL for table', table.id, ':', qrUrl)
+            console.log('TablesPage: QR URL contains token:', qrUrl.includes('token='))
 
-            // Create QR code image using a simple approach
+            // Create QR code image URL
             const qrCodeImageUrl = getQRCodeImageUrl(qrUrl, 300)
+            console.log('TablesPage: QR Code image URL:', qrCodeImageUrl.substring(0, 100) + '...')
+
+            // Fetch the image and convert to blob for proper download
+            const response = await fetch(qrCodeImageUrl)
+            if (!response.ok) {
+                throw new Error('Failed to fetch QR code image')
+            }
+            const blob = await response.blob()
 
             // Create a temporary anchor element to download
             const link = document.createElement('a')
-            link.href = qrCodeImageUrl
+            const url = window.URL.createObjectURL(blob)
+            link.href = url
             link.download = `QR-Table-${table.name}.png`
             document.body.appendChild(link)
             link.click()
             document.body.removeChild(link)
+            // Clean up the object URL
+            window.URL.revokeObjectURL(url)
         } catch (err: any) {
             await alert({
                 title: 'Error',
@@ -403,6 +432,9 @@ export default function TablesPage() {
             // Get QR URL from backend
             const qrData = await tablesApi.getTableQrUrl(table.id)
             const qrUrl = qrData.qrUrl
+            
+            console.log('TablesPage: QR URL for printing table', table.id, ':', qrUrl)
+            console.log('TablesPage: QR URL contains token:', qrUrl.includes('token='))
 
             // Create QR code image with larger size for printing
             const qrCodeImageUrl = getQRCodeImageUrl(qrUrl, 500)
@@ -497,6 +529,49 @@ export default function TablesPage() {
             await alert({
                 title: 'Error',
                 message: `Unable to regenerate QR code: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
+        }
+    }
+
+    const handleViewQRUrl = async (table: TableWithRestaurant) => {
+        try {
+            // Get QR URL from backend
+            const qrData = await tablesApi.getTableQrUrl(table.id)
+            const qrUrl = qrData.qrUrl
+            
+            console.log('TablesPage: Viewing QR URL for table', table.id, ':', qrUrl)
+            
+            // Create QR code image URL
+            const qrCodeImageUrl = getQRCodeImageUrl(qrUrl, 400)
+            
+            setQrUrlModal({
+                isOpen: true,
+                qrUrl,
+                tableName: table.name,
+                qrImageUrl: qrCodeImageUrl,
+            })
+        } catch (err: any) {
+            await alert({
+                title: 'Error',
+                message: `Unable to get QR code URL: ${err.response?.data?.message || err.message || 'Unknown error'}`,
+                type: 'error',
+            })
+        }
+    }
+
+    const handleCopyQRUrl = async (qrUrl: string) => {
+        try {
+            await navigator.clipboard.writeText(qrUrl)
+            await alert({
+                title: 'Success',
+                message: 'QR code URL copied to clipboard!',
+                type: 'success',
+            })
+        } catch (err) {
+            await alert({
+                title: 'Error',
+                message: 'Failed to copy URL to clipboard',
                 type: 'error',
             })
         }
@@ -741,6 +816,7 @@ export default function TablesPage() {
                                 onDownloadQR={handleDownloadQR}
                                 onPrintQR={handlePrintQR}
                                 onRegenerateQR={handleRegenerateQR}
+                                onViewQRUrl={handleViewQRUrl}
                             />
                         ))}
                     </div>
@@ -823,6 +899,88 @@ export default function TablesPage() {
                     onSave={handleSaveTable}
                     table={selectedTable}
                 />
+            )}
+
+            {/* QR URL Modal */}
+            {qrUrlModal && qrUrlModal.isOpen && (
+                <div className="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50 p-4">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-white rounded-lg shadow-xl max-w-md w-full"
+                    >
+                        <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-center justify-between">
+                            <h2 className="text-2xl font-semibold text-slate-900">
+                                QR Code - {qrUrlModal.tableName}
+                            </h2>
+                            <button
+                                onClick={() => setQrUrlModal(null)}
+                                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                                <X size={24} className="text-slate-600" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            {/* QR Code Image */}
+                            <div className="flex justify-center">
+                                <img
+                                    src={qrUrlModal.qrImageUrl}
+                                    alt={`QR Code for ${qrUrlModal.tableName}`}
+                                    className="border-2 border-slate-200 rounded-lg"
+                                />
+                            </div>
+
+                            {/* QR URL */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    QR Code URL:
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={qrUrlModal.qrUrl}
+                                        readOnly
+                                        className="flex-1 px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-700 text-sm"
+                                    />
+                                    <button
+                                        onClick={() => handleCopyQRUrl(qrUrlModal.qrUrl)}
+                                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors flex items-center gap-2"
+                                        title="Copy URL"
+                                    >
+                                        <Copy size={16} />
+                                        Copy
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Instructions */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <p className="text-sm text-blue-800">
+                                    <strong>Instructions:</strong> Scan this QR code with your phone camera or QR scanner app to automatically set the table number when placing an order.
+                                </p>
+                            </div>
+
+                            {/* Test Link */}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => {
+                                        window.open(qrUrlModal.qrUrl, '_blank')
+                                    }}
+                                    className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-medium"
+                                >
+                                    Test URL
+                                </button>
+                                <button
+                                    onClick={() => setQrUrlModal(null)}
+                                    className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
             )}
 
             {/* Regenerate All QR Button - Fixed position at bottom right */}
