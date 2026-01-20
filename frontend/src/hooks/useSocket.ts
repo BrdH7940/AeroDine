@@ -13,6 +13,7 @@ import type {
     OrderItemStatusChangedEvent,
     KitchenOrderEvent,
     NotificationEvent,
+    TableStatusEvent,
 } from '@aerodine/shared-types'
 
 /**
@@ -302,6 +303,25 @@ export const useBillRequested = (
 
         return () => {
             socket.off(SocketEvents.BILL_REQUESTED, callback)
+        }
+    }, [socket, isConnected, callback])
+}
+
+/**
+ * Hook for listening to table status change events
+ */
+export const useTableStatusChanged = (
+    callback: (event: TableStatusEvent) => void
+) => {
+    const { socket, isConnected } = useSocket()
+
+    useEffect(() => {
+        if (!socket || !isConnected) return
+
+        socket.on(SocketEvents.TABLE_STATUS_CHANGED, callback)
+
+        return () => {
+            socket.off(SocketEvents.TABLE_STATUS_CHANGED, callback)
         }
     }, [socket, isConnected, callback])
 }

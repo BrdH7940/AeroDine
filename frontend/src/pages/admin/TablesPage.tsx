@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
     Plus,
     Edit,
@@ -19,8 +19,10 @@ import Fuse from 'fuse.js'
 import { tablesApi } from '../../services/api'
 import { authService } from '../../services/auth.service'
 import { TableStatus } from '@aerodine/shared-types'
-import type { Table } from '@aerodine/shared-types'
+import type { Table, TableStatusEvent } from '@aerodine/shared-types'
 import { useModal } from '../../contexts/ModalContext'
+import { useRestaurantRoom, useTableStatusChanged } from '../../hooks/useSocket'
+import { useUserStore } from '../../store/userStore'
 
 // Table status types
 type TableStatusType = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'UNAVAILABLE'
@@ -204,6 +206,31 @@ export default function TablesPage() {
     const [selectedTable, setSelectedTable] = useState<TableWithRestaurant | null>(null)
     const [restaurantId, setRestaurantId] = useState<number | null>(null)
     const { confirm, alert } = useModal()
+    const { user } = useUserStore()
+
+    // Join restaurant room for real-time updates
+    useRestaurantRoom(restaurantId || 0, user?.id)
+
+    // Handle table status changes via WebSocket
+    const handleTableStatusChanged = useCallback(
+        (event: TableStatusEvent) => {
+            console.log('🔔 Table status changed via Socket:', event)
+            setTables((prev) =>
+                prev.map((table) => {
+                    if (table.id === event.tableId) {
+                        return {
+                            ...table,
+                            status: event.newStatus as TableStatus,
+                        }
+                    }
+                    return table
+                })
+            )
+        },
+        []
+    )
+
+    useTableStatusChanged(handleTableStatusChanged)
 
     useEffect(() => {
         initializeAndFetchTables()
@@ -855,17 +882,59 @@ function TableModal({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!name || !capacity) {
+        
+        // Validation
+        const trimmedName = name.trim()
+        
+        if (!trimmedName) {
             await alert({
                 title: 'Validation Error',
-                message: 'Please fill in all required fields',
+                message: 'Table name is required',
                 type: 'warning',
             })
             return
         }
+
+        if (trimmedName.length < 1) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Table name must be at least 1 character long',
+                type: 'warning',
+            })
+            return
+        }
+
+        if (trimmedName.length > 50) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Table name must not exceed 50 characters',
+                type: 'warning',
+            })
+            return
+        }
+
+        const capacityNum = parseInt(capacity)
+        if (isNaN(capacityNum) || capacityNum < 1) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Capacity must be at least 1',
+                type: 'warning',
+            })
+            return
+        }
+
+        if (capacityNum > 50) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Capacity must not exceed 50',
+                type: 'warning',
+            })
+            return
+        }
+
         onSave({
-            name,
-            capacity: parseInt(capacity),
+            name: trimmedName,
+            capacity: capacityNum,
             status,
             isActive,
         })

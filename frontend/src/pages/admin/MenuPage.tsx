@@ -765,10 +765,70 @@ function MenuItemModal({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!name || !basePrice || !categoryId) {
+        
+        // Validation
+        const trimmedName = name.trim()
+        
+        if (!trimmedName) {
             await alert({
                 title: 'Validation Error',
-                message: 'Please fill in all required fields',
+                message: 'Item name is required',
+                type: 'warning',
+            })
+            return
+        }
+
+        if (trimmedName.length < 1) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Item name must be at least 1 character long',
+                type: 'warning',
+            })
+            return
+        }
+
+        if (trimmedName.length > 200) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Item name must not exceed 200 characters',
+                type: 'warning',
+            })
+            return
+        }
+
+        if (!basePrice) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Base price is required',
+                type: 'warning',
+            })
+            return
+        }
+
+        const priceNum = parseFloat(basePrice)
+        if (isNaN(priceNum) || priceNum < 0) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Base price must be a positive number',
+                type: 'warning',
+            })
+            return
+        }
+
+        if (!categoryId) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Category is required',
+                type: 'warning',
+            })
+            return
+        }
+
+        // Validate description length if provided
+        if (description && description.trim().length > 1000) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Description must not exceed 1000 characters',
                 type: 'warning',
             })
             return
@@ -789,9 +849,9 @@ function MenuItemModal({
         }
 
         onSave({
-            name,
-            description: description || undefined,
-            basePrice: parseFloat(basePrice),
+            name: trimmedName,
+            description: description?.trim() || undefined,
+            basePrice: priceNum,
             categoryId,
             status,
             image: imageBase64,

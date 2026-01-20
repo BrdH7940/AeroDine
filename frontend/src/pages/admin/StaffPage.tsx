@@ -432,14 +432,77 @@ function StaffModal({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!email || !name || !role) {
+        
+        // Validation
+        const trimmedName = name.trim()
+        const trimmedEmail = email.trim().toLowerCase()
+        
+        if (!trimmedName) {
             await alert({
                 title: 'Validation Error',
-                message: 'Please fill in all required fields',
+                message: 'Full name is required',
                 type: 'warning',
             })
             return
         }
+
+        if (trimmedName.length < 1) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Full name must be at least 1 character long',
+                type: 'warning',
+            })
+            return
+        }
+
+        if (trimmedName.length > 100) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Full name must not exceed 100 characters',
+                type: 'warning',
+            })
+            return
+        }
+
+        // Validate name format (letters, spaces, hyphens, apostrophes)
+        if (!/^[a-zA-Z\s\u00C0-\u1FFF\u2C00-\uD7FF'-]+$/.test(trimmedName)) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Full name can only contain letters, spaces, hyphens, and apostrophes',
+                type: 'warning',
+            })
+            return
+        }
+
+        if (!trimmedEmail) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Email is required',
+                type: 'warning',
+            })
+            return
+        }
+
+        // Email format validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(trimmedEmail)) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Please enter a valid email address',
+                type: 'warning',
+            })
+            return
+        }
+
+        if (!role) {
+            await alert({
+                title: 'Validation Error',
+                message: 'Role is required',
+                type: 'warning',
+            })
+            return
+        }
+
         if (!staff && !password) {
             await alert({
                 title: 'Validation Error',
@@ -448,10 +511,34 @@ function StaffModal({
             })
             return
         }
+
+        // Password validation for new staff
+        if (!staff && password) {
+            if (password.length < 8) {
+                await alert({
+                    title: 'Validation Error',
+                    message: 'Password must be at least 8 characters long',
+                    type: 'warning',
+                })
+                return
+            }
+
+            // Password strength: at least one lowercase, one uppercase, one number
+            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/
+            if (!passwordRegex.test(password)) {
+                await alert({
+                    title: 'Validation Error',
+                    message: 'Password must contain at least one lowercase letter, one uppercase letter, and one number',
+                    type: 'warning',
+                })
+                return
+            }
+        }
+
         onSave({
-            email,
+            email: trimmedEmail,
             password: password || undefined,
-            name,
+            name: trimmedName,
             role,
         })
     }
