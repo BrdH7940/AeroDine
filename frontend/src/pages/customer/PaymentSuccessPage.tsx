@@ -1,35 +1,41 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { apiClient } from '../../services/api';
+import { useCartStore } from '../../store/cartStore';
 
 export const PaymentSuccessPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { tableId } = useCartStore();
   const [isLoading, setIsLoading] = useState(true);
-  const [orderId, setOrderId] = useState<number | null>(null);
+  const [orderId, setOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     const sessionId = searchParams.get('session_id');
+    const orderIdParam = searchParams.get('order_id');
     
-    if (sessionId) {
-      // In a real app, you might want to verify the session with your backend
-      // For now, we'll just show success and redirect after a delay
+    if (sessionId || orderIdParam) {
+      // Payment successful
       setIsLoading(false);
+      setOrderId(orderIdParam);
       
       // Redirect to order tracking after 3 seconds
       const timer = setTimeout(() => {
-        // Try to get orderId from URL or localStorage if available
-        const storedOrderId = localStorage.getItem('lastOrderId');
-        if (storedOrderId) {
-          navigate(`/customer/orders/${storedOrderId}`);
+        // Use orderId from URL, localStorage, or go to menu
+        if (orderIdParam) {
+          navigate(`/customer/orders/${orderIdParam}`);
         } else {
-          navigate('/customer/menu');
+          const storedOrderId = localStorage.getItem('lastOrderId');
+          if (storedOrderId) {
+            navigate(`/customer/orders/${storedOrderId}`);
+          } else {
+            navigate('/customer/menu');
+          }
         }
       }, 3000);
 
       return () => clearTimeout(timer);
     } else {
-      // No session ID, redirect to menu
+      // No session ID or order ID, redirect to menu
       navigate('/customer/menu');
     }
   }, [searchParams, navigate]);
@@ -67,21 +73,30 @@ export const PaymentSuccessPage: React.FC = () => {
             </div>
             <h1 className="text-2xl font-bold text-[#36454F] mb-2">Payment Successful!</h1>
             <p className="text-[#36454F]/70">
-              Your order has been placed and payment has been processed successfully.
+              Your payment has been processed successfully. Thank you for your order!
             </p>
           </div>
 
           <div className="space-y-4">
+            {orderId && (
+              <div className="bg-[#8A9A5B]/10 rounded-lg p-3 mb-4">
+                <p className="text-sm text-[#36454F]">Order ID: <span className="font-semibold">#{orderId}</span></p>
+              </div>
+            )}
             <p className="text-sm text-[#36454F]/70">
               Redirecting to your order tracking page...
             </p>
             <button
               onClick={() => {
-                const storedOrderId = localStorage.getItem('lastOrderId');
-                if (storedOrderId) {
-                  navigate(`/customer/orders/${storedOrderId}`);
+                if (orderId) {
+                  navigate(`/customer/orders/${orderId}`);
                 } else {
-                  navigate('/customer/menu');
+                  const storedOrderId = localStorage.getItem('lastOrderId');
+                  if (storedOrderId) {
+                    navigate(`/customer/orders/${storedOrderId}`);
+                  } else {
+                    navigate('/customer/menu');
+                  }
                 }
               }}
               className="w-full px-6 py-3 bg-[#D4AF37] text-white rounded-lg hover:bg-[#B8941F] transition-colors duration-200 font-medium"

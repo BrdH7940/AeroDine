@@ -89,13 +89,14 @@ export const orderService = {
     /**
      * Get orders by table ID (PUBLIC - for guest customers)
      * No authentication required
+     * Backend automatically filters unpaid/uncompleted orders
      */
     async getOrdersByTable(tableId: number, excludeCancelled: boolean = true): Promise<Order[]> {
         const response = await apiClient.get(`/orders/table/${tableId}`, {
             params: { excludeCancelled: excludeCancelled ? 'true' : 'false' }
         })
-        // Backend returns { orders: [...], total, page, ... }
-        return Array.isArray(response.data) ? response.data : response.data?.orders || []
+        // Backend returns { orders: [...], total }
+        return response.data?.orders || []
     },
 
     /**

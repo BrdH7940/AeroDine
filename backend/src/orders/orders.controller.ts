@@ -26,6 +26,7 @@ import {
     AcceptRejectOrderDto,
 } from './dto/update-order.dto'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard'
 import { RolesGuard } from '../auth/guards/roles.guard'
 import { Roles } from '../auth/decorators/roles.decorator'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
@@ -94,20 +95,19 @@ export class OrdersController {
      * - Limit: 5 requests per minute per IP
      * - This prevents DDoS attacks and spam order creation
      * 
-     * Note: This endpoint is accessible without authentication (for guest orders),
-     * but if a customer is logged in and sends a valid JWT token, their userId
-     * will be automatically captured and associated with the order.
-     * 
-     * TODO: Implement optional JWT authentication guard to populate user context
-     * without requiring authentication.
+     * Authentication: Optional (OptionalJwtAuthGuard)
+     * - Guest customers can place orders without authentication
+     * - Authenticated customers automatically have their userId captured
+     * - This allows logged-in customers to track their order history
      */
+    @UseGuards(OptionalJwtAuthGuard)
     @Throttle({ short: { ttl: 60000, limit: 5 } }) // 5 orders per minute
     @Post()
     @ApiOperation({
         summary: 'Create a new order',
         description:
             'Creates a new order. Rate limited to 5 requests per minute per IP to prevent spam attacks. ' +
-            'Optionally captures userId if customer is authenticated.',
+            'Optionally captures userId if customer is authenticated. Guest orders are supported.',
     })
     @ApiResponse({
         status: 201,
@@ -126,6 +126,8 @@ export class OrdersController {
         if (user?.id && !createOrderDto.userId) {
             createOrderDto.userId = user.id
             this.logger.log(`Order creation: Auto-assigned userId ${user.id} from authenticated user`)
+        } else if (!user) {
+            this.logger.log('Order creation: Guest order (no userId)')
         }
         
         return this.ordersService.create(createOrderDto)
@@ -202,32 +204,25 @@ export class OrdersController {
     /**
      * Get orders by table ID (PUBLIC - for customer order tracking)
      * GET /orders/table/:tableId
-     * No authentication required - guests can track their orders by table
+     * Authentication optional - filters orders based on login status:
+     * - Logged in: shows only unpaid/uncompleted orders of that user at table
+     * - Guest: shows only unpaid/uncompleted guest orders (userId=null) at table
      */
+    @UseGuards(OptionalJwtAuthGuard)
     @Get('table/:tableId')
     @ApiOperation({
         summary: 'Get orders by table ID (PUBLIC)',
-        description: 'Public endpoint for customers to track their orders without authentication.',
+        description: 'Endpoint for customers to track their orders. Filters by login status and payment status.',
     })
     @ApiResponse({
         status: 200,
-        description: 'Returns all active orders for the specified table',
+        description: 'Returns unpaid/uncompleted orders for the specified table',
     })
     getOrdersByTable(
         @Param('tableId', ParseIntPipe) tableId: number,
-        @Query('excludeCancelled') excludeCancelled?: string
+        @CurrentUser() user?: any
     ) {
-        return this.ordersService.findAll({
-            tableId,
-            status: excludeCancelled === 'true' 
-                ? [
-                    OrderStatus.PENDING_REVIEW,
-                    OrderStatus.PENDING,
-                    OrderStatus.IN_PROGRESS,
-                    OrderStatus.COMPLETED
-                  ]
-                : undefined,
-        })
+        return this.ordersService.getOrdersByTableForCustomer(tableId, user?.id)
     }
 
     /**

@@ -40,7 +40,7 @@ export const OrderTrackingPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { tableId } = useCartStore();
-  const { user, isAuthenticated } = useUserStore();
+  const { isAuthenticated } = useUserStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);

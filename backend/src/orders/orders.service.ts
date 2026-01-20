@@ -381,6 +381,55 @@ export class OrdersService {
     }
 
     /**
+     * Get orders by table for customer (with userId and payment status filtering)
+     * - If userId provided (logged in): show only their unpaid/uncompleted orders at table
+     * - If userId is null (guest): show ALL unpaid/uncompleted orders at table (not just guest orders)
+     */
+    async getOrdersByTableForCustomer(tableId: number, userId?: number) {
+        const where: Prisma.OrderWhereInput = {
+            tableId,
+            // Show only orders that are not completed
+            status: {
+                notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
+            },
+            // Exclude orders with successful payment (payment.status = SUCCESS)
+            // Include orders with no payment record OR payment status != SUCCESS
+            OR: [
+                { payment: null }, // No payment record yet
+                { payment: { status: { not: 'SUCCESS' } } }, // Payment exists but not successful
+            ],
+        }
+
+        // Filter by userId only if logged in
+        // If guest (userId is undefined), show all unpaid/uncompleted orders at table
+        if (userId) {
+            where.userId = userId
+        }
+
+        const orders = await this.prisma.order.findMany({
+            where,
+            include: {
+                table: true,
+                customer: { select: { id: true, fullName: true, email: true } },
+                waiter: { select: { id: true, fullName: true } },
+                items: {
+                    include: {
+                        modifiers: true,
+                        menuItem: true,
+                    },
+                },
+                payment: true,
+            },
+            orderBy: { createdAt: 'desc' },
+        })
+
+        return {
+            orders,
+            total: orders.length,
+        }
+    }
+
+    /**
      * Find all orders with filters
      */
     async findAll(filters: {

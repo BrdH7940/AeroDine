@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../../store/cartStore';
-import { CartItem, BottomNavigation } from '../../components/customer';
+import { BottomNavigation } from '../../components/customer';
 import { apiClient } from '../../services/api';
 import { formatVND } from '../../utils/currency';
 import { useModal } from '../../contexts/ModalContext';
@@ -16,13 +16,12 @@ export const CartPage: React.FC = () => {
     updateQuantity,
     removeItem,
     getTotal,
-    getItemCount,
     setTableId,
     clearCart,
   } = useCartStore();
 
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-  const [guestCount, setGuestCount] = useState(1);
+  const [guestCount] = useState(1);
   const [note, setNote] = useState('');
   const [tableInputValue, setTableInputValue] = useState('');
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -90,6 +89,9 @@ export const CartPage: React.FC = () => {
       console.log('Creating order with tableId:', numericTableId, 'orderData:', orderData);
 
       // Create order
+      // Note: apiClient automatically includes JWT token if user is logged in
+      // Backend will capture userId from token for authenticated users
+      // Guest orders (no token) are also supported
       const response = await apiClient.post('/orders', orderData);
       console.log('Order created:', response.data);
       const createdOrderId = response.data.id;
