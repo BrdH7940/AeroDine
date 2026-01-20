@@ -439,6 +439,7 @@ export interface CreateUserDto {
 export interface UpdateUserDto {
   email?: string;
   fullName?: string;
+  avatar?: string;
   role?: string;
 }
 
@@ -488,6 +489,20 @@ export const usersApi = {
    */
   deleteUser: async (id: number) => {
     const response = await apiClient.delete(`/users/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Upload user avatar
+   */
+  uploadAvatar: async (id: number, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post(`/users/${id}/avatar`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
 };

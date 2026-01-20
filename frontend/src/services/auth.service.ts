@@ -16,11 +16,17 @@ export interface AuthResponse {
     id: number;
     email: string;
     fullName: string;
+    avatar?: string;
     role: string;
     createdAt?: string;
   };
   accessToken: string;
   refreshToken?: string;
+}
+
+export interface ChangePasswordRequest {
+  oldPassword: string;
+  newPassword: string;
 }
 
 export const authService = {
@@ -211,5 +217,10 @@ export const authService = {
     } catch {
       return false;
     }
+  },
+
+  async changePassword(data: ChangePasswordRequest): Promise<{ message: string }> {
+    const response = await apiClient.post('/auth/change-password', data);
+    return response.data;
   },
 };

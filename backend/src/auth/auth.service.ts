@@ -15,6 +15,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto'
 import { ResetPasswordDto } from './dto/reset-password.dto'
 import { VerifyOtpDto } from './dto/verify-otp.dto'
 import { ResetPasswordWithOtpDto } from './dto/reset-password-with-otp.dto'
+import { ChangePasswordDto } from './dto/change-password.dto'
 import { UsersService } from '../users/users.service'
 import { CreateUserDto } from '../users/dto/create-user.dto'
 import { MailService } from '../mail/mail.service'
@@ -409,6 +410,39 @@ export class AuthService {
         return {
             access_token: accessToken,
             user: { ...userSafe, role: effectiveRole },
+        }
+    }
+
+    /**
+     * Change password for logged-in user
+     */
+    async changePassword(userId: number, dto: ChangePasswordDto): Promise<{ message: string }> {
+        // Find user
+        const user = await this.usersService.findById(userId)
+        if (!user) {
+            throw new NotFoundException('User not found')
+        }
+
+        // Get full user with password hash
+        const fullUser = await this.usersService.findByEmail(user.email)
+        if (!fullUser) {
+            throw new NotFoundException('User not found')
+        }
+
+        // Verify old password
+        const isOldPasswordValid = await bcrypt.compare(dto.oldPassword, fullUser.passwordHash)
+        if (!isOldPasswordValid) {
+            throw new UnauthorizedException('Current password is incorrect')
+        }
+
+        // Hash new password
+        const passwordHash = await bcrypt.hash(dto.newPassword, 10)
+
+        // Update user password
+        await this.usersService.updatePassword(userId, passwordHash)
+
+        return {
+            message: 'Password has been changed successfully',
         }
     }
 

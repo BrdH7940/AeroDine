@@ -7,7 +7,7 @@ import TablesPage from '../pages/admin/TablesPage';
 import StaffPage from '../pages/admin/StaffPage';
 import ReportsPage from '../pages/admin/ReportsPage';
 import KDSPage from '../pages/staff/kitchen/KDSPage';
-import { MenuPage, CartPage, OrderTrackingPage, PaymentSuccessPage, PaymentCancelPage } from '../pages/customer';
+import { MenuPage, CartPage, OrderTrackingPage, PaymentSuccessPage, PaymentCancelPage, ProfilePage } from '../pages/customer';
 import { LoginPage, RegisterPage, AuthSuccessPage, AuthErrorPage, ForgotPasswordPage, ResetPasswordPage } from '../pages/auth';
 
 /**
@@ -31,6 +31,8 @@ export default function AppRoutes() {
         <Route path="/customer/menu" element={<MenuPage />} />
         <Route path="/customer/cart" element={<CartPage />} />
         <Route path="/customer/orders/:orderId" element={<OrderTrackingPage />} />
+        <Route path="/customer/orders" element={<OrderTrackingPage />} />
+        <Route path="/customer/profile" element={<ProfilePage />} />
         <Route path="/customer/payment/success" element={<PaymentSuccessPage />} />
         <Route path="/customer/payment/cancel" element={<PaymentCancelPage />} />
         <Route path="/customer" element={<Navigate to="/customer/menu" replace />} />

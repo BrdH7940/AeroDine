@@ -18,6 +18,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto'
 import { RefreshTokenDto } from './dto/refresh-token.dto'
 import { VerifyOtpDto } from './dto/verify-otp.dto'
 import { ResetPasswordWithOtpDto } from './dto/reset-password-with-otp.dto'
+import { ChangePasswordDto } from './dto/change-password.dto'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { GoogleAuthGuard } from './guards/google-auth.guard'
 import { CurrentUser } from './decorators/current-user.decorator'
@@ -292,5 +293,33 @@ export class AuthController {
                 )}`
             )
         }
+    }
+
+    @ApiBearerAuth('JWT-auth')
+    @UseGuards(JwtAuthGuard)
+    @Post('change-password')
+    @ApiOperation({
+        summary: 'Change password for logged-in user',
+        description: 'Change password with old password verification. Requires authentication.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Password changed successfully',
+        schema: {
+            example: {
+                message: 'Password has been changed successfully',
+            },
+        },
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Current password is incorrect',
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'User not found',
+    })
+    async changePassword(@Body() changePasswordDto: ChangePasswordDto, @CurrentUser() user: any) {
+        return this.authService.changePassword(user.id, changePasswordDto)
     }
 }

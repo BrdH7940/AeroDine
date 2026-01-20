@@ -519,7 +519,7 @@ export default function WaiterOrdersPage() {
                                 Return menu
                             </button>
                         </div>
-                        <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-4 ml-6 md:ml-0">
                             <span className="text-sm text-gray-500">
                                 {new Date().toLocaleDateString()}
                             </span>

@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { orderService } from '../../services/order.service';
 import { useSocket } from '../../hooks/useSocket';
 import { formatVND } from '../../utils/currency';
 import { BottomNavigation } from '../../components/customer';
 import { useCartStore } from '../../store/cartStore';
+import { useUserStore } from '../../store/userStore';
 import type { Order } from '@aerodine/shared-types';
 import { OrderItemStatus } from '@aerodine/shared-types';
 
@@ -16,53 +17,82 @@ const statusLabels: Record<string, string> = {
   CANCELLED: 'Cancelled',
 };
 
+const itemStatusLabels: Record<string, string> = {
+  QUEUED: 'Queued',
+  PREPARING: 'Cooking',
+  READY: 'Ready',
+  SERVED: 'Served',
+  CANCELLED: 'Cancelled',
+};
+
+const itemStatusColors: Record<string, string> = {
+  QUEUED: 'text-[#36454F]/50',
+  PREPARING: 'text-[#D4AF37]',
+  READY: 'text-[#8A9A5B]',
+  SERVED: 'text-[#8A9A5B]',
+  CANCELLED: 'text-red-500',
+};
+
 const orderStatusFlow = ['PENDING_REVIEW', 'PENDING', 'IN_PROGRESS', 'COMPLETED'];
 
 export const OrderTrackingPage: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { tableId } = useCartStore();
+  const { user, isAuthenticated } = useUserStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [isOrderHistory, setIsOrderHistory] = useState(false);
   const socket = useSocket();
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
     try {
-      let tableOrders: Order[] = [];
+      let loadedOrders: Order[] = [];
       
-      // Always prioritize tableId from cart store
-      if (tableId) {
+      // Check if this is order history page (no orderId, no tableId, and user is logged in)
+      const isHistoryPage = !orderId && !tableId && isAuthenticated && location.pathname === '/customer/orders';
+      
+      if (isHistoryPage) {
+        // Load order history for logged-in user
+        setIsOrderHistory(true);
+        const response = await orderService.getOrders({ page: 1, pageSize: 50 });
+        loadedOrders = response.orders || [];
+      } else if (tableId) {
         // Load all orders for the current table using PUBLIC endpoint
-        tableOrders = await orderService.getOrdersByTable(tableId, true);
+        setIsOrderHistory(false);
+        loadedOrders = await orderService.getOrdersByTable(tableId, true);
       } else if (orderId) {
         // If no tableId, try to get from orderId using PUBLIC endpoint
+        setIsOrderHistory(false);
         const order = await orderService.getPublicOrder(parseInt(orderId));
         
         // Load all orders for the same table
         if (order.table?.id) {
-          tableOrders = await orderService.getOrdersByTable(order.table.id, true);
+          loadedOrders = await orderService.getOrdersByTable(order.table.id, true);
         } else {
-          tableOrders = [order];
+          loadedOrders = [order];
         }
       } else {
         // Try to get last order from localStorage
+        setIsOrderHistory(false);
         const lastOrderId = localStorage.getItem('lastOrderId');
         if (lastOrderId) {
           const order = await orderService.getPublicOrder(parseInt(lastOrderId));
           
           // Load all orders for the same table
           if (order.table?.id) {
-            tableOrders = await orderService.getOrdersByTable(order.table.id, true);
+            loadedOrders = await orderService.getOrdersByTable(order.table.id, true);
           } else {
-            tableOrders = [order];
+            loadedOrders = [order];
           }
         }
       }
 
       // Sort orders and update state together to avoid glitch
-      const sortedOrders = tableOrders.sort((a: Order, b: Order) => 
+      const sortedOrders = loadedOrders.sort((a: Order, b: Order) => 
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       
@@ -77,7 +107,7 @@ export const OrderTrackingPage: React.FC = () => {
       setLoading(false);
       setInitialLoad(false);
     }
-  }, [tableId, orderId]);
+  }, [tableId, orderId, isAuthenticated, location.pathname]);
 
   useEffect(() => {
     loadOrders();
@@ -184,7 +214,9 @@ export const OrderTrackingPage: React.FC = () => {
       </div>
 
       <div className="p-5">
-        <h2 className="text-xl font-bold text-[#36454F] mb-4">Your Orders</h2>
+        <h2 className="text-xl font-bold text-[#36454F] mb-4">
+          {isOrderHistory ? 'Order History' : 'Your Orders'}
+        </h2>
 
         <div className="space-y-4 mb-6">
           {orders.map((order) => {
@@ -242,21 +274,37 @@ export const OrderTrackingPage: React.FC = () => {
                 {/* Order Items */}
                 <div className="mt-4 pt-4 border-t border-[#8A9A5B]/20">
                   <p className="text-sm font-medium text-[#36454F] mb-2">Items:</p>
-                  <div className="space-y-1">
-                    {order.items?.map((item) => (
-                      <div key={item.id} className="flex items-center gap-2 text-sm text-[#36454F]/70">
-                        <span>• {item.name} x{item.quantity}</span>
-                        {item.status === OrderItemStatus.READY || item.status === OrderItemStatus.SERVED ? (
-                          <svg className="w-4 h-4 text-[#8A9A5B]" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                        ) : (
-                          <svg className="w-4 h-4 text-[#8A9A5B]/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                          </svg>
-                        )}
-                      </div>
-                    ))}
+                  <div className="space-y-2">
+                    {order.items?.map((item) => {
+                      const statusLabel = itemStatusLabels[item.status] || item.status;
+                      const statusColor = itemStatusColors[item.status] || 'text-[#36454F]/70';
+                      const isCompleted = item.status === OrderItemStatus.READY || item.status === OrderItemStatus.SERVED;
+                      const isPreparing = item.status === OrderItemStatus.PREPARING;
+                      
+                      return (
+                        <div key={item.id} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#36454F]/70">• {item.name} x{item.quantity}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-medium ${statusColor}`}>
+                              {statusLabel}
+                            </span>
+                            {isCompleted ? (
+                              <svg className="w-4 h-4 text-[#8A9A5B]" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                            ) : isPreparing ? (
+                              <svg className="w-4 h-4 text-[#D4AF37] animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            ) : (
+                              <div className="w-4 h-4 rounded-full border-2 border-[#8A9A5B]/30"></div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -264,24 +312,27 @@ export const OrderTrackingPage: React.FC = () => {
           })}
         </div>
 
-        {/* Total */}
-        <div className="mb-6 border-t border-[#8A9A5B]/20 pt-4">
-          <div className="flex justify-between items-center">
-            <span className="text-lg font-semibold text-[#36454F]">Total so far:</span>
-            <span className="text-lg font-bold text-[#8A9A5B]">{formatVND(getTotalAmount())}</span>
+        {/* Total - Only show for active orders (not history) */}
+        {!isOrderHistory && orders.length > 0 && (
+          <div className="mb-6 border-t border-[#8A9A5B]/20 pt-4">
+            <div className="flex justify-between items-center">
+              <span className="text-lg font-semibold text-[#36454F]">Total so far:</span>
+              <span className="text-lg font-bold text-[#8A9A5B]">{formatVND(getTotalAmount())}</span>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Request Bill Button */}
-        <button
-          onClick={() => {
-            // Navigate to payment/bill page
-            navigate('/customer/menu');
-          }}
-          className="w-full px-6 py-3 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 font-medium"
-        >
-          Request Bill
-        </button>
+        {/* Request Bill Button - Only show for active orders */}
+        {!isOrderHistory && (
+          <button
+            onClick={() => {
+              navigate('/customer/menu');
+            }}
+            className="w-full px-6 py-3 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 font-medium"
+          >
+            Request Bill
+          </button>
+        )}
       </div>
 
       <BottomNavigation />

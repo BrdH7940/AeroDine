@@ -319,11 +319,23 @@ export const MenuPage: React.FC = () => {
           <div className="relative">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-white hover:bg-[#6B7A4A] p-2 rounded-xl transition-all duration-200"
+              className="text-white hover:bg-[#6B7A4A] p-1 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              {isAuthenticated && user?.avatar ? (
+                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white/30">
+                  <img
+                    src={user.avatar}
+                    alt={user.fullName || 'User'}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center border-2 border-white/30">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+              )}
             </button>
             
             {/* Dropdown Menu */}
@@ -369,6 +381,20 @@ export const MenuPage: React.FC = () => {
                           </button>
                         </>
                       )}
+                      <button
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          navigate('/customer/profile');
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-[#36454F] hover:bg-[#F9F7F2] transition-colors border-b border-[#8A9A5B]/10"
+                      >
+                        <div className="flex items-center gap-2 hover:text-[#8A9A5B]">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          <span className="hover:text-[#8A9A5B]">Profile</span>
+                        </div>
+                      </button>
                       <button
                         onClick={handleLogout}
                         className="w-full text-left px-4 py-2 text-sm text-[#36454F] hover:bg-[#F9F7F2] transition-colors"

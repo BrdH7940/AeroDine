@@ -68,11 +68,17 @@ export const BottomNavigation: React.FC = () => {
 
           <button
             onClick={() => {
-              const lastOrderId = localStorage.getItem('lastOrderId');
-              if (lastOrderId) {
-                navigate(`/customer/orders/${lastOrderId}`);
+              // Check if user is logged in, if yes show order history, else show current order
+              const token = localStorage.getItem('token');
+              if (token) {
+                navigate('/customer/orders');
               } else {
-                navigate('/customer/menu');
+                const lastOrderId = localStorage.getItem('lastOrderId');
+                if (lastOrderId) {
+                  navigate(`/customer/orders/${lastOrderId}`);
+                } else {
+                  navigate('/customer/menu');
+                }
               }
             }}
             className={`flex flex-col items-center gap-1 px-4 py-2 transition-all duration-200 ${

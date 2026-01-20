@@ -2,6 +2,7 @@
 import { useEffect } from 'react';
 import AppRoutes from './routes/AppRoutes';
 import { useUserStore } from './store/userStore';
+import { ModalProvider } from './contexts/ModalContext';
 
 function App() {
   const initializeAuth = useUserStore((state) => state.initializeAuth);
@@ -11,7 +12,11 @@ function App() {
     initializeAuth();
   }, [initializeAuth]);
 
-  return <AppRoutes />;
+  return (
+    <ModalProvider>
+      <AppRoutes />
+    </ModalProvider>
+  );
 }
 
 export default App;
