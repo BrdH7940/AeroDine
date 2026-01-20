@@ -26,17 +26,17 @@ interface AiOrderModalProps {
 }
 
 const cuisineStyles = [
-    { value: 'vietnamese', label: 'Việt Nam' },
-    { value: 'asian', label: 'Châu Á' },
-    { value: 'western', label: 'Phương Tây' },
-    { value: 'mixed', label: 'Hỗn hợp' },
+    { value: 'vietnamese', label: 'Vietnamese' },
+    { value: 'asian', label: 'Asian' },
+    { value: 'western', label: 'Western' },
+    { value: 'mixed', label: 'Mixed' },
 ];
 
 const spicyLevels = [
-    { value: 'none', label: 'Không cay', icon: '🌱' },
-    { value: 'mild', label: 'Cay nhẹ', icon: '🌶️' },
-    { value: 'medium', label: 'Cay vừa', icon: '🌶️🌶️' },
-    { value: 'hot', label: 'Cay nhiều', icon: '🌶️🌶️🌶️' },
+    { value: 'none', label: 'None', icon: '🌱' },
+    { value: 'mild', label: 'Mild', icon: '🌶️' },
+    { value: 'medium', label: 'Medium', icon: '🌶️🌶️' },
+    { value: 'hot', label: 'Hot', icon: '🌶️🌶️🌶️' },
 ];
 
 export const AiOrderModal: React.FC<AiOrderModalProps> = ({
@@ -84,7 +84,7 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
     const handleGetSuggestion = async () => {
         // Check usage limit
         if (aiUsageCount >= MAX_AI_USES) {
-            setError('Bạn đã sử dụng hết lượt AI. Vui lòng thêm món thủ công hoặc đóng và mở lại.');
+            setError('You have used all AI uses. Please add items manually or close and reopen the modal.');
             return;
         }
         
@@ -113,16 +113,16 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                 setStep('result');
                 setAiUsageCount(prev => prev + 1); // Increment usage count on success
             } else {
-                setError('AI không trả về gợi ý hợp lệ. Vui lòng thử lại.');
+                setError('AI did not return a valid suggestion. Please try again.');
             }
         } catch (err: any) {
             console.error('AI suggestion error:', err);
             if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-                setError('Yêu cầu quá lâu. Vui lòng thử lại.');
+                setError('Request timed out. Please try again.');
             } else if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
-                setError('Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy.');
+                setError('Cannot connect to server. Please check if the backend is running.');
             } else {
-                setError(err.response?.data?.message || 'Không thể lấy gợi ý từ AI. Vui lòng thử lại.');
+                setError(err.response?.data?.message || 'Cannot get suggestion from AI. Please try again.');
             }
         } finally {
             setLoading(false);
@@ -192,9 +192,9 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                         </div>
                         <p className="text-sm text-white/80 mt-1">
                             {step === 'form'
-                                ? 'Điền thông tin để AI gợi ý combo phù hợp'
-                                : 'Xem và điều chỉnh gợi ý từ AI'}
-                            {' '}({MAX_AI_USES - aiUsageCount} lượt còn lại)
+                                ? 'Fill in the information to let AI suggest a suitable combo'
+                                : 'View and adjust the suggestion from AI'}
+                            {' '}({MAX_AI_USES - aiUsageCount} remaining uses)
                         </p>
                     </div>
 
@@ -206,7 +206,7 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                                 <div>
                                     <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                                         <Users className="w-4 h-4" />
-                                        Số người
+                                        Number of people
                                     </label>
                                     <div className="flex items-center gap-3">
                                         <button
@@ -229,7 +229,7 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                                 <div>
                                     <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                                         <Utensils className="w-4 h-4" />
-                                        Phong cách ẩm thực
+                                        Cuisine style
                                     </label>
                                     <div className="grid grid-cols-2 gap-2">
                                         {cuisineStyles.map((style) => (
@@ -252,7 +252,7 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                                 <div>
                                     <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                                         <Baby className="w-4 h-4" />
-                                        Có trẻ em không?
+                                        Has children?
                                     </label>
                                     <div className="flex gap-3">
                                         <button
@@ -263,7 +263,7 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                                                     : 'border-gray-300 hover:border-gray-400'
                                             }`}
                                         >
-                                            Không
+                                            No
                                         </button>
                                         <button
                                             onClick={() => setHasChildren(true)}
@@ -273,7 +273,7 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                                                     : 'border-gray-300 hover:border-gray-400'
                                             }`}
                                         >
-                                            Có
+                                            Yes
                                         </button>
                                     </div>
                                 </div>
@@ -282,7 +282,7 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                                 <div>
                                     <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                                         <Flame className="w-4 h-4" />
-                                        Độ cay
+                                        Spicy level
                                     </label>
                                     <div className="grid grid-cols-2 gap-2">
                                         {spicyLevels.map((level) => (
@@ -306,7 +306,7 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                                 <div>
                                     <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                                         <Wallet className="w-4 h-4" />
-                                        Ngân sách (VND)
+                                        Budget (VND)
                                     </label>
                                     <input
                                         type="number"
@@ -336,12 +336,12 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                                 {/* Additional Notes */}
                                 <div>
                                     <label className="text-sm font-medium text-gray-700 mb-2 block">
-                                        Ghi chú thêm (tùy chọn)
+                                        Additional notes (optional)
                                     </label>
                                     <textarea
                                         value={additionalNotes}
                                         onChange={(e) => setAdditionalNotes(e.target.value)}
-                                        placeholder="VD: Dị ứng hải sản, thích món nướng..."
+                                        placeholder="Example: Allergic to seafood, like grilled dishes..."
                                         rows={2}
                                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
                                     />
@@ -370,7 +370,7 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                                 <div className="space-y-3">
                                     {editedItems.length === 0 ? (
                                         <div className="text-center py-8 text-gray-500">
-                                            Không có món nào. Hãy thử lại với yêu cầu khác.
+                                            None is satisfied. Try again with different requirements.
                                         </div>
                                     ) : (
                                         editedItems.map((item) => (
@@ -415,7 +415,7 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                                 {/* Total */}
                                 {editedItems.length > 0 && (
                                     <div className="flex items-center justify-between p-3 bg-gray-100 rounded-lg">
-                                        <span className="font-medium text-gray-700">Tổng cộng:</span>
+                                        <span className="font-medium text-gray-700">Total:</span>
                                         <span className="text-xl font-bold text-purple-600">
                                             {formatVND(calculateTotal())}
                                         </span>
@@ -436,12 +436,12 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                                 {loading ? (
                                     <>
                                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        Đang tạo gợi ý...
+                                        Creating suggestion...
                                     </>
                                 ) : (
                                     <>
                                         <Sparkles className="w-5 h-5" />
-                                        Gợi ý combo cho tôi
+                                        Suggest combo for me
                                     </>
                                 )}
                             </button>
@@ -452,7 +452,7 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                                     className="flex-1 py-3 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
                                 >
                                     <RefreshCw className="w-4 h-4" />
-                                    Thay đổi
+                                    Change
                                 </button>
                                 <button
                                     onClick={handleRegenerate}
@@ -468,7 +468,7 @@ export const AiOrderModal: React.FC<AiOrderModalProps> = ({
                                     className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
                                     <ShoppingCart className="w-5 h-5" />
-                                    Thêm vào giỏ
+                                    Add to cart
                                 </button>
                             </div>
                         )}

@@ -454,16 +454,16 @@ export const MenuPage: React.FC = () => {
             />
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-[#36454F] whitespace-nowrap">Sắp xếp:</label>
+            <label className="text-sm font-medium text-[#36454F] whitespace-nowrap">Sort by:</label>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               className="flex-1 bg-white text-[#36454F] px-4 py-2 rounded-xl border border-[#8A9A5B]/20 focus:outline-none focus:ring-2 focus:ring-[#8A9A5B]/30 focus:border-[#8A9A5B] text-sm"
             >
-              <option value="name">Tên A-Z</option>
-              <option value="popularity">Phổ biến nhất</option>
-              <option value="price-asc">Giá: Thấp → Cao</option>
-              <option value="price-desc">Giá: Cao → Thấp</option>
+              <option value="name">Name</option>
+              <option value="popularity">Popularity</option>
+              <option value="price-asc">Price (Ascending)</option>
+              <option value="price-desc">Price (Descending)</option>
             </select>
           </div>
         </div>
@@ -516,7 +516,7 @@ export const MenuPage: React.FC = () => {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
-            ✨ Order with AI - Gợi ý combo thông minh
+            ✨ Order with AI - Smart combo suggestions
           </button>
         </div>
       )}
@@ -633,7 +633,7 @@ export const MenuPage: React.FC = () => {
       {filteredItems.length > 0 && totalPages > 1 && (
         <div className="px-5 pb-5 mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="text-sm text-[#36454F]/70">
-            Hiển thị {startIndex + 1} - {Math.min(endIndex, filteredItems.length)} trong tổng số {filteredItems.length} món
+            Displaying {startIndex + 1} - {Math.min(endIndex, filteredItems.length)} out of {filteredItems.length} items
           </div>
           <div className="flex items-center gap-2">
             <button
