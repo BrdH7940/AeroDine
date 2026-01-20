@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../../store/cartStore';
 import { BottomNavigation } from '../../components/customer';
-import { QRScanner } from '../../components/customer/QRScanner';
-import { apiClient, tablesApi } from '../../services/api';
+import { apiClient } from '../../services/api';
 import { formatVND } from '../../utils/currency';
 
 export const CartPage: React.FC = () => {
@@ -22,44 +21,14 @@ export const CartPage: React.FC = () => {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [guestCount] = useState(1);
   const [note, setNote] = useState('');
-  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [tableInputValue, setTableInputValue] = useState('');
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [orderId, setOrderId] = useState<number | null>(null);
   const [orderTotal, setOrderTotal] = useState<number>(0);
-  const [scanError, setScanError] = useState<string>('');
 
   // Calculate total before placing order
   const calculateOrderTotal = (): number => {
     return getTotal();
-  };
-
-  // Handle QR code scan
-  const handleQRScan = async (token: string) => {
-    try {
-      setScanError('');
-      // Validate token with backend
-      const result = await tablesApi.validateTableToken(token);
-      
-      if (result.valid && result.tableId && result.restaurantId) {
-        // Set table info
-        setTableId(result.tableId);
-        setRestaurantId(result.restaurantId);
-        setShowQRScanner(false);
-        
-        // Show success message (optional)
-        console.log('Table validated:', result);
-      } else {
-        setScanError('Mã QR không hợp lệ. Vui lòng thử lại.');
-      }
-    } catch (error: any) {
-      console.error('Failed to validate QR token:', error);
-      setScanError('Không thể xác thực mã bàn. Vui lòng thử lại.');
-    }
-  };
-
-  const handleQRError = (error: string) => {
-    console.error('QR scan error:', error);
-    setScanError(error);
   };
 
   const handlePlaceOrder = async () => {
@@ -215,30 +184,52 @@ export const CartPage: React.FC = () => {
           {(!tableId || tableId === 0) && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-[#36454F] mb-2">
-                Số bàn <span className="text-red-400">*</span>
+                Table Number <span className="text-red-400">*</span>
               </label>
-              
-              {/* QR Scanner Button */}
-              <button
-                onClick={() => setShowQRScanner(true)}
-                className="w-full px-4 py-4 bg-[#D4AF37] text-white rounded-xl hover:bg-[#B8941F] transition-all duration-200 font-medium flex items-center justify-center gap-2 shadow-sm"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                </svg>
-                <span>Quét mã QR bàn</span>
-              </button>
-              
-              <p className="mt-2 text-xs text-[#36454F]/70 text-center">
-                Quét mã QR trên bàn để xác định vị trí của bạn
-              </p>
-
-              {/* Error message */}
-              {scanError && (
-                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-800">{scanError}</p>
-                </div>
-              )}
+              <input
+                type="number"
+                value={tableInputValue}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setTableInputValue(value);
+                }}
+                onBlur={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    setTableId(0);
+                    setTableInputValue('');
+                  } else {
+                    const numValue = Number(value);
+                    if (!isNaN(numValue) && numValue > 0) {
+                      setTableId(numValue);
+                    } else {
+                      setTableInputValue('');
+                    }
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const value = tableInputValue;
+                    if (value === '') {
+                      setTableId(0);
+                      setTableInputValue('');
+                    } else {
+                      const numValue = Number(value);
+                      if (!isNaN(numValue) && numValue > 0) {
+                        setTableId(numValue);
+                      } else {
+                        setTableInputValue('');
+                      }
+                    }
+                    e.currentTarget.blur();
+                  }
+                }}
+                className="w-full px-4 py-3 bg-white text-[#36454F] border border-[#8A9A5B]/30 rounded-xl focus:ring-2 focus:ring-[#8A9A5B]/30 focus:border-[#8A9A5B] transition-all duration-200 placeholder:text-[#36454F]/50 shadow-sm"
+                placeholder="Enter table number"
+                min="1"
+                required
+              />
+              <p className="mt-1 text-xs text-[#36454F]/70">Please enter your table number to place an order</p>
             </div>
           )}
         </div>
@@ -420,18 +411,6 @@ export const CartPage: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
-
-      {/* QR Scanner Modal */}
-      {showQRScanner && (
-        <QRScanner
-          onScan={handleQRScan}
-          onError={handleQRError}
-          onClose={() => {
-            setShowQRScanner(false);
-            setScanError('');
-          }}
-        />
       )}
 
       <BottomNavigation />

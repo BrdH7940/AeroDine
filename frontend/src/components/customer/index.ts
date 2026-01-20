@@ -6,5 +6,4 @@ export { ModifierSelectionDialog } from './ModifierSelectionDialog';
 export { MenuItemDetailDialog } from './MenuItemDetailDialog';
 export { BottomNavigation } from './BottomNavigation';
 export { AiOrderModal } from './AiOrderModal';
-export { QRScanner } from './QRScanner';
 export type { Category } from './CategoryTabs';
