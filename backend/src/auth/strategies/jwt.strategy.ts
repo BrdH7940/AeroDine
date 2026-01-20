@@ -45,10 +45,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         // This ensures inactive users can only access CUSTOMER-level endpoints
         const effectiveRole = user.isActive ? (payload.role as UserRole) : UserRole.CUSTOMER
 
+        // Return full user data including avatar and fullName
         return {
             id: payload.sub,
             email: payload.email,
             role: effectiveRole,
+            fullName: user.fullName,
+            avatar: user.avatar,
+            isActive: user.isActive,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
         }
     }
 }

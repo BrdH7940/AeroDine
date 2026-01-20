@@ -34,6 +34,17 @@ export const LoginPage: React.FC = () => {
       const response = await authService.login({ email, password });
       setUser(response.user);
       
+      // Fetch full user profile to ensure we have the latest data including avatar
+      try {
+        const profile = await authService.getProfile();
+        if (profile) {
+          setUser(profile);
+        }
+      } catch (profileError) {
+        // If profile fetch fails, continue with login response user data
+        console.warn('Failed to fetch user profile after login:', profileError);
+      }
+      
       // Clear cart when user logs in
       // This ensures each user starts with a fresh cart
       cartStore.clearCart();

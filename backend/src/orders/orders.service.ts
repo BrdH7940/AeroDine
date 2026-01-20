@@ -529,6 +529,7 @@ export class OrdersService {
                             modifiers: true,
                         },
                     },
+                    payment: true,
                 },
                 orderBy: { createdAt: 'desc' },
                 skip: (page - 1) * pageSize,

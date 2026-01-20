@@ -54,6 +54,17 @@ export const RegisterPage: React.FC = () => {
       });
       setUser(response.user);
       
+      // Fetch full user profile to ensure we have the latest data including avatar
+      try {
+        const profile = await authService.getProfile();
+        if (profile) {
+          setUser(profile);
+        }
+      } catch (profileError) {
+        // If profile fetch fails, continue with register response user data
+        console.warn('Failed to fetch user profile after registration:', profileError);
+      }
+      
       // Clear cart when user registers
       // This ensures new user starts with a fresh cart
       cartStore.clearCart();

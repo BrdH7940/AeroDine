@@ -6,6 +6,7 @@ import { formatVND } from '../../utils/currency';
 import { BottomNavigation } from '../../components/customer';
 import { useUserStore } from '../../store/userStore';
 import { useModal } from '../../contexts/ModalContext';
+import { authService } from '../../services/auth.service';
 import type { Order, OrderWithDetails } from '@aerodine/shared-types';
 import { OrderItemStatus } from '@aerodine/shared-types';
 
@@ -37,7 +38,7 @@ const orderStatusFlow = ['PENDING_REVIEW', 'PENDING', 'IN_PROGRESS', 'COMPLETED'
 
 export const OrderTrackingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useUserStore();
+  const { isAuthenticated, user, setUser } = useUserStore();
   const { alert } = useModal();
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
@@ -46,6 +47,24 @@ export const OrderTrackingPage: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const socket = useSocket();
+
+  // Refresh user data on mount to ensure avatar is loaded
+  useEffect(() => {
+    if (isAuthenticated) {
+      const refreshUserData = async () => {
+        try {
+          const profile = await authService.getProfile();
+          if (profile) {
+            setUser(profile);
+          }
+        } catch (error) {
+          // Silently fail - user data from store is still valid
+          console.warn('Failed to refresh user profile:', error);
+        }
+      };
+      refreshUserData();
+    }
+  }, [isAuthenticated, setUser]);
 
   // Helper function to check if order is paid (payment status is SUCCESS)
   const isOrderPaid = (order: Order): boolean => {
@@ -264,10 +283,34 @@ export const OrderTrackingPage: React.FC = () => {
     );
   }
 
-  if (!loading && orders.length === 0) {
+  if (!loading && orders.length === 0 && !showHistory) {
     return (
       <div className="min-h-screen bg-[#F9F7F2] pb-20">
-        <div className="p-5 py-8">
+        {/* Header */}
+        <div className="bg-[#8A9A5B] border-b border-[#8A9A5B]/20 shadow-sm">
+          <div className="p-5">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-white">Smart Restaurant</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-[#36454F]">
+              Your Orders
+            </h2>
+            {isAuthenticated && user && (
+              <button
+                onClick={handleToggleHistory}
+                disabled={loadingHistory}
+                className="px-4 py-2 bg-white border border-[#8A9A5B]/30 text-[#36454F] rounded-xl hover:bg-[#F9F7F2] transition-all duration-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loadingHistory ? 'Loading...' : showHistory ? 'Hide History' : 'Show History'}
+              </button>
+            )}
+          </div>
+
           <div className="text-center py-12">
             <h2 className="text-2xl font-bold text-[#36454F] mb-4">No orders found</h2>
             <button
@@ -277,7 +320,65 @@ export const OrderTrackingPage: React.FC = () => {
               Back to Menu
             </button>
           </div>
+
+          {/* Order History Section - Show even when no active orders */}
+          {showHistory && isAuthenticated && orderHistory.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-[#36454F] mb-3">Order History</h3>
+              <div className="space-y-4">
+                {orderHistory.map((order) => {
+                  const orderTime = new Date(order.createdAt).toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
+                  const orderDate = new Date(order.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  });
+
+                  return (
+                    <div key={order.id} className="bg-white rounded-xl p-4 border border-[#8A9A5B]/20 shadow-sm opacity-75">
+                      <div className="mb-3">
+                        <h3 className="font-semibold text-[#36454F]">
+                          Order #{order.id} - {orderDate} {orderTime}
+                        </h3>
+                        <p className="text-sm text-[#36454F]/70 mt-1">
+                          Table: {order.table?.name || 'N/A'} • Total: {formatVND(Number(order.totalAmount))}
+                        </p>
+                      </div>
+
+                      {/* Status */}
+                      <div className="mb-2">
+                        <span className={`text-sm font-medium ${
+                          order.status === 'COMPLETED' ? 'text-[#8A9A5B]' :
+                          order.status === 'CANCELLED' ? 'text-red-500' :
+                          'text-[#36454F]/70'
+                        }`}>
+                          {statusLabels[order.status] || order.status}
+                        </span>
+                      </div>
+
+                      {/* Order Items Summary */}
+                      <div className="mt-2 pt-2 border-t border-[#8A9A5B]/20">
+                        <p className="text-sm text-[#36454F]/70">
+                          {order.items?.length || 0} item(s)
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {showHistory && isAuthenticated && orderHistory.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-[#36454F]/70">No order history found.</p>
+            </div>
+          )}
         </div>
+
         <BottomNavigation />
       </div>
     );
@@ -306,7 +407,7 @@ export const OrderTrackingPage: React.FC = () => {
           <h2 className="text-xl font-bold text-[#36454F]">
             Your Orders
           </h2>
-          {isAuthenticated && (
+          {isAuthenticated && user && (
             <button
               onClick={handleToggleHistory}
               disabled={loadingHistory}

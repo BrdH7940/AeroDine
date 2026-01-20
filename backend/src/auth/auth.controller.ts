@@ -11,6 +11,7 @@ import {
 import { Request, Response } from 'express'
 import { Throttle } from '@nestjs/throttler'
 import { AuthService } from './auth.service'
+import { UsersService } from '../users/users.service'
 import { RegisterDto } from './dto/create-auth.dto'
 import { LoginDto } from './dto/update-auth.dto'
 import { ForgotPasswordDto } from './dto/forgot-password.dto'
@@ -35,6 +36,7 @@ import {
 export class AuthController {
     constructor(
         private readonly authService: AuthService,
+        private readonly usersService: UsersService,
         private readonly configService: ConfigService
     ) {}
 
@@ -129,8 +131,11 @@ export class AuthController {
     @UseGuards(JwtAuthGuard)
     @Get('profile')
     @ApiOperation({ summary: 'Get current user profile (requires JWT)' })
-    profile(@CurrentUser() user: any) {
-        return user
+    async profile(@CurrentUser() user: any) {
+        // Fetch full user data from database to include avatar and other fields
+        // findById already uses publicSelect() which excludes sensitive fields
+        const fullUser = await this.usersService.findById(user.id)
+        return fullUser
     }
 
     @Throttle({ short: { ttl: 60000, limit: 3 } }) // 3 requests per minute

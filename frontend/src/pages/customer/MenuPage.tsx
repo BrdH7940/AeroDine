@@ -36,7 +36,7 @@ export const MenuPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { addItem, tableId, restaurantId: cartRestaurantId, setRestaurantId, setTableId } = useCartStore();
-  const { user, isAuthenticated, clearUser } = useUserStore();
+  const { user, isAuthenticated, clearUser, setUser } = useUserStore();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | undefined>(undefined);
@@ -52,6 +52,31 @@ export const MenuPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [sortBy, setSortBy] = useState<string>('name');
+  const [avatarError, setAvatarError] = useState(false);
+
+  // Refresh user data on mount to ensure avatar is loaded
+  useEffect(() => {
+    if (isAuthenticated) {
+      const refreshUserData = async () => {
+        try {
+          const profile = await authService.getProfile();
+          if (profile) {
+            setUser(profile);
+            setAvatarError(false); // Reset avatar error when user data is refreshed
+          }
+        } catch (error) {
+          // Silently fail - user data from store is still valid
+          console.warn('Failed to refresh user profile:', error);
+        }
+      };
+      refreshUserData();
+    }
+  }, [isAuthenticated, setUser]);
+
+  // Reset avatar error when user changes
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.id, user?.avatar]);
 
   // Validate token from URL and bind cart to table session
   useEffect(() => {
@@ -318,12 +343,15 @@ export const MenuPage: React.FC = () => {
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="text-white hover:bg-[#6B7A4A] p-1 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50"
             >
-              {isAuthenticated && user?.avatar ? (
+              {isAuthenticated && user && user.avatar && user.avatar.trim() !== '' && !avatarError ? (
                 <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white/30">
                   <img
                     src={user.avatar}
                     alt={user.fullName || 'User'}
                     className="w-full h-full object-cover"
+                    onError={() => {
+                      setAvatarError(true);
+                    }}
                   />
                 </div>
               ) : (
