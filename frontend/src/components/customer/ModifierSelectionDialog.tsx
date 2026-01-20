@@ -82,7 +82,7 @@ export const ModifierSelectionDialog: React.FC<ModifierSelectionDialogProps> = (
   };
 
   const calculateTotalPrice = (): number => {
-    let total = basePrice;
+    let total = Number(basePrice) || 0;
     selectedModifiers.forEach((optionIds, groupId) => {
       const group = modifierGroups.find((g) => g.id === groupId);
       if (group && group.options) {
@@ -150,7 +150,7 @@ export const ModifierSelectionDialog: React.FC<ModifierSelectionDialogProps> = (
   const isValid = validateSelection();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-[#8A9A5B]/20 bg-[#8A9A5B]">

@@ -387,7 +387,7 @@ export const CartPage: React.FC = () => {
 
       {/* Success Dialog */}
       {showSuccessDialog && orderId && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={(e) => {
+        <div className="fixed inset-0 z-[100] flex items-center justify-center backdrop-blur-md p-4" onClick={(e) => {
           // Close dialog when clicking outside
           if (e.target === e.currentTarget) {
             handleSuccessDialogClose();

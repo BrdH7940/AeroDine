@@ -72,7 +72,7 @@ export default function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onMobileClose}
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            className="fixed inset-0 backdrop-blur-md z-40 lg:hidden"
           />
         )}
       </AnimatePresence>

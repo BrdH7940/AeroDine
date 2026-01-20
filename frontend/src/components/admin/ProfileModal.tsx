@@ -99,7 +99,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         <AnimatePresence>
             {isOpen && (
                 <div 
-                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+                    className="fixed inset-0 backdrop-blur-md flex items-center justify-center z-50 p-4"
                     onClick={onClose}
                 >
                     <motion.div

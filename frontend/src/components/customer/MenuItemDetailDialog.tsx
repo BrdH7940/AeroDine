@@ -214,7 +214,7 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
   };
 
   const calculateTotalPrice = (): number => {
-    let total = menuItem.basePrice;
+    let total = Number(menuItem.basePrice) || 0;
     selectedModifiers.forEach((optionIds, groupId) => {
       const group = modifierGroups.find((g) => g.id === groupId);
       if (group && group.options) {
@@ -318,7 +318,7 @@ export const MenuItemDetailDialog: React.FC<MenuItemDetailDialogProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md overflow-y-auto">
       <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full mx-4 my-8 max-h-[90vh] overflow-hidden flex flex-col border border-[#8A9A5B]/20">
         {/* Header */}
         <div className="px-6 py-4 border-b border-[#8A9A5B]/20 flex-shrink-0 bg-[#8A9A5B]">
