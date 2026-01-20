@@ -1,14 +1,30 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { orderService } from '../../services/order.service';
-import { useSocket } from '../../hooks/useSocket';
+import { 
+  useSocket, 
+  useTableRoom, 
+  useRestaurantRoom,
+  useOrderUpdated,
+  useOrderStatusChanged,
+  useOrderItemStatusChanged,
+  useOrderCreated
+} from '../../hooks/useSocket';
 import { formatVND } from '../../utils/currency';
 import { BottomNavigation } from '../../components/customer';
 import { useUserStore } from '../../store/userStore';
 import { useModal } from '../../contexts/ModalContext';
 import { authService } from '../../services/auth.service';
 import { getGuestSessionId } from '../../utils/guestSession';
-import type { Order, OrderWithDetails } from '@aerodine/shared-types';
+import { SocketEvents } from '@aerodine/shared-types';
+import type { 
+  Order, 
+  OrderWithDetails,
+  OrderUpdatedEvent,
+  OrderStatusChangedEvent,
+  OrderItemStatusChangedEvent,
+  OrderCreatedEvent
+} from '@aerodine/shared-types';
 import { OrderItemStatus } from '@aerodine/shared-types';
 
 const statusLabels: Record<string, string> = {
@@ -47,7 +63,26 @@ export const OrderTrackingPage: React.FC = () => {
   const [initialLoad, setInitialLoad] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const socket = useSocket();
+  const { socket, isConnected } = useSocket();
+
+  // Get unique table IDs and restaurant IDs from orders for room joining
+  const { tableIds, restaurantIds } = useMemo(() => {
+    const uniqueTableIds = new Set<number>();
+    const uniqueRestaurantIds = new Set<number>();
+    
+    orders.forEach(order => {
+      if (order.tableId) uniqueTableIds.add(order.tableId);
+      if (order.restaurantId) uniqueRestaurantIds.add(order.restaurantId);
+    });
+    
+    return {
+      tableIds: Array.from(uniqueTableIds),
+      restaurantIds: Array.from(uniqueRestaurantIds)
+    };
+  }, [orders]);
+
+  // Get first restaurant ID for restaurant room (if multiple, use first one)
+  const primaryRestaurantId = restaurantIds[0];
 
   // Refresh user data on mount to ensure avatar is loaded
   useEffect(() => {
@@ -101,16 +136,6 @@ export const OrderTrackingPage: React.FC = () => {
     }
   };
 
-  // Helper function to check if order belongs to current guest session
-  const isOrderForCurrentGuest = (order: Order): boolean => {
-    if (isAuthenticated && user) {
-      return order.userId === user.id;
-    }
-    // For guest users, check if order has matching guestSessionId
-    // This is handled by backend, but we can also check locally
-    const guestSessionId = getGuestSessionId();
-    return !guestSessionId || order.guestSessionId === guestSessionId;
-  };
 
 
   const loadOrders = useCallback(async () => {
@@ -175,8 +200,6 @@ export const OrderTrackingPage: React.FC = () => {
       const filteredOrders = sortedOrders.filter(order => {
         // Exclude cancelled orders, but show merged orders in history if needed
         if (order.status === 'CANCELLED') {
-          // Check if this is a merged order (has note indicating merge)
-          const isMergedOrder = order.note?.includes('Merged into order');
           // Don't show merged orders in active list, they'll be in history if paid
           return false;
         }
@@ -201,58 +224,184 @@ export const OrderTrackingPage: React.FC = () => {
     loadOrders();
   }, [loadOrders]);
 
+  // Join restaurant room for menu updates (if we have a restaurant ID)
+  useRestaurantRoom(primaryRestaurantId || 0, isAuthenticated ? user?.id : undefined);
+
+  // Join table room for the first table (most common case: single table per customer)
+  // Get table token from localStorage or use empty string (backend should handle gracefully)
+  const primaryTableId = tableIds[0] || 0;
+  const primaryTableToken = primaryTableId 
+    ? (localStorage.getItem(`table_token_${primaryTableId}`) || '') 
+    : '';
+  
+  // Join table room (hook will handle the conditional logic internally)
+  useTableRoom(
+    primaryRestaurantId || 0, 
+    primaryTableId, 
+    primaryTableToken || ''
+  );
+
+  // Join additional table rooms via useEffect (for customers with multiple tables)
   useEffect(() => {
-    // Subscribe to order updates via WebSocket (only after initial load)
-    if (socket && !initialLoad) {
-      const handleOrderUpdate = (updatedOrder: Order) => {
-        // Check if this order should be updated
-        let shouldUpdate = false;
-        
-        if (isAuthenticated && user) {
-          // If user is logged in, update orders that belong to this user
-          shouldUpdate = updatedOrder.userId === user.id;
-        } else {
-          // For guest users, check if order matches guestSessionId or is in localStorage (backward compatibility)
-          const guestSessionId = getGuestSessionId();
-          shouldUpdate = guestSessionId 
-            ? updatedOrder.guestSessionId === guestSessionId
-            : getGuestOrderIds().includes(updatedOrder.id);
-        }
-        
-        if (shouldUpdate) {
-          setOrders((prev) => {
-            const index = prev.findIndex((o) => o.id === updatedOrder.id);
-            if (index >= 0) {
-              const newOrders = [...prev];
-              newOrders[index] = updatedOrder;
-              // Filter out orders that are now paid (moved to history)
-              return newOrders.filter(order => {
-                if (order.status === 'CANCELLED') return false;
-                // Remove if order is now paid
-                return !isOrderPaid(order);
-              }).sort((a, b) => 
-                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-              );
-            } else if (!['CANCELLED'].includes(updatedOrder.status) && !isOrderPaid(updatedOrder)) {
-              // Add new order if it's not paid and not cancelled
-              return [...prev, updatedOrder].sort((a, b) => 
-                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-              );
-            }
-            // Remove order if it's now paid
-            return prev.filter(order => order.id !== updatedOrder.id || !isOrderPaid(updatedOrder));
-          });
-        }
-      };
+    if (!socket || !isConnected || !primaryRestaurantId) return;
 
-      // Subscribe to all order updates
-      socket.socket?.on('order:update', handleOrderUpdate);
+    // Join all table rooms (skip first one as it's handled by useTableRoom hook above)
+    const additionalTableIds = tableIds.slice(1);
+    
+    additionalTableIds.forEach(tableId => {
+      const tableToken = localStorage.getItem(`table_token_${tableId}`) || '';
+      if (tableToken) {
+        socket.emit(SocketEvents.JOIN_TABLE, {
+          restaurantId: primaryRestaurantId,
+          tableId,
+          tableToken
+        });
+      }
+    });
 
-      return () => {
-        socket.socket?.off('order:update', handleOrderUpdate);
-      };
+    return () => {
+      // Leave all additional table rooms on cleanup
+      additionalTableIds.forEach(tableId => {
+        socket.emit(SocketEvents.LEAVE_TABLE, { tableId });
+      });
+    };
+  }, [socket, isConnected, primaryRestaurantId, tableIds]);
+
+  // Helper to check if an order belongs to current user/guest
+  const isOrderForCurrentUser = useCallback((order: Order | { orderId: number; userId?: number | null; guestSessionId?: string | null }): boolean => {
+    if (isAuthenticated && user) {
+      return order.userId === user.id;
+    } else {
+      const guestSessionId = getGuestSessionId();
+      if ('guestSessionId' in order) {
+        return guestSessionId ? order.guestSessionId === guestSessionId : false;
+      }
+      // For events that only have orderId, we'll check against current orders
+      return false;
     }
-  }, [socket, isAuthenticated, user, initialLoad]);
+  }, [isAuthenticated, user]);
+
+  // Handle order created event
+  const handleOrderCreated = useCallback((event: OrderCreatedEvent) => {
+    if (!initialLoad && isOrderForCurrentUser(event.order as any)) {
+      // Reload orders to get the new order with full details
+      loadOrders();
+    }
+  }, [initialLoad, isOrderForCurrentUser, loadOrders]);
+
+  // Handle order updated event
+  const handleOrderUpdated = useCallback((event: OrderUpdatedEvent) => {
+    if (!initialLoad) {
+      const orderId = event.order.id;
+      setOrders((prev) => {
+        const index = prev.findIndex((o) => o.id === orderId);
+        if (index >= 0) {
+          // Update existing order - merge OrderSummary with existing Order
+          const existingOrder = prev[index];
+          const orderSummary = event.order;
+          const updatedOrder: Order = {
+            ...existingOrder,
+            // Update fields from OrderSummary
+            status: orderSummary.status as any,
+            totalAmount: orderSummary.totalAmount,
+            guestCount: orderSummary.guestCount,
+            note: orderSummary.note,
+            // Update waiter if provided (waiterName is in OrderSummary but not in Order)
+            // Keep existing waiter if no waiterName in summary, or merge waiterName into existing waiter
+            waiter: existingOrder.waiter 
+              ? (orderSummary.waiterName 
+                  ? { ...existingOrder.waiter, fullName: orderSummary.waiterName }
+                  : existingOrder.waiter)
+              : undefined,
+            // Keep existing items structure, but update if provided
+            items: orderSummary.items 
+              ? orderSummary.items.map(item => ({
+                  ...item,
+                  orderId: existingOrder.id,
+                  updatedAt: existingOrder.updatedAt,
+                } as any))
+              : existingOrder.items,
+          };
+          const newOrders = [...prev];
+          newOrders[index] = updatedOrder;
+          
+          // Filter out orders that are now paid or cancelled
+          return newOrders
+            .filter(order => {
+              if (order.status === 'CANCELLED') return false;
+              return !isOrderPaid(order);
+            })
+            .sort((a, b) => 
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+        }
+        return prev;
+      });
+    }
+  }, [initialLoad, isOrderPaid]);
+
+  // Handle order status changed event
+  const handleOrderStatusChanged = useCallback((event: OrderStatusChangedEvent) => {
+    if (!initialLoad) {
+      setOrders((prev) => {
+        const index = prev.findIndex((o) => o.id === event.orderId);
+        if (index >= 0) {
+          const newOrders = [...prev];
+          newOrders[index] = {
+            ...newOrders[index],
+            status: event.newStatus as any,
+            updatedAt: event.updatedAt
+          };
+          
+          // Filter out orders that are now paid or cancelled
+          return newOrders
+            .filter(order => {
+              if (order.status === 'CANCELLED') return false;
+              return !isOrderPaid(order);
+            })
+            .sort((a, b) => 
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+        }
+        return prev;
+      });
+    }
+  }, [initialLoad, isOrderPaid]);
+
+  // Handle order item status changed event
+  const handleOrderItemStatusChanged = useCallback((event: OrderItemStatusChangedEvent) => {
+    if (!initialLoad) {
+      setOrders((prev) => {
+        const index = prev.findIndex((o) => o.id === event.orderId);
+        if (index >= 0) {
+          const newOrders = [...prev];
+          const order = newOrders[index];
+          if (order.items) {
+            const itemIndex = order.items.findIndex((item) => item.id === event.orderItemId);
+            if (itemIndex >= 0) {
+              const updatedItems = [...order.items];
+              updatedItems[itemIndex] = {
+                ...updatedItems[itemIndex],
+                status: event.newStatus as any
+              };
+              newOrders[index] = {
+                ...order,
+                items: updatedItems
+              };
+            }
+          }
+          return newOrders;
+        }
+        return prev;
+      });
+    }
+  }, [initialLoad]);
+
+  // Setup socket event listeners using hooks
+  useOrderCreated(handleOrderCreated);
+  useOrderUpdated(handleOrderUpdated);
+  useOrderStatusChanged(handleOrderStatusChanged);
+  useOrderItemStatusChanged(handleOrderItemStatusChanged);
 
   const getCurrentStatusIndex = (status: string) => {
     return orderStatusFlow.indexOf(status);
