@@ -1,33 +1,39 @@
-# AeroDine - Quick Start
+# AeroDine - Hướng Dẫn Setup
 
-## Setup
+## Yêu Cầu
+
+- Node.js 20+
+- PostgreSQL database (Neon, Supabase, hoặc local)
+- pnpm
+
+## Cài Đặt
 
 ```bash
-# Prerequisites: Node.js 20+
+# Cài đặt pnpm (nếu chưa có)
+npm install -g pnpm
 
-# Clone & Install
-git pull origin main
+# Clone và cài đặt dependencies
+git clone <repository-url>
 cd AeroDine
-npm install -g pnpm # Sử dụng pnpm thay cho npm
 pnpm install
 
-# Build shared-types (if error)
+# Build shared-types
 pnpm --filter shared-types build
 ```
 
-## Environment Variables
+## Cấu Hình Backend
 
-**Backend** - Tạo `backend/.env`:
+1. Tạo file `backend/.env`:
 
 ```env
 # Server
 PORT=3000
 NODE_ENV=development
 
-# Database
+# Database (bắt buộc)
 DATABASE_URL=postgresql://user:password@host:port/db?sslmode=require
 
-# JWT
+# JWT (bắt buộc)
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
 JWT_EXPIRES_IN=7d
 
@@ -35,51 +41,72 @@ JWT_EXPIRES_IN=7d
 FRONTEND_URL=http://localhost:5173
 CORS_ORIGIN=http://localhost:5173
 
-# Stripe Payment (REQUIRED)
-STRIPE_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# Stripe (tùy chọn)
+STRIPE_SECRET_KEY=sk_test_xxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 
-# MoMo (Optional - Currently FROZEN)
-# MOMO_PARTNER_CODE=
-# MOMO_ACCESS_KEY=
-# MOMO_SECRET_KEY=
+# Cloudinary (tùy chọn)
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+
+# Google OAuth (tùy chọn)
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_CALLBACK_URL=http://localhost:3000/api/auth/google/callback
+
+# Email (tùy chọn)
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USER=your-email@gmail.com
+MAIL_PASS=your-app-password
+MAIL_FROM=AeroDine Support <noreply@aerodine.com>
+
+# Gemini AI (tùy chọn)
+GEMINI_API_KEY=your-gemini-api-key
 ```
 
-**Lấy Stripe Keys:**
-1. Đăng ký tại [https://dashboard.stripe.com](https://dashboard.stripe.com)
-2. Vào **Developers** > **API keys** → Copy Secret key
-3. Vào **Webhooks** → Tạo endpoint → Copy Signing secret
+2. Setup database:
 
-**Setup Ngrok cho Webhook:**
-- Cài đặt: `choco install ngrok` hoặc download từ ngrok.com
-- Chạy: `ngrok http 3000`
-- Update Stripe Webhook URL: `https://your-ngrok-url.ngrok.io/api/payments/callback/stripe`
+```bash
+cd backend
+npx prisma generate
+npx prisma migrate dev
+```
 
-Xem chi tiết trong [BACKEND_SETUP_CHECKLIST.md](./BACKEND_SETUP_CHECKLIST.md)
+3. Seed dữ liệu (tùy chọn):
 
-**Frontend** - Tạo `frontend/.env.local`:
+```bash
+pnpm seed
+```
+
+## Cấu Hình Frontend
+
+1. Tạo file `frontend/.env.local`:
 
 ```env
 VITE_API_BASE_URL=http://localhost:3000/api
 VITE_SOCKET_URL=http://localhost:3000
 ```
 
-## Prisma Setup
+## Chạy Project
 
 ```bash
+# Backend (Terminal 1)
 cd backend
-pnpm install
-npx prisma generate
-```
+pnpm run start:dev
 
-## Run
-
-```bash
-pnpm --filter backend run start:dev  # Terminal 1
-pnpm --filter frontend run dev       # Terminal 2
+# Frontend (Terminal 2)
+cd frontend
+pnpm run dev
 ```
 
 **URLs:**
+- Backend: `http://localhost:3000/api`
+- Frontend: `http://localhost:5173`
 
--   Backend: `http://localhost:3000/api`
--   Frontend: `http://localhost:5173`
+## Lưu Ý
+
+- Database URL phải có `sslmode=require` cho Neon/Supabase
+- Nếu dùng Stripe webhook local, cần dùng ngrok: `ngrok http 3000`
+- Build order: `shared-types` → `backend` → `frontend`
