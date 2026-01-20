@@ -137,6 +137,54 @@ export class OrdersService {
             throw new NotFoundException('Table not found')
         }
 
+        // Case: Table Conflict Detection - Prevent wrong table ID usage
+        // Check if table has active orders (not COMPLETED or CANCELLED) created within the last 2 hours
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000)
+        const recentActiveOrders = await this.prisma.order.findMany({
+            where: {
+                tableId,
+                restaurantId,
+                status: {
+                    notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
+                },
+                createdAt: {
+                    gte: twoHoursAgo,
+                },
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+            take: 1, // Only need the most recent one
+        })
+
+        // If there's a recent active order, check if it's from a different user
+        if (recentActiveOrders.length > 0) {
+            const existingOrder = recentActiveOrders[0]
+            
+            // Check if the new order is from a different user
+            const isDifferentUser = 
+                (userId && existingOrder.userId && userId !== existingOrder.userId) ||
+                (userId && !existingOrder.userId) ||
+                (!userId && existingOrder.userId)
+
+            if (isDifferentUser) {
+                throw new BadRequestException(
+                    `Table ${table.name} is already processing an order from a different customer. Please check your table number. If you are sitting at the correct table ${table.name}, please contact the staff for assistance.`
+                )
+            }
+
+            // For guest-to-guest conflicts: check if there's a very recent guest order (within 30 minutes)
+            // This helps catch cases where someone at a different table accidentally uses the wrong table ID
+            if (!userId && !existingOrder.userId) {
+                const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000)
+                if (existingOrder.createdAt >= thirtyMinutesAgo) {
+                    throw new BadRequestException(
+                        `Table ${table.name} just had an order created recently. Please check your table number to ensure you are entering the correct table number. If you are sure you are sitting at the correct table ${table.name}, please contact the staff for assistance.`
+                    )
+                }
+            }
+        }
+
         // Case 3: Limit Active Orders - Prevent spam orders
         // Check if table has 5 or more active orders (not COMPLETED or CANCELLED)
         // Allow up to 5 active orders per table
@@ -1071,32 +1119,64 @@ export class OrdersService {
             throw new BadRequestException('Cannot pay for cancelled order')
         }
 
-        // Update order status to COMPLETED
-        const updatedOrder = await this.prisma.order.update({
-            where: { id: orderId },
-            data: {
-                status: OrderStatus.COMPLETED,
-            },
-            include: {
-                table: true,
-                items: true,
-            },
-        })
+        // Check if payment already exists
+        if (order.payment) {
+            if (order.payment.status === 'SUCCESS') {
+                throw new BadRequestException(
+                    'Order has already been paid successfully'
+                )
+            }
+            // If payment exists but status is not SUCCESS, update it
+            // This handles cases where payment was created but not completed
+        }
 
-        // Create payment record
-        await this.prisma.payment.create({
-            data: {
-                orderId,
-                amount: order.totalAmount,
-                method: 'CASH',
-                status: 'SUCCESS',
-            },
-        })
+        // Use transaction to ensure atomicity
+        // All operations must succeed or all must fail
+        const result = await this.prisma.$transaction(async (tx) => {
+            // Create or update payment record
+            let payment
+            if (order.payment) {
+                // Update existing payment
+                payment = await tx.payment.update({
+                    where: { id: order.payment.id },
+                    data: {
+                        amount: order.totalAmount,
+                        method: 'CASH',
+                        status: 'SUCCESS',
+                    },
+                })
+            } else {
+                // Create new payment record
+                payment = await tx.payment.create({
+                    data: {
+                        orderId,
+                        amount: order.totalAmount,
+                        method: 'CASH',
+                        status: 'SUCCESS',
+                    },
+                })
+            }
 
-        // Reset table status to AVAILABLE
-        await this.prisma.table.update({
-            where: { id: order.tableId },
-            data: { status: TableStatus.AVAILABLE },
+            // Update order status to COMPLETED
+            const updatedOrder = await tx.order.update({
+                where: { id: orderId },
+                data: {
+                    status: OrderStatus.COMPLETED,
+                },
+                include: {
+                    table: true,
+                    items: true,
+                    payment: true,
+                },
+            })
+
+            // Reset table status to AVAILABLE
+            await tx.table.update({
+                where: { id: order.tableId },
+                data: { status: TableStatus.AVAILABLE },
+            })
+
+            return updatedOrder
         })
 
         // Emit order completed event
@@ -1114,7 +1194,7 @@ export class OrdersService {
 
         this.logger.log(`Order ${orderId} paid with cash and completed`)
 
-        return updatedOrder
+        return result
     }
 
     // ========================================================================
