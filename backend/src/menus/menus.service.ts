@@ -493,6 +493,17 @@ export class MenusService {
             throw new NotFoundException(`Menu item with ID ${id} not found`)
         }
 
+        // Check if menu item is being used in any order items
+        const orderItemCount = await this.prisma.orderItem.count({
+            where: { menuItemId: id },
+        })
+
+        if (orderItemCount > 0) {
+            throw new BadRequestException(
+                `Cannot delete menu item "${menuItem.name}": it is being used in ${orderItemCount} order item(s). Please remove it from all orders first or mark it as unavailable instead.`
+            )
+        }
+
         // Delete menu item (cascade will delete images, modifier groups, etc.)
         return this.prisma.menuItem.delete({
             where: { id },
