@@ -1330,55 +1330,48 @@ export class OrdersService {
                 tx
             )
 
-                // Check if table has other active orders before setting AVAILABLE
-                const hasOtherActiveOrders = await this.hasActiveOrdersOnTable(
-                    order.tableId,
-                    order.restaurantId,
-                    orderId,
-                    tx
-                )
+            // Check if table has other active orders before setting AVAILABLE
+            const hasOtherActiveOrders = await this.hasActiveOrdersOnTable(
+                order.tableId,
+                order.restaurantId,
+                orderId,
+                tx
+            )
 
-                // Only reset table status if no other active orders
-                if (!hasOtherActiveOrders) {
-                    const currentTable = await tx.table.findUnique({
-                        where: { id: order.tableId },
-                    })
-                    const previousTableStatus = currentTable?.status || TableStatus.OCCUPIED
+            // Only reset table status if no other active orders
+            let tableStatusChanged: TableStatusEvent | null = null
+            if (!hasOtherActiveOrders) {
+                const currentTable = await tx.table.findUnique({
+                    where: { id: order.tableId },
+                })
+                const previousTableStatus = currentTable?.status || TableStatus.OCCUPIED
 
-                    await tx.table.update({
-                        where: { id: order.tableId },
-                        data: { status: TableStatus.AVAILABLE },
-                    })
+                await tx.table.update({
+                    where: { id: order.tableId },
+                    data: { status: TableStatus.AVAILABLE },
+                })
 
-                    // Note: Table status event will be emitted after transaction commits
-                    // Store info for later emission
-                    if (previousTableStatus !== TableStatus.AVAILABLE) {
-                        // We'll emit this after transaction
-                        return {
-                            ...updatedOrder,
-                            _tableStatusChanged: {
-                                tableId: order.tableId,
-                                previousStatus: previousTableStatus,
-                                newStatus: TableStatus.AVAILABLE,
-                                orderId,
-                            },
-                        }
+                // Store table status change info for emission after transaction
+                if (previousTableStatus !== TableStatus.AVAILABLE) {
+                    tableStatusChanged = {
+                        tableId: order.tableId,
+                        previousStatus: previousTableStatus,
+                        newStatus: TableStatus.AVAILABLE,
+                        orderId,
                     }
                 }
-
-                return updatedOrder
-            })
-
-            // Emit table status change after transaction commits
-            if (result._tableStatusChanged) {
-                const tableStatusEvent: TableStatusEvent = result._tableStatusChanged
-                this.socketService.emitTableStatusChanged(
-                    order.restaurantId,
-                    tableStatusEvent
-                )
-                // Remove temporary field
-                delete result._tableStatusChanged
             }
+
+            return { updatedOrder, tableStatusChanged }
+        })
+
+        // Emit table status change after transaction commits
+        if (result.tableStatusChanged) {
+            this.socketService.emitTableStatusChanged(
+                order.restaurantId,
+                result.tableStatusChanged
+            )
+        }
 
         // Emit order completed event (with retry logic)
         const statusEvent: OrderStatusChangedEvent = {
@@ -1392,6 +1385,8 @@ export class OrdersService {
             order.tableId,
             statusEvent
         )
+
+        return result.updatedOrder
 
         this.logger.log(`Order ${orderId} paid with cash and completed`)
 

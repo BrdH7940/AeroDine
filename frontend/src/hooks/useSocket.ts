@@ -309,6 +309,30 @@ export const useBillRequested = (
 }
 
 /**
+ * Hook to listen for menu item status changes (for customer menu page)
+ */
+export const useMenuItemStatusChanges = (
+    restaurantId: number,
+    onMenuItemStatusChanged?: (event: MenuItemStatusChangedEvent) => void
+) => {
+    const { socket, isConnected } = useRestaurantRoom(restaurantId, undefined)
+
+    useEffect(() => {
+        if (!socket || !isConnected || !onMenuItemStatusChanged) return
+
+        socket.on(SocketEvents.MENU_ITEM_STATUS_CHANGED, onMenuItemStatusChanged)
+        socket.on(SocketEvents.MENU_ITEM_STOCK_UPDATED, onMenuItemStatusChanged)
+
+        return () => {
+            socket.off(SocketEvents.MENU_ITEM_STATUS_CHANGED)
+            socket.off(SocketEvents.MENU_ITEM_STOCK_UPDATED)
+        }
+    }, [socket, isConnected, onMenuItemStatusChanged, restaurantId])
+
+    return { socket, isConnected }
+}
+
+/**
  * Hook for listening to table status change events
  */
 export const useTableStatusChanged = (
