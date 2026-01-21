@@ -439,7 +439,7 @@ export const tablesApi = {
    * Refresh tokens for all tables
    */
   refreshAllTableTokens: async (restaurantId?: number) => {
-    const response = await apiClient.patch('/tables/refresh-tokens/all', null, {
+    const response = await apiClient.patch('/tables/refresh-tokens/all', {}, {
       params: restaurantId ? { restaurantId } : undefined,
     });
     return response.data;
