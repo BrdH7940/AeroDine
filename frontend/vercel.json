@@ -1,8 +1,8 @@
 {
+  "buildCommand": "pnpm install && pnpm --filter shared-types build && cd frontend && npx vite build",
+  "outputDirectory": "frontend/dist",
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/api/(.*)", "destination": "https://aerodine.onrender.com/api/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
