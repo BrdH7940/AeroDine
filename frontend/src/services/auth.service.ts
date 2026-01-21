@@ -78,6 +78,12 @@ export const authService = {
     };
   },
 
+  logoutLocally(): void {
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+  },
+
   async logout(): Promise<void> {
     try {
       // Call logout endpoint to invalidate refresh token on server
@@ -87,9 +93,7 @@ export const authService = {
       console.error('Logout error:', error);
     } finally {
       // Always clear local storage
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
+      this.logoutLocally();
     }
   },
 
@@ -139,7 +143,7 @@ export const authService = {
       return null;
     } catch (error) {
       // Refresh failed - clear tokens and user data
-      this.logout();
+      this.logoutLocally();
       return null;
     }
   },

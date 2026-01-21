@@ -62,6 +62,16 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
+    // 1. THÊM: Nếu lỗi đến từ chính các API Login/Refresh/Logout thì KHÔNG xử lý (để tránh lặp)
+    const url = originalRequest?.url;
+    if (
+      url?.includes('/auth/login') ||
+      url?.includes('/auth/refresh') || // Quan trọng: Tránh lặp khi refresh token hết hạn
+      url?.includes('/auth/logout')     // Quan trọng: Tránh lặp khi logout token hết hạn
+    ) {
+      return Promise.reject(error);
+    }
+    
     // Handle 401 Unauthorized - try to refresh token
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       // If we're already refreshing, queue this request
@@ -100,7 +110,7 @@ apiClient.interceptors.response.use(
         } else {
           // Refresh failed - clear tokens and redirect to login
           processQueue(new Error('Token refresh failed'), null);
-          authService.logout();
+          authService.logoutLocally();
           
           // Redirect to login page if not already there
           if (window.location.pathname !== '/auth/login') {
@@ -112,7 +122,7 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         // Refresh failed - clear tokens and redirect to login
         processQueue(refreshError, null);
-        authService.logout();
+        authService.logoutLocally();
         
         // Redirect to login page if not already there
         if (window.location.pathname !== '/auth/login') {

@@ -6,12 +6,12 @@ export default () => ({
     },
     jwt: {
         secret: process.env.JWT_SECRET,
-        // Access token expires in 15 minutes (short-lived for security)
-        accessTokenExpiresIn: process.env.JWT_ACCESS_TOKEN_EXPIRES_IN || '15m',
+        // Access token expires in 60 minutes (short-lived for security)
+        accessTokenExpiresIn: process.env.JWT_ACCESS_TOKEN_EXPIRES_IN || '60m',
         // Refresh token expires in 7 days (long-lived for user convenience)
         refreshTokenExpiresIn: process.env.JWT_REFRESH_TOKEN_EXPIRES_IN || '7d',
         // Legacy support (defaults to access token expiration)
-        expiresIn: process.env.JWT_EXPIRES_IN || process.env.JWT_ACCESS_TOKEN_EXPIRES_IN || '15m',
+        expiresIn: process.env.JWT_EXPIRES_IN || process.env.JWT_ACCESS_TOKEN_EXPIRES_IN || '60m',
     },
     frontend: {
         url: process.env.FRONTEND_URL || 'http://localhost:5173',
