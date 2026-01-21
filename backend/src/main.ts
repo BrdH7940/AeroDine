@@ -88,7 +88,7 @@ async function bootstrap() {
         .setTitle('AeroDine API')
         .setDescription('QR Ordering System API Documentation')
         .setVersion('1.0')
-        .addServer('http://localhost:3000/api', 'Local development server')
+        .addServer('http://localhost:3000', 'Local development server')
         .addBearerAuth(
             {
                 type: 'http',

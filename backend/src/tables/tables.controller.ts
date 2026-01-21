@@ -69,15 +69,6 @@ export class TablesController {
         return this.tablesService.findAll(restaurantIdNum)
     }
 
-    @Get(':id')
-    @ApiOperation({ summary: 'Get a table by ID' })
-    @ApiParam({ name: 'id', type: Number, description: 'Table ID' })
-    @ApiResponse({ status: 200, description: 'Table details' })
-    @ApiResponse({ status: 404, description: 'Table not found' })
-    findOne(@Param('id') id: string) {
-        return this.tablesService.findOne(+id)
-    }
-
     @Get('validate-token')
     @ApiOperation({
         summary: 'Validate table token (Public)',
@@ -127,6 +118,15 @@ export class TablesController {
             // For any other error, return 401
             throw new UnauthorizedException('Invalid or expired table token')
         }
+    }
+
+    @Get(':id')
+    @ApiOperation({ summary: 'Get a table by ID' })
+    @ApiParam({ name: 'id', type: Number, description: 'Table ID' })
+    @ApiResponse({ status: 200, description: 'Table details' })
+    @ApiResponse({ status: 404, description: 'Table not found' })
+    findOne(@Param('id') id: string) {
+        return this.tablesService.findOne(+id)
     }
 
     @ApiBearerAuth('JWT-auth')
